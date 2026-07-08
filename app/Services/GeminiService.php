@@ -1,0 +1,238 @@
+<?php
+
+namespace App\Services;
+
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
+class GeminiService
+{
+    private ?string $apiKey;
+    private string $model;
+    private string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+    public function __construct()
+    {
+        $this->apiKey = config('services.gemini.key', env('GEMINI_API_KEY'));
+        $this->model  = config('services.gemini.model', 'gemini-2.0-flash');
+    }
+
+    // ── Parse Pesan WA Natural Language ──────────────
+    public function parseWaMessage(string $message, array $context = []): array
+    {
+        $systemPrompt = $this->getWaParserPrompt($context);
+
+        $result = $this->generate($systemPrompt . "\n\nPesan user: " . $message);
+
+        if (!$result['success']) {
+            return ['intent' => 'unknown', 'error' => $result['error']];
+        }
+
+        try {
+            $text    = $result['text'];
+            $cleaned = preg_replace('/```json|```/i', '', $text);
+            $cleaned = trim($cleaned);
+            return json_decode($cleaned, true) ?? ['intent' => 'unknown'];
+        } catch (\Exception $e) {
+            Log::error("GeminiService: Gagal parse response: {$e->getMessage()}");
+            return ['intent' => 'unknown'];
+        }
+    }
+
+    // ── Parse Struk / Receipt dari Gambar ─────────────
+    public function parseReceipt(string $base64Image, string $mimeType = 'image/jpeg'): array
+    {
+        $prompt = "Kamu adalah parser struk belanja Indonesia.\n"
+            . "Analisa struk ini dan kembalikan HANYA JSON (tanpa teks lain):\n"
+            . "{\n"
+            . '  "merchant": "nama toko",'."\n"
+            . '  "total": 0,'."\n"
+            . '  "date": "YYYY-MM-DD atau null",'."\n"
+            . '  "items": ['."\n"
+            . '    {"name": "nama item", "qty": 1, "price": 0}'."\n"
+            . '  ],'."\n"
+            . '  "tax": 0,'."\n"
+            . '  "confidence": 0.0'."\n"
+            . "}\n\n"
+            . "Jika tidak jelas, isi dengan nilai null/0. confidence antara 0.0-1.0.";
+
+        $result = $this->generateWithImage($prompt, $base64Image, $mimeType);
+
+        if (!$result['success']) {
+            return ['success' => false, 'error' => $result['error']];
+        }
+
+        try {
+            $text    = $result['text'];
+            $cleaned = preg_replace('/```json|```/i', '', $text);
+            $cleaned = trim($cleaned);
+            $parsed  = json_decode($cleaned, true);
+
+            return ['success' => true, 'data' => $parsed];
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => 'Gagal membaca struk'];
+        }
+    }
+
+    // ── AI Advisor: Analisa keuangan user ─────────────
+    public function analyzeFinance(array $financialData): string
+    {
+        $prompt = $this->getAdvisorPrompt($financialData);
+        $result = $this->generate($prompt);
+
+        return $result['success']
+            ? $result['text']
+            : 'Maaf, AI Advisor sedang tidak tersedia.';
+    }
+
+    // ── Core: Generate Text (dengan retry otomatis kalau 503/429) ──
+    public function generate(string $prompt, int $maxTokens = 1000): array
+    {
+        $maxRetries = 2;
+
+        for ($attempt = 0; $attempt <= $maxRetries; $attempt++) {
+            try {
+                $response = Http::timeout(30)
+                    ->post("{$this->baseUrl}/{$this->model}:generateContent?key={$this->apiKey}", [
+                        'contents' => [
+                            ['parts' => [['text' => $prompt]]]
+                        ],
+                        'generationConfig' => [
+                            'maxOutputTokens' => $maxTokens,
+                            'temperature'     => 0.1,
+                        ],
+                    ]);
+
+                if ($response->successful()) {
+                    $text = $response->json('candidates.0.content.parts.0.text') ?? '';
+                    return ['success' => true, 'text' => trim($text)];
+                }
+
+                if (in_array($response->status(), [503, 429]) && $attempt < $maxRetries) {
+                    Log::warning("GeminiService: {$response->status()} — retry ke-" . ($attempt + 1));
+                    usleep(800000);
+                    continue;
+                }
+
+                Log::error("GeminiService: API error {$response->status()}: {$response->body()}");
+                return ['success' => false, 'error' => "API error: {$response->status()}"];
+
+            } catch (\Exception $e) {
+                if ($attempt < $maxRetries) {
+                    usleep(800000);
+                    continue;
+                }
+                Log::error("GeminiService generate error: {$e->getMessage()}");
+                return ['success' => false, 'error' => $e->getMessage()];
+            }
+        }
+
+        return ['success' => false, 'error' => 'Gagal setelah beberapa percobaan'];
+    }
+
+    // ── Core: Generate dengan Image ───────────────────
+    public function generateWithImage(string $prompt, string $base64Image, string $mimeType = 'image/jpeg', int $maxTokens = 1000): array
+    {
+        try {
+            $response = Http::timeout(30)
+                ->post("{$this->baseUrl}/{$this->model}:generateContent?key={$this->apiKey}", [
+                    'contents' => [
+                        [
+                            'parts' => [
+                                [
+                                    'inline_data' => [
+                                        'mime_type' => $mimeType,
+                                        'data'      => $base64Image,
+                                    ]
+                                ],
+                                ['text' => $prompt]
+                            ]
+                        ]
+                    ],
+                    'generationConfig' => [
+                        'maxOutputTokens' => $maxTokens,
+                        'temperature'     => 0.1,
+                    ],
+                ]);
+
+            if (!$response->successful()) {
+                return ['success' => false, 'error' => "API error: {$response->status()}"];
+            }
+
+            $text = $response->json('candidates.0.content.parts.0.text') ?? '';
+            return ['success' => true, 'text' => trim($text)];
+
+        } catch (\Exception $e) {
+            Log::error("GeminiService image error: {$e->getMessage()}");
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    // ── WA Parser System Prompt ───────────────────────
+    private function getWaParserPrompt(array $context = []): string
+    {
+        $wallets      = implode(', ', $context['wallets'] ?? ['BCA', 'Mandiri', 'Cash']);
+        $categoryList = $context['categories'] ?? ['Makan & Minum', 'Transport', 'Belanja Harian', 'Tagihan', 'Hiburan'];
+        $categories   = implode(', ', $categoryList);
+
+        return "Kamu adalah parser transaksi keuangan untuk CatatCuan.\n"
+            . "Kembalikan HANYA JSON, tidak ada teks lain:\n"
+            . "{\n"
+            . '  "intent": "add_income"|"add_expense"|"add_multiple"|"pay_bill"|"add_wallet"|"get_balance"|"get_report"|"get_bills"|"help"|"unknown",'."\n"
+            . '  "amount": number|null,'."\n"
+            . '  "category": string|null,'."\n"
+            . '  "note": string|null,'."\n"
+            . '  "date": "YYYY-MM-DD"|null,'."\n"
+            . '  "wallet": string|null,'."\n"
+            . '  "bill_name": string|null,'."\n"
+            . '  "wallet_name": string|null,'."\n"
+            . '  "wallet_type": "cash_flow"|"saving"|"both"|"investment"|null,'."\n"
+            . '  "initial_balance": number|null,'."\n"
+            . '  "items": [{"type":"income"|"expense","amount":number,"category":string|null,"note":string|null}]|null'."\n"
+            . "}\n\n"
+            . "Dompet user: {$wallets}\n"
+            . "Kategori yang TERSEDIA (pilih PERSIS salah satu nama ini, jangan diparafrase/disingkat/diterjemahkan): {$categories}\n"
+            . "PENTING soal \"category\": HARUS persis sama dengan salah satu nama di atas (boleh beda besar-kecil huruf). "
+            . "Kalau nggak ada yang cocok sama sekali, isi null — jangan mengarang nama kategori baru.\n\n"
+            . "PENTING soal transaksi GANDA: kalau user menyebutkan LEBIH DARI SATU transaksi terpisah dalam 1 pesan "
+            . "(misal 'parkir 5rb dan makan 75rb', 'beli baju 100rb sama makan siang 30rb'), JANGAN digabung jadi 1 transaksi. "
+            . "Gunakan intent \"add_multiple\", isi field \"items\" dengan array berisi transaksi masing-masing "
+            . "(type, amount, category, note terpisah per item), dan field \"wallet\" di level atas untuk dompet yang dipakai semua item. "
+            . "Kalau cuma 1 transaksi, TETAP pakai intent add_income/add_expense biasa, JANGAN pakai add_multiple.\n\n"
+            . "Contoh:\n"
+            . '"Makan siang 35rb" → {"intent":"add_expense","amount":35000,"category":"Makan & Minum","note":"makan siang"}'."\n"
+            . '"Bensin motor 50rb" → {"intent":"add_expense","amount":50000,"category":"Transport","note":"bensin motor"}'."\n"
+            . '"Gaji Juni 8 juta ke BCA" → {"intent":"add_income","amount":8000000,"category":"Gaji","note":"gaji juni","wallet":"BCA"}'."\n"
+            . '"Saldo" → {"intent":"get_balance"}'."\n"
+            . '"Lunas tagihan Listrik PLN" → {"intent":"pay_bill","bill_name":"Listrik PLN"}'."\n"
+            . '"Bayar tagihan Listrik Juli 1 juta via Mandiri" → {"intent":"pay_bill","bill_name":"Listrik Juli","amount":1000000,"wallet":"Mandiri"}'."\n"
+            . '"Tambah dompet baru BCA" → {"intent":"add_wallet","wallet_name":"BCA","wallet_type":"cash_flow","initial_balance":0}'."\n"
+            . '"Buat dompet Tabungan Emas saldo awal 500rb" → {"intent":"add_wallet","wallet_name":"Tabungan Emas","wallet_type":"saving","initial_balance":500000}'."\n"
+            . '"Parkir motor 5000 dan makan 75000 Via Mandiri" → {"intent":"add_multiple","wallet":"Mandiri","items":[{"type":"expense","amount":5000,"category":"Transport","note":"parkir motor"},{"type":"expense","amount":75000,"category":"Makan & Minum","note":"makan"}]}';
+    }
+
+    // ── AI Advisor Prompt ─────────────────────────────
+    private function getAdvisorPrompt(array $data): string
+    {
+        $income  = number_format($data['total_income'] ?? 0, 0, ',', '.');
+        $expense = number_format($data['total_expense'] ?? 0, 0, ',', '.');
+        $saving  = number_format($data['total_saving'] ?? 0, 0, ',', '.');
+        $period  = $data['period'] ?? 'bulan ini';
+
+        $topCats = collect($data['top_categories'] ?? [])->take(5)->map(fn($c) =>
+            "- {$c['category']}: Rp " . number_format($c['total'], 0, ',', '.')
+        )->join("\n");
+
+        return "Kamu adalah AI Financial Advisor CatatCuan. Analisa keuangan user ini dan berikan saran singkat dalam bahasa Indonesia yang friendly.\n\n"
+            . "Data keuangan {$period}:\n"
+            . "Pemasukan: Rp {$income}\n"
+            . "Pengeluaran: Rp {$expense}\n"
+            . "Tabungan: Rp {$saving}\n"
+            . "Pengeluaran terbesar:\n{$topCats}\n\n"
+            . "Berikan:\n"
+            . "1. Kesimpulan kondisi keuangan (2-3 kalimat)\n"
+            . "2. 2-3 saran spesifik berdasarkan data\n"
+            . "3. Satu motivasi singkat\n\n"
+            . "Format: teks biasa, gunakan emoji secukupnya. Maksimal 200 kata.";
+    }
+}

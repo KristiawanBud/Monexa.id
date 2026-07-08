@@ -1,0 +1,252 @@
+{
+  "name": "CatatCuan WhatsApp Bot",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fonnte-incoming",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "1. Fonnte Webhook (Pesan Masuk)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "notes": "URL ini yang didaftarkan di dashboard Fonnte sebagai webhook URL. Fonnte akan POST ke sini setiap ada pesan masuk ke nomor bot."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "text",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "check-message-type",
+      "name": "2. Cek Tipe Pesan",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "notes": "Fonnte payload biasanya punya field 'message' (text) atau 'url' (gambar). Sesuaikan field check ini dengan payload aktual dari Fonnte."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CATATCUAN_APP_URL }}/webhook/whatsapp",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Webhook-Secret",
+              "value": "={{ $env.CATATCUAN_WEBHOOK_SECRET }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"sender\": \"{{ $json.sender }}\",\n  \"receiver\": \"{{ $json.device }}\",\n  \"message\": \"{{ $json.message }}\",\n  \"type\": \"text\",\n  \"message_id\": \"{{ $json.id }}\"\n}",
+        "options": {}
+      },
+      "id": "send-to-laravel-text",
+      "name": "3a. Kirim ke Laravel (Teks)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 200],
+      "notes": "Endpoint ini ada di Laravel: routes/webhook.php -> WhatsAppWebhookController@receive. Pastikan CATATCUAN_APP_URL dan CATATCUAN_WEBHOOK_SECRET sudah diisi di n8n Environment Variables, dan nilainya SAMA PERSIS dengan APP_URL dan N8N_WEBHOOK_SECRET di file .env Laravel."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CATATCUAN_APP_URL }}/webhook/whatsapp",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Webhook-Secret",
+              "value": "={{ $env.CATATCUAN_WEBHOOK_SECRET }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"sender\": \"{{ $json.sender }}\",\n  \"receiver\": \"{{ $json.device }}\",\n  \"message\": \"\",\n  \"type\": \"image\",\n  \"image_url\": \"{{ $json.url }}\",\n  \"message_id\": \"{{ $json.id }}\"\n}",
+        "options": {}
+      },
+      "id": "send-to-laravel-image",
+      "name": "3b. Kirim ke Laravel (Gambar/Struk)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 420],
+      "notes": "Sama seperti node 3a, tapi untuk pesan berisi gambar (foto struk). field 'url' adalah link gambar dari Fonnte yang akan diunduh oleh Laravel."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.fonnte.com/send",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $env.FONNTE_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"target\": \"{{ $('1. Fonnte Webhook (Pesan Masuk)').item.json.sender }}\",\n  \"message\": \"{{ $json.reply }}\"\n}",
+        "options": {}
+      },
+      "id": "send-reply-to-user",
+      "name": "4. Kirim Balasan ke User via Fonnte",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300],
+      "notes": "Field 'reply' didapat dari response Laravel (node 3a/3b). FONNTE_TOKEN harus environment variable terpisah per gateway jika kamu pakai multi-nomor — lihat catatan di bawah workflow ini."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"status\": \"received\"}",
+        "options": {}
+      },
+      "id": "webhook-response",
+      "name": "5. Response ke Fonnte",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1120, 300],
+      "notes": "Selalu balas 200 OK ke Fonnte supaya mereka tidak retry webhook berulang kali."
+    }
+  ],
+  "connections": {
+    "1. Fonnte Webhook (Pesan Masuk)": {
+      "main": [
+        [
+          {
+            "node": "2. Cek Tipe Pesan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Cek Tipe Pesan": {
+      "main": [
+        [
+          {
+            "node": "3a. Kirim ke Laravel (Teks)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "3b. Kirim ke Laravel (Gambar/Struk)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3a. Kirim ke Laravel (Teks)": {
+      "main": [
+        [
+          {
+            "node": "4. Kirim Balasan ke User via Fonnte",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3b. Kirim ke Laravel (Gambar/Struk)": {
+      "main": [
+        [
+          {
+            "node": "4. Kirim Balasan ke User via Fonnte",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Kirim Balasan ke User via Fonnte": {
+      "main": [
+        [
+          {
+            "node": "5. Response ke Fonnte",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "_catatcuan_setup_notes": [
+    "═══════════════════════════════════════════════════════════",
+    "CARA SETUP WORKFLOW INI DI N8N",
+    "═══════════════════════════════════════════════════════════",
+    "",
+    "1. Import file ini: n8n -> Workflows -> Import from File",
+    "",
+    "2. Set Environment Variables di n8n (Settings -> Environment Variables):",
+    "   - CATATCUAN_APP_URL       = https://app.catatcuan.com (atau URL Laragon kamu)",
+    "   - CATATCUAN_WEBHOOK_SECRET = (HARUS SAMA dengan N8N_WEBHOOK_SECRET di .env Laravel)",
+    "   - FONNTE_TOKEN            = token dari dashboard Fonnte untuk nomor bot",
+    "",
+    "3. Test koneksi dulu sebelum aktif penuh:",
+    "   GET {CATATCUAN_APP_URL}/webhook/whatsapp/ping",
+    "   Header: X-Webhook-Secret: {CATATCUAN_WEBHOOK_SECRET}",
+    "   Harus return: {\"success\": true, \"message\": \"CatatCuan webhook siap...\"}",
+    "",
+    "4. Daftarkan Webhook URL n8n ini ke Fonnte:",
+    "   - Login dashboard.fonnte.com -> pilih device/nomor -> Webhook URL",
+    "   - Isi dengan URL webhook node '1. Fonnte Webhook' (n8n generate otomatis)",
+    "   - Format biasanya: https://your-n8n-domain.com/webhook/fonnte-incoming",
+    "",
+    "5. Untuk MULTI-GATEWAY (banyak nomor WA, sesuai arsitektur CatatCuan):",
+    "   - Setiap gateway/nomor di CatatCuan punya fonnte_token sendiri (lihat tabel wa_gateways)",
+    "   - Cara A (simpel): Buat 1 workflow n8n terpisah PER nomor gateway,",
+    "     masing-masing dengan FONNTE_TOKEN environment variable berbeda",
+    "   - Cara B (advanced): Tambah node 'HTTP Request' baru sebelum node 4",
+    "     yang panggil GET {APP_URL}/webhook/whatsapp/gateway-for/{user_id}",
+    "     untuk ambil fonnte_token yang tepat secara dinamis, lalu pakai itu",
+    "     di node 4 alih-alih environment variable FONNTE_TOKEN statis",
+    "",
+    "6. Field payload dari Fonnte BISA BERBEDA tergantung versi API mereka.",
+    "   Field yang dipakai di workflow ini ($json.sender, $json.message,",
+    "   $json.device, $json.url, $json.id, $json.type) adalah ASUMSI UMUM.",
+    "   CEK dokumentasi resmi Fonnte (https://docs.fonnte.com) untuk payload",
+    "   webhook yang sebenarnya, lalu sesuaikan field mapping di node 3a/3b.",
+    "",
+    "7. Setelah semua tersambung, test end-to-end:",
+    "   - Kirim WA ke nomor bot: 'Saldo'",
+    "   - Harus dapat balasan otomatis berisi saldo dari aplikasi CatatCuan",
+    "═══════════════════════════════════════════════════════════"
+  ]
+}

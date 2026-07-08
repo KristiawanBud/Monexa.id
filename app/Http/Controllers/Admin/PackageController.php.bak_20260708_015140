@@ -1,0 +1,9 @@
+<?php
+namespace App\Http\Controllers\Admin;
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+class PackageController extends Controller {
+    public function index() { return inertia('Admin/Packages'); }
+    public function store(Request $request) { return back()->with('success','Paket disimpan.'); }
+    public function update(Request $request, $id) { return back()->with('success','Paket diupdate.'); }
+}

@@ -1,0 +1,667 @@
+========================================
+build_dashboard_v2.php
+<?php
+
+function writeFile(string $path, string $content): void {
+    $dir = dirname($path);
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    if (file_exists($path)) copy($path, $path . '.bak_' . date('Ymd_His'));
+    file_put_contents($path, $content);
+    echo "Ditulis: $path\n";
+}
+
+function patchFile(string $path, array $replacements): void {
+    if (!file_exists($path)) { echo "SKIP (tidak ditemukan): $path\n"; return; }
+    $content = file_get_contents($path);
+    $backupMade = false; $changed = 0;
+    foreach ($replacements as $old => $new) {
+        if (strpos($content, $old) !== false) {
+            if (!$backupMade) { copy($path, $path . '.bak_' . date('Ymd_His')); $backupMade = true; }
+            $content = str_replace($old, $new, $content);
+            $changed++;
+        }
+
+========================================
+build_discount_feature.php
+<?php
+
+function writeFile(string $path, string $content): void {
+    $dir = dirname($path);
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    if (file_exists($path)) copy($path, $path . '.bak_' . date('Ymd_His'));
+    file_put_contents($path, $content);
+    echo "Ditulis: $path\n";
+}
+
+// ─────────────────────────────────────────────
+// 1. Migration: tambah kolom diskon ke packages
+// ─────────────────────────────────────────────
+writeFile('/var/www/monexa/database/migrations/2026_07_08_000002_add_discount_to_packages_table.php', <<<'EOT'
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+
+========================================
+build_dompet_v2.php
+<?php
+
+function writeFile(string $path, string $content): void {
+    $dir = dirname($path);
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    if (file_exists($path)) copy($path, $path . '.bak_' . date('Ymd_His'));
+    file_put_contents($path, $content);
+    echo "Ditulis: $path\n";
+}
+
+function patchFile(string $path, array $replacements): void {
+    if (!file_exists($path)) { echo "SKIP (tidak ditemukan): $path\n"; return; }
+    $content = file_get_contents($path);
+    $backupMade = false; $changed = 0;
+    foreach ($replacements as $old => $new) {
+        if (strpos($content, $old) !== false) {
+            if (!$backupMade) { copy($path, $path . '.bak_' . date('Ymd_His')); $backupMade = true; }
+            $content = str_replace($old, $new, $content);
+            $changed++;
+        }
+
+========================================
+build_icon_feature.php
+<?php
+
+function writeFile(string $path, string $content): void {
+    $dir = dirname($path);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    if (file_exists($path)) {
+        copy($path, $path . '.bak_' . date('Ymd_His'));
+    }
+    file_put_contents($path, $content);
+    echo "Ditulis: $path\n";
+}
+
+// ─────────────────────────────────────────────
+// 1. IconController.php (BARU)
+// ─────────────────────────────────────────────
+writeFile('/var/www/monexa/app/Http/Controllers/Admin/IconController.php', <<<'EOT'
+<?php
+
+
+========================================
+build_report_tailwind.php
+<?php
+
+function writeFile(string $path, string $content): void {
+    $dir = dirname($path);
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    if (file_exists($path)) copy($path, $path . '.bak_' . date('Ymd_His'));
+    file_put_contents($path, $content);
+    echo "Ditulis: $path\n";
+}
+
+// ─────────────────────────────────────────────
+// 1. tailwind.config.js (BARU)
+// ─────────────────────────────────────────────
+writeFile('/var/www/monexa/tailwind.config.js', <<<'EOT'
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    './resources/**/*.blade.php',
+    './resources/**/*.vue',
+    './resources/**/*.js',
+
+========================================
+build_subscription_panel.php
+<?php
+
+function writeFile(string $path, string $content): void {
+    $dir = dirname($path);
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    if (file_exists($path)) copy($path, $path . '.bak_' . date('Ymd_His'));
+    file_put_contents($path, $content);
+    echo "Ditulis: $path\n";
+}
+
+// ─────────────────────────────────────────────
+// 1. Migration: packages table
+// ─────────────────────────────────────────────
+writeFile('/var/www/monexa/database/migrations/2026_07_08_000001_create_packages_table.php', <<<'EOT'
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+
+========================================
+fix_admin_css_complete.php
+<?php
+
+// ── FIX 1: Tambah CSS variabel Admin yang belum ada ──
+$appCss = '/var/www/monexa/resources/css/app.css';
+$adminTokens = <<<'CSS'
+
+/* ── Admin Panel Design Tokens (tema monokromatik terpisah dari App) ── */
+:root {
+  --off:         #F5F5F4;
+  --ink:         #18181B;
+  --ink-muted:   #71717A;
+  --stone:       #E7E5E4;
+  --white:       #FFFFFF;
+  --shadow:      0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.06);
+  --radius:      14px;
+  --green:       #22C55E;
+  --green-dark:  #15803D;
+  --red:         #EF4444;
+  --red-dark:    #991B1B;
+  --amber-light: #FEF6E7;
+
+========================================
+fix_css_import_order.php
+<?php
+
+$file = '/var/www/monexa/resources/css/app.css';
+
+if (!file_exists($file)) {
+    echo "SKIP: file tidak ditemukan\n";
+    exit;
+}
+
+$content = file_get_contents($file);
+
+// Cari baris @import fonts
+preg_match('/@import url\([^)]+fonts\.googleapis[^)]+\);/', $content, $matches);
+
+if (empty($matches)) {
+    echo "⚠️  Baris @import fonts tidak ketemu — cek manual\n";
+    exit;
+}
+
+$importLine = $matches[0];
+
+========================================
+fix_export_button.php
+<?php
+
+$file = '/var/www/monexa/resources/js/Pages/App/Report.vue';
+
+if (!file_exists($file)) {
+    echo "SKIP: file tidak ditemukan\n";
+    exit;
+}
+
+$content = file_get_contents($file);
+$backupMade = false;
+$changed = 0;
+
+function apply(&$content, $old, $new, &$backupMade, &$changed, $file) {
+    if (strpos($content, $old) !== false) {
+        if (!$backupMade) { copy($file, $file . '.bak_' . date('Ymd_His')); $backupMade = true; }
+        $content = str_replace($old, $new, $content);
+        $changed++;
+        return true;
+    }
+
+========================================
+fix_export_card_header.php
+<?php
+
+$file = '/var/www/monexa/resources/js/Pages/App/Report.vue';
+
+if (!file_exists($file)) {
+    echo "SKIP: file tidak ditemukan\n";
+    exit;
+}
+
+$content = file_get_contents($file);
+$backupMade = false;
+$changed = 0;
+
+function apply(&$content, $old, $new, &$backupMade, &$changed, $file) {
+    if (strpos($content, $old) !== false) {
+        if (!$backupMade) { copy($file, $file . '.bak_' . date('Ymd_His')); $backupMade = true; }
+        $content = str_replace($old, $new, $content);
+        $changed++;
+        return true;
+    }
+
+========================================
+fix_eye_toggle.php
+<?php
+
+$file = '/var/www/monexa/resources/js/Pages/App/Dashboard.vue';
+
+if (!file_exists($file)) {
+    echo "SKIP: file tidak ditemukan\n";
+    exit;
+}
+
+$content = file_get_contents($file);
+$backupMade = false;
+$changed = 0;
+
+// ── 1. Ganti tombol gembok jadi SVG mata ──
+$oldBtn = '<button class="hide-btn" @click="toggleBalance">{{ balanceHidden ? \'🔒\' : \'🔓\' }}</button>';
+
+$newBtn = <<<'HTML'
+<button class="hide-btn" @click="toggleBalance" :aria-label="balanceHidden ? 'Tampilkan saldo' : 'Sembunyikan saldo'">
+          <svg v-if="balanceHidden" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 3l18 18M10.58 10.58a2 2 0 002.83 2.83M9.88 5.09A9.77 9.77 0 0112 5c5 0 9 4 10 7-.36 1.1-1 2.19-1.87 3.19M6.1 6.1C4.2 7.4 2.8 9.4 2 12c1.14 3.5 5.05 7 10 7 1.52 0 2.96-.34 4.24-.94" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+
+========================================
+fix_health_tier_to_image.php
+<?php
+
+function writeFile(string $path, string $content): void {
+    $dir = dirname($path);
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    if (file_exists($path)) copy($path, $path . '.bak_' . date('Ymd_His'));
+    file_put_contents($path, $content);
+    echo "Ditulis: $path\n";
+}
+
+function patchFile(string $path, array $replacements): void {
+    if (!file_exists($path)) { echo "SKIP (tidak ditemukan): $path\n"; return; }
+    $content = file_get_contents($path);
+    $backupMade = false; $changed = 0;
+    foreach ($replacements as $old => $new) {
+        if (strpos($content, $old) !== false) {
+            if (!$backupMade) { copy($path, $path . '.bak_' . date('Ymd_His')); $backupMade = true; }
+            $content = str_replace($old, $new, $content);
+            $changed++;
+        }
+
+========================================
+fix_report_behavioral.php
+<?php
+
+function patchFile(string $path, array $replacements): void {
+    if (!file_exists($path)) { echo "SKIP (tidak ditemukan): $path\n"; return; }
+    $content = file_get_contents($path);
+    $backupMade = false; $changed = 0;
+    foreach ($replacements as $old => $new) {
+        if (strpos($content, $old) !== false) {
+            if (!$backupMade) { copy($path, $path . '.bak_' . date('Ymd_His')); $backupMade = true; }
+            $content = str_replace($old, $new, $content);
+            $changed++;
+        }
+    }
+    if ($changed > 0) { file_put_contents($path, $content); echo "OK ($changed patch): $path\n"; }
+    else { echo "SKIP (pattern tidak ketemu): $path\n"; }
+}
+
+$file = '/var/www/monexa/resources/js/Pages/App/Report.vue';
+
+patchFile($file, [
+
+========================================
+fix_report_final_ds.php
+<?php
+
+function writeFile(string $path, string $content): void {
+    $dir = dirname($path);
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    if (file_exists($path)) copy($path, $path . '.bak_' . date('Ymd_His'));
+    file_put_contents($path, $content);
+    echo "Ditulis: $path\n";
+}
+
+writeFile('/var/www/monexa/resources/js/Pages/App/Report.vue', <<<'EOT'
+<template>
+  <AppLayout>
+    <div class="report-tw bg-slate-50 min-h-screen pb-8">
+
+      <!-- ═══════════ HERO — 240px fix, padding 24px ═══════════ -->
+      <div class="relative overflow-visible bg-gradient-to-br from-[#2F6BFF] via-[#4F7FFF] to-[#1E4FD6] px-6 pt-6 rounded-b-[24px] shadow-[0_12px_40px_rgba(47,107,255,0.20)]" style="height:240px;">
+        <div class="absolute -top-14 -right-8 w-52 h-52 rounded-full bg-white/10 pointer-events-none"></div>
+        <div class="absolute top-16 right-24 w-16 h-16 rounded-full bg-white/10 pointer-events-none"></div>
+        <svg class="absolute top-0 right-0 opacity-[0.08] pointer-events-none" width="130" height="130" viewBox="0 0 130 130" fill="none">
+
+========================================
+fix_report_full_width.php
+<?php
+
+function patchFile(string $path, array $replacements): void {
+    if (!file_exists($path)) { echo "SKIP (tidak ditemukan): $path\n"; return; }
+    $content = file_get_contents($path);
+    $backupMade = false; $changed = 0;
+    foreach ($replacements as $old => $new) {
+        if (strpos($content, $old) !== false) {
+            if (!$backupMade) { copy($path, $path . '.bak_' . date('Ymd_His')); $backupMade = true; }
+            $content = str_replace($old, $new, $content);
+            $changed++;
+        }
+    }
+    if ($changed > 0) { file_put_contents($path, $content); echo "OK ($changed patch): $path\n"; }
+    else { echo "SKIP (pattern tidak ketemu): $path\n"; }
+}
+
+$file = '/var/www/monexa/resources/js/Pages/App/Report.vue';
+
+patchFile($file, [
+
+========================================
+fix_report_image2_match.php
+<?php
+
+function writeFile(string $path, string $content): void {
+    $dir = dirname($path);
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    if (file_exists($path)) copy($path, $path . '.bak_' . date('Ymd_His'));
+    file_put_contents($path, $content);
+    echo "Ditulis: $path\n";
+}
+
+writeFile('/var/www/monexa/resources/js/Pages/App/Report.vue', <<<'EOT'
+<template>
+  <AppLayout>
+    <div class="report-tw bg-slate-50 min-h-screen pb-8">
+
+      <!-- ═══ HERO (dengan subtitle) ═══ -->
+      <div
+        class="relative overflow-visible bg-gradient-to-br from-[#2F6BFF] via-[#4F7FFF] to-[#1E4FD6]
+               px-5 pt-6 pb-14 rounded-b-[24px] shadow-[0_12px_40px_rgba(47,107,255,0.20)]"
+      >
+
+========================================
+fix_report_line_length.php
+<?php
+
+function writeFile(string $path, string $content): void {
+    $dir = dirname($path);
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    if (file_exists($path)) copy($path, $path . '.bak_' . date('Ymd_His'));
+    file_put_contents($path, $content);
+    echo "Ditulis: $path\n";
+}
+
+writeFile('/var/www/monexa/resources/js/Pages/App/Report.vue', <<<'EOT'
+<template>
+  <AppLayout>
+    <div class="report-tw bg-slate-50 min-h-screen pb-8">
+
+      <!-- ═══ HERO ═══ -->
+      <div
+        class="relative overflow-visible bg-gradient-to-br from-[#2F6BFF] via-[#4F7FFF] to-[#1E4FD6]
+               px-5 pt-6 pb-14 rounded-b-[24px] shadow-[0_12px_40px_rgba(47,107,255,0.20)]"
+      >
+
+========================================
+fix_report_mobile_first.php
+<?php
+
+function writeFile(string $path, string $content): void {
+    $dir = dirname($path);
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    if (file_exists($path)) copy($path, $path . '.bak_' . date('Ymd_His'));
+    file_put_contents($path, $content);
+    echo "Ditulis: $path\n";
+}
+
+writeFile('/var/www/monexa/resources/js/Pages/App/Report.vue', <<<'EOT'
+<template>
+  <AppLayout>
+    <div class="report-tw bg-slate-50 min-h-screen pb-8">
+
+      <!-- ═══════════ HERO ═══════════ -->
+      <div class="relative overflow-visible bg-gradient-to-br from-[#2F6BFF] via-[#4F7FFF] to-[#1E4FD6] px-5 pt-6 pb-14 rounded-b-[24px] shadow-[0_12px_40px_rgba(47,107,255,0.20)]">
+        <div class="absolute -top-14 -right-8 w-52 h-52 rounded-full bg-white/10 pointer-events-none"></div>
+        <div class="absolute top-16 right-24 w-16 h-16 rounded-full bg-white/10 pointer-events-none"></div>
+
+
+========================================
+fix_report_premium.php
+<?php
+
+function writeFile(string $path, string $content): void {
+    $dir = dirname($path);
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    if (file_exists($path)) copy($path, $path . '.bak_' . date('Ymd_His'));
+    file_put_contents($path, $content);
+    echo "Ditulis: $path\n";
+}
+
+writeFile('/var/www/monexa/resources/js/Pages/App/Report.vue', <<<'EOT'
+<template>
+  <AppLayout>
+    <div class="report-tw bg-slate-50 min-h-screen pb-8">
+
+      <!-- ═══════════ HERO ═══════════ -->
+      <div class="relative overflow-hidden bg-gradient-to-br from-[#2F6BFF] via-[#4F7FFF] to-[#1E4FD6] px-5 pt-6 pb-9 rounded-b-[28px]">
+        <!-- Decorative pattern / glass blobs -->
+        <div class="absolute -top-16 -right-10 w-56 h-56 rounded-full bg-white/10 blur-[2px]"></div>
+        <div class="absolute top-20 right-16 w-24 h-24 rounded-full bg-white/10"></div>
+
+========================================
+fix_report_refinement.php
+<?php
+
+function patchFile(string $path, array $replacements): void {
+    if (!file_exists($path)) { echo "SKIP (tidak ditemukan): $path\n"; return; }
+    $content = file_get_contents($path);
+    $backupMade = false; $changed = 0;
+    foreach ($replacements as $old => $new) {
+        if (strpos($content, $old) !== false) {
+            if (!$backupMade) { copy($path, $path . '.bak_' . date('Ymd_His')); $backupMade = true; }
+            $content = str_replace($old, $new, $content);
+            $changed++;
+        }
+    }
+    if ($changed > 0) { file_put_contents($path, $content); echo "OK ($changed patch): $path\n"; }
+    else { echo "SKIP (pattern tidak ketemu): $path\n"; }
+}
+
+$file = '/var/www/monexa/resources/js/Pages/App/Report.vue';
+
+patchFile($file, [
+
+========================================
+fix_report_revert_sticky.php
+<?php
+
+function patchFile(string $path, array $replacements): void {
+    if (!file_exists($path)) { echo "SKIP (tidak ditemukan): $path\n"; return; }
+    $content = file_get_contents($path);
+    $backupMade = false; $changed = 0;
+    foreach ($replacements as $old => $new) {
+        if (strpos($content, $old) !== false) {
+            if (!$backupMade) { copy($path, $path . '.bak_' . date('Ymd_His')); $backupMade = true; }
+            $content = str_replace($old, $new, $content);
+            $changed++;
+        }
+    }
+    if ($changed > 0) { file_put_contents($path, $content); echo "OK ($changed patch): $path\n"; }
+    else { echo "SKIP (pattern tidak ketemu): $path\n"; }
+}
+
+$file = '/var/www/monexa/resources/js/Pages/App/Report.vue';
+
+patchFile($file, [
+
+========================================
+fix_report_revision.php
+<?php
+
+function patchFile(string $path, array $replacements): void {
+    if (!file_exists($path)) { echo "SKIP (tidak ditemukan): $path\n"; return; }
+    $content = file_get_contents($path);
+    $backupMade = false; $changed = 0;
+    foreach ($replacements as $old => $new) {
+        if (strpos($content, $old) !== false) {
+            if (!$backupMade) { copy($path, $path . '.bak_' . date('Ymd_His')); $backupMade = true; }
+            $content = str_replace($old, $new, $content);
+            $changed++;
+        }
+    }
+    if ($changed > 0) { file_put_contents($path, $content); echo "OK ($changed patch): $path\n"; }
+    else { echo "SKIP (pattern tidak ketemu): $path\n"; }
+}
+
+$file = '/var/www/monexa/resources/js/Pages/App/Report.vue';
+
+patchFile($file, [
+
+========================================
+fix_report_sticky_final.php
+<?php
+
+function writeFile(string $path, string $content): void {
+    $dir = dirname($path);
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    if (file_exists($path)) copy($path, $path . '.bak_' . date('Ymd_His'));
+    file_put_contents($path, $content);
+    echo "Ditulis: $path\n";
+}
+
+writeFile('/var/www/monexa/resources/js/Pages/App/Report.vue', <<<'EOT'
+<template>
+  <AppLayout>
+    <div class="report-tw bg-slate-50 min-h-screen pb-8">
+
+      <!-- ═══ HERO — sticky, collapse pas discroll ═══ -->
+      <div
+        class="sticky top-0 z-30 overflow-visible bg-gradient-to-br from-[#2F6BFF] via-[#4F7FFF] to-[#1E4FD6]
+               pl-5 pr-[18px] rounded-b-[24px] shadow-[0_12px_40px_rgba(47,107,255,0.20)]
+               transition-all duration-300 ease-out"
+
+========================================
+fix_report_typography.php
+<?php
+
+function writeFile(string $path, string $content): void {
+    $dir = dirname($path);
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    if (file_exists($path)) copy($path, $path . '.bak_' . date('Ymd_His'));
+    file_put_contents($path, $content);
+    echo "Ditulis: $path\n";
+}
+
+writeFile('/var/www/monexa/resources/js/Pages/App/Report.vue', <<<'EOT'
+<template>
+  <AppLayout>
+    <div class="report-tw bg-slate-50 min-h-screen pb-8">
+
+      <!-- ═══ HERO ═══ -->
+      <div
+        class="relative overflow-visible bg-gradient-to-br from-[#2F6BFF] via-[#4F7FFF] to-[#1E4FD6]
+               px-5 pt-6 pb-14 rounded-b-[24px] shadow-[0_12px_40px_rgba(47,107,255,0.20)]"
+      >
+
+========================================
+fix_report_visualflow.php
+<?php
+
+function writeFile(string $path, string $content): void {
+    $dir = dirname($path);
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    if (file_exists($path)) copy($path, $path . '.bak_' . date('Ymd_His'));
+    file_put_contents($path, $content);
+    echo "Ditulis: $path\n";
+}
+
+writeFile('/var/www/monexa/resources/js/Pages/App/Report.vue', <<<'EOT'
+<template>
+  <AppLayout>
+    <div class="report-tw bg-slate-50 min-h-screen pb-8">
+
+      <!-- ═══════════ HERO (pendek, cuma header + dropdown) ═══════════ -->
+      <div class="relative overflow-hidden bg-gradient-to-br from-[#2F6BFF] via-[#4F7FFF] to-[#1E4FD6] px-5 pt-6 pb-16 rounded-b-[32px]">
+        <div class="absolute -top-16 -right-10 w-56 h-56 rounded-full bg-white/10"></div>
+        <div class="absolute top-14 right-20 w-20 h-20 rounded-full bg-white/10"></div>
+        <div class="absolute -bottom-10 left-10 w-32 h-32 rounded-full bg-white/5"></div>
+
+========================================
+fix_resolve_category.php
+<?php
+
+$old = <<<'OLD'
+    private function resolveCategory(User $user, ?string $categoryName, string $type): ?TransactionCategory
+    {
+        $query = TransactionCategory::forUser($user->id)->where('type', $type);
+
+        if ($categoryName) {
+            $byName = (clone $query)
+                ->where(function ($q) use ($categoryName) {
+                    $q->where('name', 'like', "%{$categoryName}%")
+                      ->orWhereRaw('LOWER(?) LIKE CONCAT("%", LOWER(name), "%")', [$categoryName]);
+                })
+                ->first();
+            if ($byName) return $byName;
+        }
+
+        return (clone $query)->where('name', 'Lainnya')->first();
+    }
+OLD;
+
+========================================
+fix_sticky_headers.php
+<?php
+
+function patchFile(string $path, array $replacements): void {
+    if (!file_exists($path)) { echo "SKIP (tidak ditemukan): $path\n"; return; }
+    $content = file_get_contents($path);
+    $backupMade = false; $changed = 0;
+    foreach ($replacements as $old => $new) {
+        if (strpos($content, $old) !== false) {
+            if (!$backupMade) { copy($path, $path . '.bak_' . date('Ymd_His')); $backupMade = true; }
+            $content = str_replace($old, $new, $content);
+            $changed++;
+        }
+    }
+    if ($changed > 0) { file_put_contents($path, $content); echo "OK ($changed patch): $path\n"; }
+    else { echo "SKIP (pattern tidak ketemu/sudah diterapkan): $path\n"; }
+}
+
+// ─────────────────────────────────────────────
+// 1. App/Dashboard.vue — header jadi card + sticky
+// ─────────────────────────────────────────────
+
+========================================
+create_cuanai_rules_controller.php
+<?php
+
+$controllerPath = '/var/www/monexa/app/Http/Controllers/Admin/CuanAiRulesController.php';
+$vuePath        = '/var/www/monexa/resources/js/Pages/Admin/CuanAiRules.vue';
+
+// ── Controller ──
+if (file_exists($controllerPath)) {
+    echo "SKIP (sudah ada): $controllerPath\n";
+} else {
+    $dir = dirname($controllerPath);
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+
+    file_put_contents($controllerPath, <<<'EOT'
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\SystemSetting;
+use App\Services\CuanAiService;
+
+========================================
+apply_multi_transaction.php
+<?php
+
+$files = [];
+
+$files['/var/www/monexa/app/Services/GeminiService.php'] = <<<'GEMINI_SVC_EOT'
+<?php
+
+namespace App\Services;
+
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
+class GeminiService
+{
+    private ?string $apiKey;
+    private string $model;
+    private string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+    public function __construct()
+    {
+

@@ -1,0 +1,171 @@
+<template>
+  <div class="admin-shell">
+    <aside :class="['admin-sidebar', { collapsed: sc }]">
+      <div class="sidebar-logo">
+        <div class="logo-icon">CC</div>
+        <span v-if="!sc" class="logo-name">CatatCuan Admin</span>
+      </div>
+      <button class="hamburger" @click="sc = !sc"><span></span><span></span><span></span></button>
+      <nav class="sidebar-nav">
+        <Link :href="route('admin.dashboard')" class="nav-item" data-label="Dashboard">
+          <span class="ni-icon">📊</span><span v-if="!sc">Dashboard</span>
+        </Link>
+        <Link :href="route('admin.users')" class="nav-item" data-label="Users">
+          <span class="ni-icon">👥</span><span v-if="!sc">Manajemen User</span>
+        </Link>
+        <Link :href="route('admin.gateway.index')" class="nav-item" data-label="WA Gateway">
+          <span class="ni-icon">📱</span><span v-if="!sc">WA Gateway</span>
+        </Link>
+        <Link :href="route('admin.cuan-ai-rules')" class="nav-item active" data-label="CuanAI Rules">
+          <span class="ni-icon">🤖</span><span v-if="!sc">CuanAI Rules</span>
+        </Link>
+        <Link :href="route('admin.icons')" class="nav-item" data-label="Icons">
+          <span class="ni-icon">🖼️</span><span v-if="!sc">Icon & Assets</span>
+        </Link>
+        <Link :href="route('dashboard')" class="nav-item" data-label="App">
+          <span class="ni-icon">🏠</span><span v-if="!sc">Kembali ke App</span>
+        </Link>
+              <Link :href="route('admin.packages')" class="nav-item" data-label="Paket">
+          <span class="ni-icon">💳</span><span v-if="!sc">Paket & Harga</span>
+        </Link>
+        <Link :href="route('admin.subscriptions')" class="nav-item" data-label="Subscription">
+          <span class="ni-icon">📋</span><span v-if="!sc">Subscription User</span>
+        </Link>
+      </nav>
+    </aside>
+
+    <div :class="['admin-main', { expanded: sc }]">
+      <div class="admin-topbar">
+        <div class="topbar-left">
+          <button class="hamburger-top" @click="sc = !sc">☰</button>
+          <div>
+            <div class="topbar-title">CuanAI Rules 🤖</div>
+            <div class="topbar-breadcrumb">Admin → CuanAI Rules</div>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <span v-if="isCustom" class="badge-custom">✏️ Custom aktif</span>
+          <span v-else class="badge-default">⚙️ Pakai Default</span>
+        </div>
+      </div>
+
+      <div class="admin-content">
+        <div v-if="$page.props.flash?.success" class="flash-success">
+          {{ $page.props.flash.success }}
+        </div>
+
+        <div class="rules-card">
+          <div class="rules-card-header">
+            <h3>System Prompt CuanAI</h3>
+            <p>Edit instruksi & format jawaban CuanAI di sini. Perubahan langsung berlaku ke Web Chat & WA Bot tanpa perlu edit kode.</p>
+          </div>
+
+          <textarea
+            v-model="promptText"
+            class="rules-textarea"
+            rows="22"
+            spellcheck="false"
+          ></textarea>
+
+          <div class="char-count">{{ promptText.length }} / 8000 karakter</div>
+
+          <div class="placeholder-legend">
+            <strong>⚠️ Placeholder wajib dipertahankan:</strong>
+            <code>{userMessage}</code> <code>{history}</code> <code>{greetingInstruction}</code>
+            <br><strong>Placeholder data lain yang tersedia:</strong>
+            <code>{periodLabel}</code> <code>{totalBalance}</code> <code>{walletList}</code>
+            <code>{totalIncome}</code> <code>{totalExpense}</code> <code>{topCategories}</code>
+            <code>{goalList}</code> <code>{billList}</code> <code>{budgetList}</code>
+          </div>
+
+          <div class="rules-actions">
+            <button class="btn-reset" @click="resetToDefault" :disabled="processing">
+              🔄 Reset ke Default
+            </button>
+            <button class="btn-save" @click="save" :disabled="processing">
+              {{ processing ? 'Menyimpan...' : '💾 Simpan Perubahan' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+import { Link, router, usePage } from '@inertiajs/vue3'
+
+const props = defineProps({
+  prompt: String,
+  is_custom: Boolean,
+  default_prompt: String,
+})
+
+const sc = ref(false)
+const promptText = ref(props.prompt)
+const isCustom = ref(props.is_custom)
+const processing = ref(false)
+
+function save() {
+  processing.value = true
+  router.put(route('admin.cuan-ai-rules.update'), { prompt: promptText.value }, {
+    preserveScroll: true,
+    onFinish: () => { processing.value = false; isCustom.value = true },
+  })
+}
+
+function resetToDefault() {
+  if (!confirm('Yakin mau reset ke default? Perubahan custom kamu akan hilang.')) return
+  processing.value = true
+  router.delete(route('admin.cuan-ai-rules.reset'), {
+    preserveScroll: true,
+    onFinish: () => {
+      processing.value = false
+      promptText.value = props.default_prompt
+      isCustom.value = false
+    },
+  })
+}
+</script>
+
+<style scoped>
+/* ── Admin Shell / Sidebar / Topbar (disamakan dengan Dashboard.vue) ── */
+.admin-shell { display:flex;min-height:100vh;background:var(--off); }
+.admin-sidebar { width:220px;min-height:100vh;background:var(--ink);display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;overflow-y:auto;overflow-x:hidden;transition:width .25s ease;z-index:100; }
+.admin-sidebar.collapsed { width:64px; }
+.sidebar-logo { display:flex;align-items:center;gap:10px;padding:18px 14px;border-bottom:1px solid rgba(255,255,255,.08);position:relative; }
+.logo-icon { width:30px;height:30px;border-radius:7px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-family:"Syne",sans-serif;font-size:11px;font-weight:800;color:white;flex-shrink:0; }
+.logo-name { font-family:"Syne",sans-serif;font-size:14px;font-weight:800;color:white;white-space:nowrap; }
+.hamburger { position:absolute;top:16px;right:10px;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;gap:4px;padding:2px; }
+.hamburger span { display:block;width:16px;height:2px;background:rgba(255,255,255,.5);border-radius:99px;transition:all .25s; }
+.hamburger:hover span { background:white; }
+.sidebar-nav { padding:8px 0; }
+.nav-item { display:flex;align-items:center;gap:10px;padding:9px 14px;margin:1px 8px;border-radius:8px;cursor:pointer;color:rgba(255,255,255,.5);font-size:13px;font-weight:500;text-decoration:none;transition:all .15s;position:relative;white-space:nowrap; }
+.nav-item:hover { background:rgba(255,255,255,.07);color:rgba(255,255,255,.85); }
+.nav-item.active { background:rgba(255,255,255,.13);color:white;font-weight:600; }
+.nav-item.active::before { content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:18px;background:var(--green);border-radius:0 3px 3px 0; }
+.ni-icon { font-size:16px;flex-shrink:0;width:20px;text-align:center; }
+.admin-main { margin-left:220px;flex:1;min-height:100vh;transition:margin-left .25s ease; }
+.admin-main.expanded { margin-left:64px; }
+.admin-topbar { background:var(--white);border-bottom:1px solid var(--stone);padding:0 24px;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;box-shadow:var(--shadow); }
+.topbar-left { display:flex;align-items:center;gap:12px; }
+.hamburger-top { background:var(--stone);border:none;border-radius:8px;padding:6px 8px;cursor:pointer;font-size:16px; }
+.topbar-title { font-family:"Syne",sans-serif;font-size:16px;font-weight:800; }
+.topbar-breadcrumb { font-size:11px;color:var(--ink-muted); }
+.topbar-actions { display:flex;align-items:center;gap:8px; }
+.admin-content { padding:24px; }
+.rules-card { background: #fff; border-radius: 14px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.rules-card-header h3 { margin: 0 0 4px; font-size: 16px; }
+.rules-card-header p { margin: 0 0 16px; font-size: 13px; color: #6b7280; }
+.rules-textarea { width: 100%; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6; padding: 14px; border: 1px solid #e5e7eb; border-radius: 10px; resize: vertical; }
+.char-count { text-align: right; font-size: 12px; color: #9ca3af; margin-top: 4px; }
+.placeholder-legend { margin-top: 14px; padding: 12px; background: #f9fafb; border-radius: 10px; font-size: 12px; line-height: 1.8; color: #4b5563; }
+.placeholder-legend code { background: #e5e7eb; padding: 1px 6px; border-radius: 4px; margin-right: 4px; }
+.rules-actions { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
+.btn-save { background: #16a34a; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+.btn-reset { background: #f3f4f6; color: #374151; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+.badge-custom { background: #dcfce7; color: #166534; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.badge-default { background: #f3f4f6; color: #6b7280; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.flash-success { background: #dcfce7; color: #166534; padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; }
+</style>

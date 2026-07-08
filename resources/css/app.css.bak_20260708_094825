@@ -1,0 +1,267 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ════════════════════════════════════════════
+   CatatCuan — Design System
+   Theme: Blue Premium Finance App
+   ════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* ── Warna Utama ── */
+  --primary:       #2563EB;
+  --primary-light: #60A5FA;
+  --primary-dark:  #1D4EDB;
+  --secondary:     #10B981;
+  --success:       #22C55E;
+  --danger:        #EF4444;
+
+  --primary-bg:    #EFF4FF;   /* primary tint untuk background chip/badge */
+  --secondary-bg:  #E7FAF3;
+  --success-bg:    #E9FBEF;
+  --danger-bg:     #FDECEC;
+  --amber:         #F59E0B;
+  --amber-bg:      #FEF6E7;
+  --purple:        #8B5CF6;
+  --purple-bg:     #F2EDFE;
+
+  /* ── Background & Surface ── */
+  --background:    #F8FAFC;
+  --surface:       #FFFFFF;
+  --border:        #E2E8F0;
+
+  /* ── Teks ── */
+  --text-primary:   #0F172A;
+  --text-secondary: #64748B;
+  --text-faint:     #94A3B8;
+
+  /* ── Radius ── */
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+
+  /* ── Shadow (Soft Depth & Focus) ── */
+  --shadow-sm: 0 2px 6px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.10);
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.04), 0 8px 20px rgba(37, 99, 235, 0.06);
+  --shadow-fab: 0 8px 20px rgba(37, 99, 235, 0.35);
+  --shadow-focus: 0 0 0 4px rgba(37, 99, 235, 0.12);
+}
+
+html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--background);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Tipografi (Plus Jakarta Sans untuk heading) ── */
+h1, h2, h3, .font-heading {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.h1 { font-size: 28px; line-height: 36px; font-weight: 700; }
+.h2 { font-size: 22px; line-height: 28px; font-weight: 700; }
+.h3 { font-size: 18px; line-height: 24px; font-weight: 600; }
+.body-1 { font-size: 16px; line-height: 24px; font-weight: 400; }
+.body-2 { font-size: 14px; line-height: 20px; font-weight: 400; }
+.caption { font-size: 12px; line-height: 16px; font-weight: 400; color: var(--text-secondary); }
+
+code, pre { font-family: 'JetBrains Mono', monospace; }
+
+/* ── Card ── */
+.card {
+  background: var(--surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  padding: 20px;
+}
+
+/* ── Button Primary ── */
+.btn-primary {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 15px;
+  font-weight: 700;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  cursor: pointer;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  transition: all .2s;
+}
+.btn-primary:hover:not(:disabled) { background: var(--primary-dark); box-shadow: var(--shadow-md); }
+.btn-primary:active:not(:disabled) { transform: scale(.98); }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Button Secondary (outline) ── */
+.btn-secondary {
+  display: block;
+  width: 100%;
+  padding: 13px;
+  background: transparent;
+  color: var(--primary);
+  border: 1.5px solid var(--primary);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  cursor: pointer;
+  text-align: center;
+  transition: all .2s;
+}
+.btn-secondary:hover { background: var(--primary-bg); }
+
+/* ── Button Text ── */
+.btn-text {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+/* ── Input Field ── */
+.form-input-cc {
+  width: 100%;
+  padding: 13px 16px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-family: 'Inter', sans-serif;
+  background: var(--surface);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+  appearance: none;
+}
+.form-input-cc:focus { border-color: var(--primary); box-shadow: var(--shadow-focus); }
+.form-input-cc:disabled { background: var(--background); color: var(--text-faint); cursor: not-allowed; }
+.form-input-cc::placeholder { color: var(--text-faint); }
+
+/* ── Chip / Tab ── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: 99px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all .15s;
+}
+.chip.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+/* ── Floating Action Button ── */
+.fab {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-fab);
+  cursor: pointer;
+  transition: all .2s;
+  font-size: 26px;
+}
+.fab:hover { transform: scale(1.06); }
+.fab:active { transform: scale(.95); }
+
+/* ── Utility Text Colors ── */
+.text-primary-c { color: var(--primary); }
+.text-secondary-c { color: var(--secondary); }
+.text-success { color: var(--success); }
+.text-danger { color: var(--danger); }
+.text-muted { color: var(--text-secondary); }
+.text-faint { color: var(--text-faint); }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+/* ── Flash Toast ── */
+.flash-toast {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--success);
+  color: white;
+  padding: 12px 22px;
+  border-radius: 99px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 9999;
+  white-space: nowrap;
+  box-shadow: var(--shadow-lg);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.flash-toast.error { background: var(--danger); }
+
+/* ── Header Petunjuk Penggunaan (page hint) ── */
+.page-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--primary-bg);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(37, 99, 235, 0.12);
+}
+.page-hint-icon { font-size: 18px; flex-shrink: 0; line-height: 1.4; }
+.page-hint-text { font-size: 12.5px; color: var(--primary-dark); line-height: 1.6; font-weight: 500; }
+
+@media (max-width: 480px) {
+  .card { border-radius: var(--radius-lg); }
+}
+
+/* ── Admin Panel Design Tokens (tema monokromatik terpisah dari App) ── */
+:root {
+  --off:         #F5F5F4;
+  --ink:         #18181B;
+  --ink-muted:   #71717A;
+  --stone:       #E7E5E4;
+  --white:       #FFFFFF;
+  --shadow:      0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.06);
+  --radius:      14px;
+  --green:       #22C55E;
+  --green-dark:  #15803D;
+  --red:         #EF4444;
+  --red-dark:    #991B1B;
+  --amber-light: #FEF6E7;
+}

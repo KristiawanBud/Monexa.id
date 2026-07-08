@@ -1,0 +1,18 @@
+<?php
+namespace App\Http\Controllers\Admin;
+use App\Http\Controllers\Controller;
+use App\Models\TransactionCategory;
+use Illuminate\Http\Request;
+class CategoryAdminController extends Controller {
+    public function index() { return inertia('Admin/Categories', ['categories' => TransactionCategory::orderBy('type')->orderBy('sort_order')->get()]); }
+    public function store(Request $request) {
+        $request->validate(['type'=>'required|in:income,expense','name'=>'required|max:50','emoji'=>'nullable|max:10']);
+        TransactionCategory::create([...$request->only('type','name','emoji','sort_order'), 'is_system'=>false]);
+        return back()->with('success','Kategori ditambahkan!');
+    }
+    public function destroy(TransactionCategory $category) {
+        if ($category->is_system) return back()->with('error','Kategori sistem tidak bisa dihapus.');
+        $category->delete();
+        return back()->with('success','Kategori dihapus.');
+    }
+}

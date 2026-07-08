@@ -1,0 +1,402 @@
+<template>
+  <AppLayout>
+    <div class="page-content">
+
+      <!-- Header -->
+      <div class="dash-header">
+        <div>
+          <div class="greeting-label">Selamat {{ greetingTime }},</div>
+          <div class="greeting-name">{{ $page.props.auth.user?.name?.split(' ')[0] }} 👋</div>
+        </div>
+        <div class="header-actions">
+          <button class="icon-btn" @click="showNotif = true">
+            🔔
+            <span v-if="notifications.length > 0" class="icon-dot"></span>
+          </button>
+          <Link :href="route('account')" class="icon-btn">👤</Link>
+        </div>
+      </div>
+
+      <!-- Page hint -->
+      <div class="page-hint">
+        <span class="page-hint-icon">💡</span>
+        <span class="page-hint-text">Pantau saldo, transaksi terbaru, dan budget harianmu di sini.</span>
+      </div>
+
+      <!-- Hero Budget Card -->
+      <div class="hero-card">
+        <AppIcon slug="dashboard_hero" class="hero-illustration"></AppIcon>
+        <div class="hero-top">
+          <div class="hero-label">TOTAL ASET BERSIH</div>
+          <button class="hide-btn" @click="toggleBalance" :aria-label="balanceHidden ? 'Tampilkan saldo' : 'Sembunyikan saldo'">
+          <svg v-if="balanceHidden" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 3l18 18M10.58 10.58a2 2 0 002.83 2.83M9.88 5.09A9.77 9.77 0 0112 5c5 0 9 4 10 7-.36 1.1-1 2.19-1.87 3.19M6.1 6.1C4.2 7.4 2.8 9.4 2 12c1.14 3.5 5.05 7 10 7 1.52 0 2.96-.34 4.24-.94" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
+          </svg>
+        </button>
+        </div>
+        <div class="hero-amount">
+          <span v-if="!balanceHidden">{{ formatRupiah(totalBalance) }}</span>
+          <span v-else class="hidden-text">••••••••••</span>
+        </div>
+        <div class="hero-sub">{{ period }}</div>
+
+        <div class="hero-stats">
+          <div class="hs-item">
+            <span class="hs-icon">↑</span>
+            <div>
+              <div class="hs-label">Masuk</div>
+              <div class="hs-val up">+{{ formatShort(totalIncome) }}</div>
+            </div>
+          </div>
+          <div class="hs-item">
+            <span class="hs-icon">↓</span>
+            <div>
+              <div class="hs-label">Keluar</div>
+              <div class="hs-val down">−{{ formatShort(totalExpense) }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Insight -->
+      <div class="ai-insight-card" v-if="budgetHarian !== null">
+        <div class="ai-icon">🤖</div>
+        <div class="ai-content">
+          <div class="ai-title">Budget Harian Tersisa</div>
+          <div class="ai-text">
+            <strong>{{ formatRupiah(Math.abs(budgetHarian)) }}</strong>
+            {{ budgetHarian < 0 ? 'sudah melebihi budget hari ini' : 'masih bisa dipakai hari ini' }}
+          </div>
+          <div v-if="budgetPct !== null" class="ai-progress">
+            <div class="ai-bar">
+              <div class="ai-fill" :class="budgetPct >= 100 ? 'over' : budgetPct >= 80 ? 'warn' : 'ok'"
+                :style="`width:${Math.min(budgetPct, 100)}%`"></div>
+            </div>
+            <span class="ai-pct">{{ budgetPct }}%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="qa-row">
+        <Link :href="route('dompet.index')" :data="{ tab: 'in' }" class="qa-btn">
+          <div class="qa-icon pemasukan"><AppIcon slug="qa_pemasukan">💵</AppIcon></div>
+          <span>Pemasukan</span>
+        </Link>
+        <Link :href="route('dompet.index')" :data="{ tab: 'out' }" class="qa-btn">
+          <div class="qa-icon pengeluaran"><AppIcon slug="qa_pengeluaran">🔥</AppIcon></div>
+          <span>Pengeluaran</span>
+        </Link>
+        <Link :href="route('receipt.index')" class="qa-btn">
+          <div class="qa-icon scan"><AppIcon slug="qa_scan">📷</AppIcon></div>
+          <span>Scan Struk</span>
+        </Link>
+        <Link :href="route('asset.index')" class="qa-btn">
+          <div class="qa-icon aset"><AppIcon slug="qa_aset">💎</AppIcon></div>
+          <span>Aset</span>
+        </Link>
+      </div>
+
+      <!-- Goals preview -->
+      <div v-if="goals && goals.length > 0" class="section">
+        <div class="section-head">
+          <span class="section-title">🎯 Goals Tabungan</span>
+          <Link :href="route('saving.index')" class="see-all">Lihat semua →</Link>
+        </div>
+        <div class="goal-scroll">
+          <div v-for="g in goals" :key="g.id" class="goal-chip">
+            <div class="goal-name">{{ g.name }}</div>
+            <div class="goal-bar">
+              <div class="goal-fill" :style="`width:${g.percent}%`"></div>
+            </div>
+            <div class="goal-pct">{{ g.percent }}%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Upcoming bills -->
+      <div v-if="upcomingBills.length > 0" class="section">
+        <div class="section-head">
+          <span class="section-title">📋 Tagihan Minggu Ini</span>
+        </div>
+        <div class="bill-list">
+          <div v-for="bill in upcomingBills" :key="bill.name"
+            :class="['bill-chip', bill.days_until_due === 0 ? 'today' : bill.days_until_due <= 3 ? 'soon' : '']">
+            <span class="bc-emoji">{{ bill.emoji || '📋' }}</span>
+            <span class="bc-name">{{ bill.name }}</span>
+            <span class="bc-due">{{ bill.days_until_due === 0 ? 'Hari ini!' : `H-${bill.days_until_due}` }}</span>
+            <span class="bc-amt">{{ formatShort(bill.amount) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transaksi Terbaru -->
+      <div class="section">
+        <div class="section-head">
+          <span class="section-title">Transaksi Terbaru</span>
+        </div>
+        <div class="card tx-card">
+          <div v-if="recentTransactions.length === 0" class="empty-state">
+            <div class="empty-illust">📝</div>
+            <div class="empty-text">Belum ada transaksi</div>
+            <div class="empty-sub">Mulai catat transaksi pertamamu!</div>
+            <Link :href="route('dompet.index')" class="btn-primary" style="margin-top:14px;max-width:200px;">
+              + Catat Sekarang
+            </Link>
+          </div>
+
+          <div v-for="tx in recentTransactions" :key="tx.id" class="tx-item">
+            <div class="tx-icon" :style="`background:${tx.type === 'income' ? 'var(--success-bg)' : 'var(--danger-bg)'}`">
+              {{ tx.category_emoji || (tx.type === 'income' ? '💵' : '🛍️') }}
+            </div>
+            <div class="tx-info">
+              <div class="tx-name">{{ tx.note || tx.category || 'Transaksi' }}</div>
+              <div class="tx-cat">{{ tx.category }} · {{ tx.wallet }}</div>
+            </div>
+            <div class="tx-right">
+              <div :class="['tx-amt', tx.type === 'income' ? 'up' : 'down']">
+                {{ tx.type === 'income' ? '+' : '−' }}{{ formatShort(tx.amount) }}
+              </div>
+              <div class="tx-time">{{ tx.transacted_at }}</div>
+            </div>
+          </div>
+
+          <div v-if="recentTransactions.length > 0" class="see-all-row">
+            <Link :href="route('dompet.index')" class="see-all">Lihat semua →</Link>
+          </div>
+        </div>
+      </div>
+
+      <!-- Kategori Pengeluaran Bulan Ini -->
+      <div class="section" v-if="topCategories.length > 0">
+        <div class="section-head">
+          <span class="section-title">Kategori Pengeluaran</span>
+        </div>
+        <div class="card">
+          <div v-for="cat in topCategories" :key="cat.name" class="cat-row">
+            <div class="cat-emoji">{{ cat.emoji }}</div>
+            <div class="cat-info">
+              <div class="cat-name-row">
+                <span class="cat-name">{{ cat.name }}</span>
+                <span class="cat-amt">Rp {{ formatShort(cat.total) }}</span>
+              </div>
+              <div class="cat-bar-bg">
+                <div class="cat-bar-fill" :style="`width:${cat.percent}%`"></div>
+              </div>
+            </div>
+            <div class="cat-pct">{{ cat.percent }}%</div>
+          </div>
+          <div class="see-all-row">
+            <Link :href="route('report')" class="see-all">Lihat laporan lengkap →</Link>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Notification Panel -->
+    <Teleport to="body">
+      <div v-if="showNotif" class="notif-overlay" @click="showNotif = false"></div>
+      <div :class="['notif-panel', { active: showNotif }]">
+        <div class="notif-header">
+          <h2>Notifikasi 🔔</h2>
+          <button class="notif-close" @click="showNotif = false">✕</button>
+        </div>
+        <div v-if="notifications.length === 0" class="empty-state" style="padding:24px;">
+          <div class="empty-illust">✅</div>
+          <div class="empty-text">Tidak ada notifikasi baru</div>
+        </div>
+        <div v-for="notif in notifications" :key="notif.id" class="notif-item">
+          <div class="notif-icon">🔔</div>
+          <div class="notif-body">
+            <div class="notif-title">{{ notif.title }}</div>
+            <div class="notif-desc">{{ notif.body }}</div>
+            <div class="notif-time">{{ notif.created_at }}</div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+  </AppLayout>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue'
+import { Link } from '@inertiajs/vue3'
+import AppLayout from '@/Layouts/AppLayout.vue'
+import AppIcon from '@/Components/AppIcon.vue'
+
+const props = defineProps({
+  totalBalance: Number, totalIncome: Number, totalExpense: Number,
+  budgetHarian: Number, budgetPct: Number,
+  recentTransactions: Array, notifications: Array, upcomingBills: Array,
+  goals: { type: Array, default: () => [] },
+  topCategories: { type: Array, default: () => [] },
+  period: String, hide_balance: Boolean,
+})
+
+const showNotif = ref(false)
+const balanceHidden = ref(props.hide_balance)
+
+const greetingTime = computed(() => {
+  const h = new Date().getHours()
+  if (h < 11) return 'Pagi'
+  if (h < 15) return 'Siang'
+  if (h < 18) return 'Sore'
+  return 'Malam'
+})
+
+const toggleBalance = async () => {
+  balanceHidden.value = !balanceHidden.value
+  try {
+    await fetch(route('dashboard.toggle-balance'), {
+      method: 'POST',
+      headers: {
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+        'Content-Type': 'application/json',
+      },
+    })
+  } catch {}
+}
+
+const formatRupiah = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID')
+const formatShort = (n) => {
+  n = Number(n || 0)
+  if (n >= 1_000_000_000) return (n/1_000_000_000).toFixed(1) + 'M'
+  if (n >= 1_000_000)     return (n/1_000_000).toFixed(1) + 'jt'
+  if (n >= 1_000)         return (n/1_000).toFixed(0) + 'rb'
+  return String(n)
+}
+</script>
+
+<style scoped>
+.page-content { padding: 20px 20px 0; }
+
+/* Header */
+.dash-header {
+  display:flex; justify-content:space-between; align-items:center;
+  background:var(--surface); border-radius:var(--radius-lg); padding:16px 18px;
+  margin-bottom:14px; box-shadow:var(--shadow-card);
+  position:sticky; top:0; z-index:40;
+}
+.greeting-label { font-size:12px; color:var(--text-secondary); font-weight:500; }
+.greeting-name { font-family:'Plus Jakarta Sans',sans-serif; font-size:20px; font-weight:800; letter-spacing:-.02em; }
+.header-actions { display:flex; gap:8px; }
+.icon-btn { position:relative; width:40px; height:40px; border-radius:50%; background:var(--surface); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:18px; box-shadow:var(--shadow-sm); text-decoration:none; }
+.icon-dot { position:absolute; top:6px; right:8px; width:8px; height:8px; background:var(--danger); border-radius:50%; border:2px solid var(--surface); }
+
+/* Hero Card */
+.hero-card { position:relative; overflow:hidden; background:linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color:white; border-radius:var(--radius-xl); padding:22px; margin-bottom:14px; box-shadow:0 10px 30px rgba(37,99,235,.25); }
+.hero-illustration { position:absolute; right:12px; bottom:8px; width:90px; height:90px; opacity:.9; pointer-events:none; }
+.hero-top { display:flex; justify-content:space-between; align-items:center; }
+.hero-label { font-size:11px; font-weight:700; letter-spacing:.06em; color:rgba(255,255,255,.7); }
+.hide-btn { background:rgba(255,255,255,.15); border:none; border-radius:50%; width:32px; height:32px; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; color:white; }
+.hide-btn svg { width:16px; height:16px; }
+.hero-amount { font-family:'Plus Jakarta Sans',sans-serif; font-size:30px; font-weight:800; letter-spacing:-.02em; margin:6px 0 2px; }
+.hidden-text { letter-spacing:.1em; color:rgba(255,255,255,.6); font-size:24px; }
+.hero-sub { font-size:11px; color:rgba(255,255,255,.55); margin-bottom:16px; }
+.hero-stats { display:flex; gap:24px; padding-top:14px; border-top:1px solid rgba(255,255,255,.15); }
+.hs-item { display:flex; align-items:center; gap:8px; }
+.hs-icon { font-size:16px; opacity:.7; }
+.hs-label { font-size:10px; color:rgba(255,255,255,.6); }
+.hs-val { font-size:14px; font-weight:700; }
+.hs-val.up { color:#86EFAC; }
+.hs-val.down { color:#FCA5A5; }
+
+/* AI Insight */
+.ai-insight-card { display:flex; gap:12px; background:var(--surface); border-radius:var(--radius-lg); padding:16px; margin-bottom:14px; box-shadow:var(--shadow-card); border-left:3px solid var(--primary); }
+.ai-icon { font-size:24px; flex-shrink:0; }
+.ai-title { font-size:12px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.03em; margin-bottom:4px; }
+.ai-text { font-size:13px; color:var(--text-primary); line-height:1.5; margin-bottom:8px; }
+.ai-progress { display:flex; align-items:center; gap:8px; }
+.ai-bar { flex:1; height:6px; background:var(--background); border-radius:99px; overflow:hidden; }
+.ai-fill { height:100%; border-radius:99px; transition:width .5s; }
+.ai-fill.ok { background:var(--success); }
+.ai-fill.warn { background:var(--amber); }
+.ai-fill.over { background:var(--danger); }
+.ai-pct { font-size:11px; font-weight:700; color:var(--text-secondary); }
+
+/* Quick actions */
+.qa-row { display:flex; gap:8px; margin-bottom:18px; }
+.qa-btn { flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; background:var(--surface); border-radius:var(--radius-lg); padding:14px 6px; box-shadow:var(--shadow-card); text-decoration:none; color:var(--text-primary); font-size:10.5px; font-weight:600; transition:all .15s; }
+.qa-btn:active { transform:scale(.95); }
+.qa-icon { width:38px; height:38px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:18px; }
+.qa-icon.pemasukan   { background:var(--success-bg); }
+.qa-icon.pengeluaran { background:var(--danger-bg); }
+.qa-icon.scan        { background:var(--primary-bg); }
+.qa-icon.aset        { background:var(--amber-bg); }
+
+/* Section */
+.section { margin-bottom:18px; }
+.section-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+.section-title { font-size:13px; font-weight:700; }
+.see-all { font-size:12px; color:var(--primary); text-decoration:none; font-weight:600; }
+.see-all-row { text-align:center; padding-top:10px; border-top:1px solid var(--border); margin-top:4px; }
+
+/* Goals */
+.goal-scroll { display:flex; gap:10px; overflow-x:auto; scrollbar-width:none; }
+.goal-chip { flex-shrink:0; min-width:140px; background:var(--surface); border-radius:var(--radius-lg); padding:14px; box-shadow:var(--shadow-card); }
+.goal-name { font-size:12px; font-weight:600; margin-bottom:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.goal-bar { height:6px; background:var(--background); border-radius:99px; overflow:hidden; margin-bottom:4px; }
+.goal-fill { height:100%; background:var(--secondary); border-radius:99px; }
+.goal-pct { font-size:11px; color:var(--text-secondary); font-weight:600; }
+
+/* Bills */
+.bill-list { display:flex; flex-direction:column; gap:8px; }
+.bill-chip { display:flex; align-items:center; gap:10px; background:var(--surface); border-radius:var(--radius-md); padding:12px 14px; box-shadow:var(--shadow-card); border-left:3px solid var(--success); }
+.bill-chip.today { border-left-color:var(--danger); }
+.bill-chip.soon  { border-left-color:var(--amber); }
+.bc-emoji { font-size:18px; }
+.bc-name { flex:1; font-size:13px; font-weight:500; }
+.bc-due { font-size:11px; font-weight:700; color:var(--success); }
+.bill-chip.today .bc-due { color:var(--danger); }
+.bill-chip.soon .bc-due { color:var(--amber); }
+.bc-amt { font-family:'Plus Jakarta Sans',sans-serif; font-size:12px; font-weight:800; }
+
+/* Transactions */
+.tx-card { padding:8px 16px; }
+.tx-item { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--border); }
+.tx-item:last-of-type { border-bottom:none; }
+.tx-icon { width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+.tx-info { flex:1; min-width:0; }
+.tx-name { font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tx-cat { font-size:11px; color:var(--text-secondary); }
+.tx-right { text-align:right; flex-shrink:0; }
+.tx-amt { font-size:13px; font-weight:700; }
+.tx-amt.up { color:var(--success); }
+.tx-amt.down { color:var(--danger); }
+.tx-time { font-size:10px; color:var(--text-faint); }
+
+.empty-state { text-align:center; padding:24px 0; }
+.empty-illust { font-size:36px; margin-bottom:8px; }
+.empty-text { font-size:14px; font-weight:600; margin-bottom:2px; }
+.empty-sub { font-size:12px; color:var(--text-secondary); }
+
+/* Kategori Pengeluaran */
+.cat-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.cat-row:last-of-type { border-bottom: none; }
+.cat-emoji { font-size: 20px; width: 32px; text-align: center; flex-shrink: 0; }
+.cat-info { flex: 1; min-width: 0; }
+.cat-name-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+.cat-name { font-weight: 600; color: var(--text-primary); }
+.cat-amt { color: var(--text-secondary); }
+.cat-bar-bg { height: 6px; background: var(--background); border-radius: 99px; overflow: hidden; }
+.cat-bar-fill { height: 100%; background: var(--primary); border-radius: 99px; }
+.cat-pct { font-size: 12px; font-weight: 700; color: var(--text-secondary); width: 36px; text-align: right; flex-shrink: 0; }
+
+/* Notif panel */
+.notif-overlay { position:fixed; inset:0; background:rgba(15,23,42,.4); z-index:400; backdrop-filter:blur(3px); }
+.notif-panel { position:fixed; top:0; right:0; width:100%; max-width:480px; height:100vh; background:var(--surface); z-index:401; transform:translateX(100%); transition:transform .3s ease; overflow-y:auto; }
+.notif-panel.active { transform:translateX(0); }
+.notif-header { padding:20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; background:var(--surface); }
+.notif-header h2 { font-family:'Plus Jakarta Sans',sans-serif; font-size:18px; font-weight:800; }
+.notif-close { font-size:18px; background:var(--background); border:none; border-radius:50%; width:32px; height:32px; cursor:pointer; }
+.notif-item { display:flex; gap:12px; padding:14px 20px; border-bottom:1px solid var(--border); background:var(--primary-bg); }
+.notif-icon { font-size:20px; flex-shrink:0; }
+.notif-title { font-size:13px; font-weight:600; margin-bottom:2px; }
+.notif-desc { font-size:12px; color:var(--text-secondary); line-height:1.5; }
+.notif-time { font-size:10px; color:var(--text-faint); margin-top:4px; }
+</style>

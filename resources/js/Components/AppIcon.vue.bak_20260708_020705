@@ -1,0 +1,14 @@
+<template>
+  <img v-if="iconUrl" :src="iconUrl" :alt="slug" :class="$attrs.class" />
+  <span v-else :class="$attrs.class"><slot /></span>
+</template>
+
+<script setup>
+import { computed } from 'vue'
+import { usePage } from '@inertiajs/vue3'
+
+const props = defineProps({ slug: { type: String, required: true } })
+
+const page = usePage()
+const iconUrl = computed(() => page.props.icons?.[props.slug] ?? null)
+</script>

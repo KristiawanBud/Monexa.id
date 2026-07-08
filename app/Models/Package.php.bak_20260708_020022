@@ -1,0 +1,25 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
+use Illuminate\Database\Eloquent\Model;
+
+class Package extends Model
+{
+    use HasUlids;
+
+    protected $fillable = [
+        'name', 'slug', 'billing_period', 'price',
+        'duration_days', 'features', 'is_active', 'sort_order',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'price'     => 'decimal:2',
+            'features'  => 'array',
+            'is_active' => 'boolean',
+        ];
+    }
+}

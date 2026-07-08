@@ -1,0 +1,354 @@
+<template>
+  <AppLayout>
+    <div class="page-content">
+
+      <div class="page-header">
+        <h1 class="page-title">Laporan 📊</h1>
+        <button class="export-icon-btn" @click="showExportMenu = true">📤</button>
+      </div>
+
+      <div class="page-hint">
+        <span class="page-hint-icon">💡</span>
+        <span class="page-hint-text">Pantau tren keuangan, budget health, dan dana darurat kamu.</span>
+      </div>
+
+      <!-- Month selector -->
+      <div class="month-scroll">
+        <button v-for="m in months" :key="m.value"
+          :class="['chip', { active: period === m.value }]"
+          @click="changePeriod(m.value)">
+          {{ m.label }}
+        </button>
+      </div>
+
+      <!-- Summary -->
+      <div class="summary-grid">
+        <div class="summary-card">
+          <div class="sc-label">↑ Pemasukan</div>
+          <div class="sc-val up">{{ formatRupiah(totalIncome) }}</div>
+          <div :class="['sc-change', incomeChange >= 0 ? 'pos' : 'neg']">
+            {{ incomeChange >= 0 ? '↑' : '↓' }} {{ Math.abs(incomeChange) }}% vs bulan lalu
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="sc-label">↓ Pengeluaran</div>
+          <div class="sc-val down">{{ formatRupiah(totalExpense) }}</div>
+          <div :class="['sc-change', expenseChange <= 0 ? 'pos' : 'neg']">
+            {{ expenseChange >= 0 ? '↑' : '↓' }} {{ Math.abs(expenseChange) }}% vs bulan lalu
+          </div>
+        </div>
+      </div>
+
+      <!-- Line/Bar Chart -->
+      <div class="card chart-card">
+        <div class="chart-title">Pemasukan vs Pengeluaran (6 Bulan)</div>
+        <div class="bar-chart">
+          <div v-for="item in barData" :key="item.period" class="bar-group">
+            <div class="bar-pair">
+              <div class="bar income-bar" :style="`height:${barHeight(item.income)}px`" :title="formatRupiah(item.income)"></div>
+              <div class="bar expense-bar" :style="`height:${barHeight(item.expense)}px`" :title="formatRupiah(item.expense)"></div>
+            </div>
+            <div :class="['bar-label', { active: item.active }]">{{ item.period }}</div>
+          </div>
+        </div>
+        <div class="chart-legend">
+          <div class="legend-item"><span class="legend-dot income"></span> Pemasukan</div>
+          <div class="legend-item"><span class="legend-dot expense"></span> Pengeluaran</div>
+        </div>
+      </div>
+
+      <!-- Budget Health Score -->
+      <div class="card health-card">
+        <div class="health-header">
+          <div>
+            <div class="chart-title">Budget Health Score</div>
+            <div :class="['health-status', healthStatus]">
+              {{ healthLabel(healthStatus) }}
+            </div>
+          </div>
+          <div class="health-score-circle" :class="healthStatus">
+            <span>{{ healthScore }}</span>
+          </div>
+        </div>
+
+        <div class="health-metrics">
+          <div class="hm-item">
+            <div class="hm-label">Rasio Tabungan</div>
+            <div class="hm-bar"><div class="hm-fill saving" :style="`width:${Math.min(savingRatio,100)}%`"></div></div>
+            <div class="hm-val">{{ savingRatio }}%</div>
+          </div>
+          <div class="hm-item">
+            <div class="hm-label">Disiplin Anggaran</div>
+            <div class="hm-bar"><div class="hm-fill discipline" :style="`width:${budgetDiscipline}%`"></div></div>
+            <div class="hm-val">{{ budgetDiscipline }}%</div>
+          </div>
+          <div class="hm-item">
+            <div class="hm-label">Keamanan & Runway</div>
+            <div class="hm-bar"><div class="hm-fill runway" :style="`width:${runwayScore}%`"></div></div>
+            <div class="hm-val">{{ runwayScore }}%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Emergency Fund -->
+      <div class="card emergency-card">
+        <div class="ec-header">
+          <span class="chart-title">🛡️ Dana Darurat</span>
+        </div>
+        <div v-if="runwayMonths !== null" class="ec-content">
+          <div class="ec-months">{{ runwayMonths }} <span>Bulan</span></div>
+          <div class="ec-bar"><div class="ec-fill" :style="`width:${Math.min((runwayMonths/6)*100,100)}%`"></div></div>
+          <div class="ec-hint">Target ideal: 6 bulan pengeluaran</div>
+        </div>
+        <div v-else class="ec-empty">Belum cukup data untuk menghitung dana darurat.</div>
+      </div>
+
+      <!-- Donut Chart -->
+      <div class="card chart-card" v-if="donutData.length > 0">
+        <div class="chart-title">Kategori Pengeluaran</div>
+        <div class="donut-wrap">
+          <svg viewBox="0 0 100 100" class="donut-svg">
+            <circle v-for="(seg, i) in donutSegments" :key="i"
+              cx="50" cy="50" r="40" fill="transparent"
+              :stroke="donutColors[i % donutColors.length]"
+              stroke-width="16"
+              :stroke-dasharray="`${seg.length} ${251.2 - seg.length}`"
+              :stroke-dashoffset="-seg.offset"
+              transform="rotate(-90 50 50)" />
+          </svg>
+          <div class="donut-center">
+            <div class="dc-label">Total</div>
+            <div class="dc-val">{{ formatShort(totalExpense) }}</div>
+          </div>
+        </div>
+        <div class="donut-legend">
+          <div v-for="(cat, i) in donutData" :key="cat.category" class="dl-item">
+            <span class="dl-dot" :style="`background:${donutColors[i % donutColors.length]}`"></span>
+            <span class="dl-name">{{ cat.emoji }} {{ cat.category }}</span>
+            <span class="dl-pct">{{ cat.percent }}%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Budget vs Realisasi -->
+      <div class="card" v-if="budgets.length > 0">
+        <div class="chart-title">Budget vs Realisasi</div>
+        <div v-for="b in budgets" :key="b.category" class="budget-row">
+          <div class="br-top">
+            <span class="br-name">{{ b.emoji }} {{ b.category }}</span>
+            <span class="br-amt">{{ formatShort(b.spent) }} / {{ formatShort(b.budget) }}</span>
+          </div>
+          <div class="br-bar">
+            <div :class="['br-fill', b.status]" :style="`width:${Math.min(b.percent,100)}%`"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Export Menu Bottom Sheet -->
+    <Teleport to="body">
+      <div v-if="showExportMenu" class="modal-overlay" @click.self="showExportMenu = false">
+        <div class="modal-sheet">
+          <div class="modal-handle"></div>
+          <div class="modal-title">📤 Export Laporan {{ periodLabel }}</div>
+
+          <a :href="route('report.export-pdf', { period })" class="export-option">
+            <span class="eo-icon">📄</span>
+            <div class="eo-info">
+              <div class="eo-name">Export PDF</div>
+              <div class="eo-desc">Laporan rapi untuk dicetak atau dibagikan</div>
+            </div>
+          </a>
+
+          <a :href="route('report.export-excel', { period })" class="export-option">
+            <span class="eo-icon">📊</span>
+            <div class="eo-info">
+              <div class="eo-name">Export Excel</div>
+              <div class="eo-desc">Detail transaksi dalam format spreadsheet</div>
+            </div>
+          </a>
+
+          <button class="export-option" @click="sendWhatsApp" :disabled="sendingWa">
+            <span class="eo-icon">💬</span>
+            <div class="eo-info">
+              <div class="eo-name">{{ sendingWa ? 'Mengirim...' : 'Kirim ke WhatsApp' }}</div>
+              <div class="eo-desc">Ringkasan dikirim langsung ke nomor WA kamu</div>
+            </div>
+          </button>
+
+          <button class="qa-cancel" style="margin-top:10px;" @click="showExportMenu = false">Tutup</button>
+        </div>
+      </div>
+    </Teleport>
+  </AppLayout>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue'
+import { router } from '@inertiajs/vue3'
+import AppLayout from '@/Layouts/AppLayout.vue'
+import AppIcon from '@/Components/AppIcon.vue'
+import axios from 'axios'
+
+const props = defineProps({
+  period: String, periodLabel: String,
+  barData: Array, donutData: Array, budgets: Array,
+  totalIncome: Number, totalExpense: Number,
+  incomeChange: Number, expenseChange: Number,
+  savingRatio: Number, budgetDiscipline: Number,
+  runwayMonths: Number, runwayScore: Number,
+  healthScore: Number, healthStatus: String,
+  months: Array,
+})
+
+const showExportMenu = ref(false)
+const sendingWa = ref(false)
+
+const sendWhatsApp = async () => {
+  sendingWa.value = true
+  try {
+    await axios.post(route('report.send-whatsapp'), { period: props.period })
+    showExportMenu.value = false
+    router.reload({ only: ['flash'] })
+  } catch {
+  } finally {
+    sendingWa.value = false
+  }
+}
+
+const donutColors = ['#2563EB','#10B981','#F59E0B','#EF4444','#8B5CF6','#06B6D4','#EC4899','#84CC16']
+
+const maxBarVal = computed(() => Math.max(...props.barData.flatMap(d => [d.income, d.expense]), 1))
+const barHeight = (v) => Math.max(4, (v / maxBarVal.value) * 90)
+
+const donutSegments = computed(() => {
+  let offset = 0
+  return props.donutData.map(d => {
+    const length = (d.percent / 100) * 251.2
+    const seg = { length, offset }
+    offset += length
+    return seg
+  })
+})
+
+const changePeriod = (p) => router.get(route('report'), { period: p }, { preserveState: true })
+
+const healthLabel = (s) => ({ sehat: '✅ Sehat', cukup: '⚠️ Cukup', perlu_perhatian: '🔴 Perlu Perhatian' }[s] ?? s)
+
+const formatRupiah = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID')
+const formatShort = (n) => {
+  n = Number(n || 0)
+  if (n >= 1_000_000) return (n/1_000_000).toFixed(1) + 'jt'
+  if (n >= 1_000)     return (n/1_000).toFixed(0) + 'rb'
+  return String(n)
+}
+</script>
+
+<style scoped>
+.page-content { padding:20px; }
+.page-header { margin-bottom:12px; }
+.page-title { font-family:'Plus Jakarta Sans',sans-serif; font-size:22px; font-weight:800; }
+
+.month-scroll { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; margin-bottom:16px; padding-bottom:2px; }
+
+.summary-grid { display:flex; gap:10px; margin-bottom:16px; }
+.summary-card { flex:1; background:var(--surface); border-radius:var(--radius-lg); padding:14px; box-shadow:var(--shadow-card); }
+.sc-label { font-size:11px; color:var(--text-secondary); font-weight:600; margin-bottom:4px; }
+.sc-val { font-family:'Plus Jakarta Sans',sans-serif; font-size:16px; font-weight:800; }
+.sc-val.up { color:var(--success); }
+.sc-val.down { color:var(--danger); }
+.sc-change { font-size:10px; font-weight:600; margin-top:4px; }
+.sc-change.pos { color:var(--success); }
+.sc-change.neg { color:var(--danger); }
+
+.card { background:var(--surface); border-radius:var(--radius-xl); padding:18px; box-shadow:var(--shadow-card); margin-bottom:14px; }
+.chart-title { font-size:13px; font-weight:700; margin-bottom:14px; }
+
+/* Bar Chart */
+.bar-chart { display:flex; align-items:flex-end; gap:8px; height:110px; margin-bottom:10px; }
+.bar-group { flex:1; display:flex; flex-direction:column; align-items:center; }
+.bar-pair { display:flex; align-items:flex-end; gap:3px; height:90px; }
+.bar { width:9px; border-radius:4px 4px 0 0; transition:height .4s; }
+.bar.income-bar { background:var(--success); }
+.bar.expense-bar { background:var(--danger); }
+.bar-label { font-size:9px; color:var(--text-faint); margin-top:6px; }
+.bar-label.active { color:var(--primary); font-weight:700; }
+
+.chart-legend { display:flex; gap:16px; justify-content:center; }
+.legend-item { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-secondary); }
+.legend-dot { width:8px; height:8px; border-radius:50%; }
+.legend-dot.income { background:var(--success); }
+.legend-dot.expense { background:var(--danger); }
+
+/* Health Score */
+.health-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; }
+.health-status { font-size:12px; font-weight:700; margin-top:2px; }
+.health-status.sehat { color:var(--success); }
+.health-status.cukup { color:var(--amber); }
+.health-status.perlu_perhatian { color:var(--danger); }
+.health-score-circle { width:54px; height:54px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Plus Jakarta Sans',sans-serif; font-size:18px; font-weight:800; color:white; }
+.health-score-circle.sehat { background:var(--success); }
+.health-score-circle.cukup { background:var(--amber); }
+.health-score-circle.perlu_perhatian { background:var(--danger); }
+
+.health-metrics { display:flex; flex-direction:column; gap:12px; }
+.hm-item { display:flex; align-items:center; gap:10px; }
+.hm-label { font-size:11px; color:var(--text-secondary); width:110px; flex-shrink:0; }
+.hm-bar { flex:1; height:6px; background:var(--background); border-radius:99px; overflow:hidden; }
+.hm-fill { height:100%; border-radius:99px; }
+.hm-fill.saving { background:var(--success); }
+.hm-fill.discipline { background:var(--purple); }
+.hm-fill.runway { background:var(--primary); }
+.hm-val { font-size:11px; font-weight:700; width:36px; text-align:right; flex-shrink:0; }
+
+/* Emergency Fund */
+.emergency-card { background:linear-gradient(135deg, #0F172A 0%, #1E293B 100%); color:white; }
+.ec-header { margin-bottom:12px; }
+.emergency-card .chart-title { color:white; margin-bottom:0; }
+.ec-months { font-family:'Plus Jakarta Sans',sans-serif; font-size:28px; font-weight:800; margin-bottom:10px; }
+.ec-months span { font-size:13px; font-weight:500; color:rgba(255,255,255,.6); }
+.ec-bar { height:8px; background:rgba(255,255,255,.15); border-radius:99px; overflow:hidden; margin-bottom:8px; }
+.ec-fill { height:100%; background:var(--amber); border-radius:99px; }
+.ec-hint { font-size:11px; color:rgba(255,255,255,.5); }
+.ec-empty { font-size:12px; color:rgba(255,255,255,.6); }
+
+/* Donut */
+.donut-wrap { position:relative; width:160px; height:160px; margin:0 auto 16px; }
+.donut-svg { width:100%; height:100%; }
+.donut-center { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; }
+.dc-label { font-size:10px; color:var(--text-secondary); }
+.dc-val { font-family:'Plus Jakarta Sans',sans-serif; font-size:15px; font-weight:800; }
+.donut-legend { display:flex; flex-direction:column; gap:8px; }
+.dl-item { display:flex; align-items:center; gap:8px; font-size:12px; }
+.dl-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.dl-name { flex:1; }
+.dl-pct { font-weight:700; color:var(--text-secondary); }
+
+/* Budget rows */
+.budget-row { margin-bottom:14px; }
+.budget-row:last-child { margin-bottom:0; }
+.br-top { display:flex; justify-content:space-between; font-size:12px; margin-bottom:6px; }
+.br-name { font-weight:600; }
+.br-amt { color:var(--text-secondary); }
+.br-bar { height:7px; background:var(--background); border-radius:99px; overflow:hidden; }
+.br-fill { height:100%; border-radius:99px; }
+.br-fill.ok   { background:var(--success); }
+.br-fill.warn { background:var(--amber); }
+.br-fill.over { background:var(--danger); }
+.br-fill.unset { background:var(--border); }
+
+.export-icon-btn { width:38px; height:38px; border-radius:50%; background:var(--surface); border:none; cursor:pointer; font-size:16px; box-shadow:var(--shadow-sm); }
+
+.modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,.45); z-index:500; display:flex; align-items:flex-end; justify-content:center; backdrop-filter:blur(4px); }
+.modal-sheet { background:var(--surface); border-radius:28px 28px 0 0; width:100%; max-width:480px; padding:24px 20px 40px; }
+.modal-handle { width:40px; height:4px; background:var(--border); border-radius:99px; margin:0 auto 20px; }
+.modal-title { font-family:'Plus Jakarta Sans',sans-serif; font-size:17px; font-weight:800; margin-bottom:16px; }
+
+.export-option { display:flex; align-items:center; gap:12px; width:100%; padding:14px; background:var(--background); border:none; border-radius:var(--radius-lg); margin-bottom:10px; cursor:pointer; text-decoration:none; text-align:left; }
+.export-option:disabled { opacity:.6; cursor:not-allowed; }
+.eo-icon { font-size:24px; flex-shrink:0; }
+.eo-name { font-size:13px; font-weight:700; color:var(--text-primary); }
+.eo-desc { font-size:11px; color:var(--text-secondary); margin-top:2px; }
+.qa-cancel { width:100%; padding:13px; background:none; border:1.5px solid var(--border); border-radius:var(--radius-md); font-size:14px; font-weight:600; color:var(--text-secondary); cursor:pointer; }
+</style>

@@ -1,0 +1,436 @@
+<?php
+
+namespace App\Services;
+
+use App\Exceptions\InsufficientBalanceException;
+use App\Models\User;
+use App\Models\Transaction;
+use App\Models\TransactionCategory;
+use App\Models\UserWallet;
+use App\Models\Bill;
+use App\Models\BillPayment;
+use App\Models\WaMessageLog;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
+class WaParserService
+{
+    public function __construct(
+        private GeminiService $gemini,
+        private WalletService $walletService,
+        private WaGatewayService $gatewayService
+    ) {}
+
+    public function handleIncomingMessage(User $user, string $message, ?string $imageUrl = null): string
+    {
+        if ($imageUrl) {
+            return $this->handleReceiptImage($user, $imageUrl);
+        }
+
+        $context = [
+            'wallets'    => $user->wallets()->where('is_active', true)->pluck('display_name')->toArray(),
+            'categories' => TransactionCategory::forUser($user->id)->pluck('name')->toArray(),
+        ];
+
+        $parsed = $this->gemini->parseWaMessage($message, $context);
+        $intent = $parsed['intent'] ?? 'unknown';
+
+        Log::info("WaParserService: Intent terdeteksi '{$intent}' dari user {$user->id}: {$message}");
+
+        return match ($intent) {
+            'add_income'   => $this->handleAddTransaction($user, $parsed, 'income'),
+            'add_expense'  => $this->handleAddTransaction($user, $parsed, 'expense'),
+            'add_multiple' => $this->handleMultipleTransactions($user, $parsed),
+            'pay_bill'     => $this->handlePayBill($user, $parsed),
+            'get_balance'  => $this->handleGetBalance($user),
+            'get_report'   => $this->handleGetReport($user),
+            'get_bills'    => $this->handleGetBills($user),
+            'help'         => $this->handleHelp(),
+            default        => $this->handleUnknown($message),
+        };
+    }
+
+    // ────────────────────────────────────────────────
+    // INTENT: Tambah Pemasukan / Pengeluaran
+    // ────────────────────────────────────────────────
+    private function handleAddTransaction(User $user, array $parsed, string $type): string
+    {
+        $amount = $parsed['amount'] ?? null;
+
+        if (!$amount || $amount <= 0) {
+            return "❌ Maaf, saya tidak bisa membaca nominalnya. Coba ulangi dengan format:\n\n"
+                . "_\"Makan siang 35rb\"_ atau _\"Gaji 8 juta\"_";
+        }
+
+        $wallet = $this->resolveWallet($user, $parsed['wallet'] ?? null);
+
+        if (!$wallet) {
+            return "❌ Kamu belum punya dompet aktif. Tambahkan dompet dulu di aplikasi ya!";
+        }
+
+        $category = $this->resolveCategory($user, $parsed['category'] ?? null, $type);
+
+        $transactedAt = $parsed['date'] ?? now()->toDateString();
+
+        try {
+            DB::transaction(function () use ($user, $wallet, $category, $type, $amount, $parsed, $transactedAt, &$transaction) {
+                $transaction = $user->transactions()->create([
+                    'wallet_id'     => $wallet->id,
+                    'category_id'   => $category?->id,
+                    'type'          => $type,
+                    'amount'        => $amount,
+                    'note'          => $parsed['note'] ?? null,
+                    'transacted_at' => $transactedAt,
+                    'source'        => 'wa_bot',
+                    'created_by'    => $user->id,
+                ]);
+
+                $this->walletService->applyTransaction($transaction);
+            });
+        } catch (InsufficientBalanceException $e) {
+            return "❌ {$e->getMessage()}";
+        }
+
+        $typeLabel = $type === 'income' ? '💵 Pemasukan' : '💸 Pengeluaran';
+        $emoji     = $category?->emoji ?? '✨';
+
+        return "✅ *{$typeLabel} Tercatat!*\n\n"
+            . "{$emoji} " . ($category?->name ?? 'Lainnya') . "\n"
+            . "💰 Rp " . number_format($amount, 0, ',', '.') . "\n"
+            . "🏦 {$wallet->display_name}\n"
+            . ($parsed['note'] ? "📝 {$parsed['note']}\n" : '')
+            . "\n💼 Saldo {$wallet->display_name} sekarang: Rp " . number_format($wallet->fresh()->balance, 0, ',', '.');
+    }
+
+    // ────────────────────────────────────────────────
+    // INTENT: Transaksi GANDA (lebih dari 1 dalam 1 pesan)
+    // ────────────────────────────────────────────────
+    private function handleMultipleTransactions(User $user, array $parsed): string
+    {
+        $items = $parsed['items'] ?? [];
+
+        if (empty($items) || !is_array($items)) {
+            return "❌ Sepertinya ada beberapa transaksi di pesanmu, tapi saya tidak bisa memisahkannya dengan jelas. "
+                . "Coba sebutkan tiap transaksi & nominalnya, misal:\n\n_\"Parkir 5rb dan makan 75rb\"_";
+        }
+
+        $sharedWallet = $parsed['wallet'] ?? null;
+        $sharedDate   = $parsed['date'] ?? null;
+
+        $lines        = [];
+        $successCount = 0;
+
+        foreach ($items as $item) {
+            $type   = ($item['type'] ?? 'expense') === 'income' ? 'income' : 'expense';
+            $amount = $item['amount'] ?? null;
+
+            if (!$amount || $amount <= 0) {
+                $lines[] = "❌ " . ($item['note'] ?? 'Transaksi') . ": nominal tidak jelas";
+                continue;
+            }
+
+            $wallet = $this->resolveWallet($user, $item['wallet'] ?? $sharedWallet);
+            if (!$wallet) {
+                $lines[] = "❌ " . ($item['note'] ?? 'Transaksi') . ": belum ada dompet aktif";
+                continue;
+            }
+
+            $category     = $this->resolveCategory($user, $item['category'] ?? null, $type);
+            $transactedAt = $sharedDate ?? now()->toDateString();
+
+            try {
+                DB::transaction(function () use ($user, $wallet, $category, $type, $amount, $item, $transactedAt, &$transaction) {
+                    $transaction = $user->transactions()->create([
+                        'wallet_id'     => $wallet->id,
+                        'category_id'   => $category?->id,
+                        'type'          => $type,
+                        'amount'        => $amount,
+                        'note'          => $item['note'] ?? null,
+                        'transacted_at' => $transactedAt,
+                        'source'        => 'wa_bot',
+                        'created_by'    => $user->id,
+                    ]);
+
+                    $this->walletService->applyTransaction($transaction);
+                });
+
+                $emoji = $category?->emoji ?? '✨';
+                $sign  = $type === 'income' ? '+' : '-';
+                $lines[] = "✅ {$emoji} " . ($item['note'] ?? $category?->name ?? 'Transaksi')
+                    . " ({$category?->name}): {$sign}Rp " . number_format($amount, 0, ',', '.');
+                $successCount++;
+
+            } catch (InsufficientBalanceException $e) {
+                $lines[] = "❌ " . ($item['note'] ?? 'Transaksi') . ": {$e->getMessage()}";
+            }
+        }
+
+        $totalCount = count($items);
+        $summary    = implode("\n", $lines);
+
+        return "📝 *{$successCount}/{$totalCount} Transaksi Tercatat!*\n\n{$summary}";
+    }
+
+    // ────────────────────────────────────────────────
+    // INTENT: Bayar Tagihan
+    // ────────────────────────────────────────────────
+    private function handlePayBill(User $user, array $parsed): string
+    {
+        $billName = $parsed['bill_name'] ?? null;
+
+        if (!$billName) {
+            return "❌ Sebutkan nama tagihan yang mau dibayar. Contoh: _\"Lunas tagihan Listrik\"_";
+        }
+
+        $bill = $user->bills()
+            ->where('is_active', true)
+            ->where('name', 'like', "%{$billName}%")
+            ->first();
+
+        if (!$bill) {
+            return "❌ Tagihan \"{$billName}\" tidak ditemukan. Cek daftar tagihanmu di aplikasi ya!";
+        }
+
+        $forPeriod = now()->format('Y-m');
+
+        $alreadyPaid = BillPayment::where('bill_id', $bill->id)
+            ->where('for_period', $forPeriod)
+            ->exists();
+
+        if ($alreadyPaid) {
+            return "ℹ️ Tagihan *{$bill->name}* untuk bulan ini sudah lunas!";
+        }
+
+        $wallet = $this->resolveWallet($user, $parsed['wallet'] ?? null);
+        if (!$wallet) {
+            return "❌ Kamu belum punya dompet aktif untuk membayar tagihan ini.";
+        }
+
+        $tagCategory = TransactionCategory::where('type', 'expense')
+            ->where('is_system', true)
+            ->whereRaw('LOWER(name) = ?', ['tagihan'])
+            ->first();
+
+        try {
+            DB::transaction(function () use ($user, $bill, $wallet, $tagCategory, $forPeriod) {
+                $transaction = $user->transactions()->create([
+                    'wallet_id'     => $wallet->id,
+                    'category_id'   => $tagCategory?->id,
+                    'type'          => 'expense',
+                    'amount'        => $bill->amount,
+                    'note'          => 'Bayar tagihan: ' . $bill->name,
+                    'transacted_at' => now(),
+                    'source'        => 'wa_bot',
+                    'created_by'    => $user->id,
+                ]);
+
+                $this->walletService->applyTransaction($transaction);
+
+                BillPayment::create([
+                    'bill_id'        => $bill->id,
+                    'wallet_id'      => $wallet->id,
+                    'transaction_id' => $transaction->id,
+                    'amount_paid'    => $bill->amount,
+                    'paid_at'        => now(),
+                    'source'         => 'wa_bot',
+                    'for_period'     => $forPeriod,
+                ]);
+
+                $bill->update(['last_paid_at' => now()]);
+            });
+        } catch (InsufficientBalanceException $e) {
+            return "❌ {$e->getMessage()}";
+        }
+
+        return "✅ *Tagihan Lunas!*\n\n"
+            . "{$bill->emoji} {$bill->name}\n"
+            . "💰 Rp " . number_format($bill->amount, 0, ',', '.') . "\n"
+            . "🏦 Dibayar dari {$wallet->display_name}";
+    }
+
+    // ────────────────────────────────────────────────
+    // INTENT: Cek Saldo
+    // ────────────────────────────────────────────────
+    private function handleGetBalance(User $user): string
+    {
+        $wallets = $user->wallets()->where('is_active', true)->orderBy('sort_order')->get();
+
+        if ($wallets->isEmpty()) {
+            return "Kamu belum punya dompet aktif.";
+        }
+
+        $total = $wallets->sum('balance');
+        $lines = $wallets->map(fn($w) =>
+            "🏦 {$w->display_name}: Rp " . number_format($w->balance, 0, ',', '.')
+        )->join("\n");
+
+        return "💰 *Saldo Kamu*\n\n{$lines}\n\n"
+            . "━━━━━━━━━━━━━━━━━━━━\n"
+            . "*Total: Rp " . number_format($total, 0, ',', '.') . "*";
+    }
+
+    // ────────────────────────────────────────────────
+    // INTENT: Laporan Bulan Ini
+    // ────────────────────────────────────────────────
+    private function handleGetReport(User $user): string
+    {
+        $period = now()->format('Y-m');
+        $txs    = $user->transactions()->forPeriod($period)->get();
+
+        $income  = $txs->where('type', 'income')->sum('amount');
+        $expense = $txs->where('type', 'expense')->sum('amount');
+
+        $topCategories = $txs->where('type', 'expense')
+            ->groupBy(fn($t) => $t->category?->name ?? 'Lainnya')
+            ->map(fn($group) => [
+                'name'  => $group->first()->category?->name ?? 'Lainnya',
+                'total' => $group->sum('amount'),
+            ])
+            ->sortByDesc('total')
+            ->take(3);
+
+        $topLines = $topCategories->map(fn($c) =>
+            "  • {$c['name']}: Rp " . number_format($c['total'], 0, ',', '.')
+        )->join("\n");
+
+        return "📊 *Laporan " . now()->translatedFormat('F Y') . "*\n\n"
+            . "↑ Pemasukan: Rp " . number_format($income, 0, ',', '.') . "\n"
+            . "↓ Pengeluaran: Rp " . number_format($expense, 0, ',', '.') . "\n"
+            . "💰 Selisih: Rp " . number_format($income - $expense, 0, ',', '.') . "\n\n"
+            . ($topLines ? "*Top Pengeluaran:*\n{$topLines}" : '');
+    }
+
+    // ────────────────────────────────────────────────
+    // INTENT: Lihat Tagihan Aktif
+    // ────────────────────────────────────────────────
+    private function handleGetBills(User $user): string
+    {
+        $bills = $user->bills()->where('is_active', true)->get();
+
+        if ($bills->isEmpty()) {
+            return "Kamu belum punya tagihan aktif.";
+        }
+
+        $lines = $bills->map(function ($b) {
+            $due = $b->days_until_due;
+            $dueLabel = $due === null ? '' : ($due === 0 ? ' (Hari ini!)' : " (H-{$due})");
+            return "{$b->emoji} {$b->name}: Rp " . number_format($b->amount, 0, ',', '.') . $dueLabel;
+        })->join("\n");
+
+        return "📋 *Tagihan Aktif Kamu*\n\n{$lines}";
+    }
+
+    // ────────────────────────────────────────────────
+    // INTENT: Bantuan / Help
+    // ────────────────────────────────────────────────
+    private function handleHelp(): string
+    {
+        return "🤖 *Panduan CatatCuan Bot*\n\n"
+            . "Kirim pesan natural untuk mencatat:\n\n"
+            . "💵 *\"Gaji Juni 8 juta\"* → catat pemasukan\n"
+            . "💸 *\"Makan siang 35rb\"* → catat pengeluaran\n"
+            . "📝 *\"Parkir 5rb dan makan 75rb\"* → catat beberapa transaksi sekaligus\n"
+            . "💰 *\"Saldo\"* → cek saldo semua dompet\n"
+            . "📊 *\"Laporan bulan ini\"* → ringkasan keuangan\n"
+            . "📋 *\"Tagihan\"* → lihat tagihan aktif\n"
+            . "✅ *\"Lunas tagihan Listrik\"* → tandai tagihan lunas\n"
+            . "📷 Kirim *foto struk* → otomatis dibaca AI\n\n"
+            . "_CatatCuan — Catat keuangan, hidup lebih tenang_ ✨";
+    }
+
+    // ────────────────────────────────────────────────
+    // INTENT: Tidak Dikenali
+    // ────────────────────────────────────────────────
+    private function handleUnknown(string $message): string
+    {
+        return "🤔 Maaf, saya belum paham maksudnya.\n\n"
+            . "Coba ketik *\"Bantuan\"* untuk lihat semua command yang bisa dipakai.";
+    }
+
+    // ────────────────────────────────────────────────
+    // Handle Foto Struk via WA
+    // ────────────────────────────────────────────────
+    private function handleReceiptImage(User $user, string $imageUrl): string
+    {
+        try {
+            $imageData = file_get_contents($imageUrl);
+            if (!$imageData) {
+                return "❌ Gagal mengunduh gambar. Coba kirim ulang struknya.";
+            }
+
+            $base64 = base64_encode($imageData);
+            $result = $this->gemini->parseReceipt($base64);
+
+            if (!$result['success'] || !isset($result['data'])) {
+                return "❌ Gagal membaca struk. Coba foto yang lebih jelas dan terang.";
+            }
+
+            $data   = $result['data'];
+            $wallet = $this->resolveWallet($user, null);
+
+            if (!$wallet) {
+                return "❌ Kamu belum punya dompet aktif untuk mencatat struk ini.";
+            }
+
+            $category = $this->resolveCategory($user, null, 'expense');
+
+            $transaction = $user->transactions()->create([
+                'wallet_id'     => $wallet->id,
+                'category_id'   => $category?->id,
+                'type'          => 'expense',
+                'amount'        => $data['total'] ?? 0,
+                'note'          => $data['merchant'] ?? 'Struk WA',
+                'transacted_at' => $data['date'] ?? now()->toDateString(),
+                'source'        => 'wa_receipt',
+                'created_by'    => $user->id,
+            ]);
+
+            $this->walletService->applyTransaction($transaction);
+
+            return "📷 *Struk Berhasil Dibaca!*\n\n"
+                . "🏪 " . ($data['merchant'] ?? 'Tidak diketahui') . "\n"
+                . "💰 Rp " . number_format($data['total'] ?? 0, 0, ',', '.') . "\n"
+                . "🏦 Dicatat ke {$wallet->display_name}\n\n"
+                . "_Cek dan edit di aplikasi jika ada yang kurang tepat._";
+
+        } catch (InsufficientBalanceException $e) {
+            return "❌ {$e->getMessage()}";
+        } catch (\Exception $e) {
+            Log::error("WaParserService handleReceiptImage error: {$e->getMessage()}");
+            return "❌ Terjadi kesalahan saat memproses struk. Coba lagi nanti.";
+        }
+    }
+
+    // ────────────────────────────────────────────────
+    // PRIVATE HELPERS
+    // ────────────────────────────────────────────────
+    private function resolveWallet(User $user, ?string $walletName): ?UserWallet
+    {
+        $query = $user->wallets()->where('is_active', true);
+
+        if ($walletName) {
+            $byName = (clone $query)->where('display_name', 'like', "%{$walletName}%")->first();
+            if ($byName) return $byName;
+        }
+
+        return $query->orderBy('sort_order')->first();
+    }
+
+    private function resolveCategory(User $user, ?string $categoryName, string $type): ?TransactionCategory
+    {
+        $categories = TransactionCategory::forUser($user->id)->where('type', $type);
+
+        if ($categoryName) {
+            $needle = mb_strtolower(trim($categoryName));
+
+            $byName = $categories->first(function ($cat) use ($needle) {
+                $catName = mb_strtolower($cat->name);
+                return str_contains($catName, $needle) || str_contains($needle, $catName);
+            });
+
+            if ($byName) return $byName;
+        }
+
+        return $categories->first(fn($cat) => $cat->name === 'Lainnya');
+    }
+}
