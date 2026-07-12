@@ -1,0 +1,49 @@
+/* ════════════════════════════════════════════
+   Monexa — Theme: Green (draft)
+   Primary hijau, secondary tetap warna brand (biru),
+   background/surface tetap putih. Struktur token identik
+   dengan theme-blue.css — hanya value primary/success/
+   shadow-fab/shadow-focus yang di-derive dari hijau.
+   ════════════════════════════════════════════ */
+[data-theme='green'] {
+  /* ── Warna Utama ── */
+  --primary:       #16A34A;
+  --primary-light: #4ADE80;
+  --primary-dark:  #15803D;
+  --secondary:     #2563EB;
+  --success:       #22C55E;
+  --danger:        #EF4444;
+
+  --primary-bg:    #EAFBF0;
+  --secondary-bg:  #EFF4FF;
+  --success-bg:    #E9FBEF;
+  --danger-bg:     #FDECEC;
+  --amber:         #F59E0B;
+  --amber-bg:      #FEF6E7;
+  --purple:        #8B5CF6;
+  --purple-bg:     #F2EDFE;
+
+  /* ── Background & Surface ── */
+  --background:    #F7FCF9;
+  --surface:       #FFFFFF;
+  --border:        #DCEEE2;
+
+  /* ── Teks ── */
+  --text-primary:   #0F172A;
+  --text-secondary: #64748B;
+  --text-faint:     #94A3B8;
+
+  /* ── Radius ── */
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+
+  /* ── Shadow (Soft Depth & Focus) ── */
+  --shadow-sm: 0 2px 6px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.10);
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.04), 0 8px 20px rgba(22, 163, 74, 0.06);
+  --shadow-fab: 0 8px 20px rgba(22, 163, 74, 0.35);
+  --shadow-focus: 0 0 0 4px rgba(22, 163, 74, 0.12);
+}

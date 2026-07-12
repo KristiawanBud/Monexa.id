@@ -4,6 +4,9 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers'
 import { ZiggyVue } from '../../vendor/tightenco/ziggy'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import '../css/app.css'
+import { useTheme } from './Composables/useTheme'
+
+useTheme()
 
 createInertiaApp({
   title: (title) => `${title} — CatatCuan`,

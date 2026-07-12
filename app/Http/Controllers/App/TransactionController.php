@@ -4,11 +4,13 @@ namespace App\Http\Controllers\App;
 
 use App\Exceptions\InsufficientBalanceException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\App\TransactionIndexRequest;
 use App\Models\Bank;
 use App\Models\Transaction;
 use App\Models\TransactionCategory;
 use App\Models\TransactionEditLog;
 use App\Services\WalletService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -19,7 +21,7 @@ class TransactionController extends Controller
 {
     public function __construct(private WalletService $walletService) {}
 
-    public function index(Request $request): Response
+    public function index(TransactionIndexRequest $request): Response
     {
         $user = $request->user();
 
@@ -30,7 +32,9 @@ class TransactionController extends Controller
             ->orderByDesc('transacted_at')
             ->orderByDesc('created_at');
 
-        if ($request->period) {
+        if ($request->start_date && $request->end_date) {
+            $query->whereBetween('transacted_at', [$request->start_date, $request->end_date]);
+        } elseif ($request->period) {
             $query->forPeriod($request->period);
         } else {
             match ($range) {
@@ -80,20 +84,31 @@ class TransactionController extends Controller
 
         // ── Ringkasan sesuai range yang dipilih (Masuk / Keluar) ──
         $rangeSummaryQuery = $user->transactions();
-        match ($range) {
-            'week' => $rangeSummaryQuery->whereBetween('transacted_at', [now()->startOfWeek(), now()->endOfWeek()]),
-            'month' => $rangeSummaryQuery->forPeriod(now()->format('Y-m')),
-            default => $rangeSummaryQuery->whereDate('transacted_at', now()->toDateString()),
-        };
+        if ($request->start_date && $request->end_date) {
+            $rangeSummaryQuery->whereBetween('transacted_at', [$request->start_date, $request->end_date]);
+        } elseif ($request->period) {
+            $rangeSummaryQuery->forPeriod($request->period);
+        } else {
+            match ($range) {
+                'week' => $rangeSummaryQuery->whereBetween('transacted_at', [now()->startOfWeek(), now()->endOfWeek()]),
+                'month' => $rangeSummaryQuery->forPeriod(now()->format('Y-m')),
+                default => $rangeSummaryQuery->whereDate('transacted_at', now()->toDateString()),
+            };
+        }
         $rangeSummary = $rangeSummaryQuery->get();
         $rangeIncome = (float) $rangeSummary->where('type', 'income')->sum('amount');
         $rangeExpense = (float) $rangeSummary->where('type', 'expense')->sum('amount');
 
-        $rangeLabel = match ($range) {
-            'week' => 'Minggu Ini',
-            'month' => 'Bulan Ini',
-            default => 'Hari Ini',
-        };
+        if ($request->start_date && $request->end_date) {
+            $rangeLabel = Carbon::parse($request->start_date)->translatedFormat('d M Y')
+                .' - '.Carbon::parse($request->end_date)->translatedFormat('d M Y');
+        } else {
+            $rangeLabel = match ($range) {
+                'week' => 'Minggu Ini',
+                'month' => 'Bulan Ini',
+                default => 'Hari Ini',
+            };
+        }
 
         // Dompet (wallets) dengan saldo — untuk tab "Dompet"
         $walletsRaw = $user->wallets()
@@ -150,6 +165,8 @@ class TransactionController extends Controller
             'period' => $period,
             'range' => $range,
             'range_label' => $rangeLabel,
+            'start_date' => $request->start_date,
+            'end_date' => $request->end_date,
             'total_income' => $rangeIncome,
             'total_expense' => $rangeExpense,
             'total_balance' => (float) $wallets->sum('balance'),
