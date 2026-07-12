@@ -8,11 +8,36 @@
       <div v-if="flash.error" class="flash-toast error">❌ {{ flash.error }}</div>
     </Transition>
 
+    <!-- Desktop Sidebar Nav (≥1025px) -->
+    <aside class="desktop-sidebar" aria-label="Navigasi utama">
+      <Link :href="route('dashboard')" :class="['sb-item', { active: isActive('App/Dashboard') }]">
+        <AppIcon slug="nav_dashboard" class="sb-icon">🏠</AppIcon>
+        <span>Dashboard</span>
+      </Link>
+      <Link :href="route('dompet.index')" :class="['sb-item', { active: isActive('App/Dompet') }]">
+        <AppIcon slug="nav_dompet" class="sb-icon">👛</AppIcon>
+        <span>Dompet</span>
+      </Link>
+      <Link :href="route('report')" :class="['sb-item', { active: isActive('App/Report') }]">
+        <AppIcon slug="nav_report" class="sb-icon">📊</AppIcon>
+        <span>Laporan</span>
+      </Link>
+      <Link :href="route('account')" :class="['sb-item', { active: isActive('App/Account') }]">
+        <AppIcon slug="nav_account" class="sb-icon">👤</AppIcon>
+        <span>Profil</span>
+        <span v-if="unreadCount > 0" class="sb-badge">{{ unreadCount }}</span>
+      </Link>
+
+      <button class="sb-add-btn" @click="showQuickAdd = true">
+        <span class="sb-add-plus">＋</span> Tambah Transaksi
+      </button>
+    </aside>
+
     <main class="main-content">
       <slot />
     </main>
 
-    <!-- Bottom Navigation -->
+    <!-- Bottom Navigation (mobile & tablet, ≤1024px) -->
     <nav class="bottom-nav">
       <Link :href="route('dashboard')" :class="['bn-item', { active: isActive('App/Dashboard') }]">
         <AppIcon slug="nav_dashboard" class="bn-icon">🏠</AppIcon>
@@ -25,7 +50,7 @@
       </Link>
 
       <div class="bn-center">
-        <button class="fab" @click="showQuickAdd = true" aria-label="Tambah">
+        <button class="fab" @click="showQuickAdd = true" aria-label="Tambah transaksi">
           <span class="fab-plus">＋</span>
         </button>
       </div>
@@ -132,6 +157,7 @@ const goTo = (action) => {
 </script>
 
 <style scoped>
+/* ── Breakpoints kontrak QA: mobile ≤480px, tablet 481-1024px, desktop ≥1025px ── */
 .app-shell {
   max-width: 480px;
   margin: 0 auto;
@@ -141,6 +167,103 @@ const goTo = (action) => {
 }
 
 .main-content { padding-bottom: 88px; }
+
+.desktop-sidebar { display: none; }
+
+/* ── Tablet (481-1024px): container lebih lebar, bottom-nav tetap ── */
+@media (min-width: 481px) {
+  .app-shell {
+    max-width: 100%;
+    padding: 0 24px;
+  }
+  .bottom-nav {
+    max-width: 600px;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+}
+
+/* ── Desktop (≥1025px): sidebar kiri persisten, bottom-nav & FAB hilang ── */
+@media (min-width: 1025px) {
+  .app-shell {
+    display: flex;
+    align-items: flex-start;
+    gap: 32px;
+    max-width: 1280px;
+    padding: 24px 32px;
+  }
+
+  .main-content { flex: 1; min-width: 0; padding-bottom: 0; }
+
+  .bottom-nav { display: none; }
+
+  .desktop-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 240px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 24px;
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: 16px 12px;
+  }
+}
+
+/* ── Desktop Sidebar Items ── */
+.sb-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  position: relative;
+  min-height: 44px;
+  transition: background .15s, color .15s;
+}
+.sb-item:hover { background: var(--background); }
+.sb-item.active { background: var(--primary-bg); color: var(--primary); }
+.sb-icon { font-size: 20px; line-height: 1; filter: grayscale(1) opacity(.55); }
+.sb-item.active .sb-icon { filter: grayscale(0) opacity(1); }
+.sb-badge {
+  margin-left: auto;
+  background: var(--danger);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 99px;
+  min-width: 16px;
+  text-align: center;
+}
+.sb-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 13px;
+  min-height: 44px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: background .2s;
+}
+.sb-add-btn:hover { background: var(--primary-dark); }
+.sb-add-plus { font-size: 16px; }
 
 /* ── Bottom Nav ── */
 .bottom-nav {

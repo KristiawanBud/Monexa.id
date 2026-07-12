@@ -58,6 +58,7 @@ Route::middleware(['auth', 'subscribed', 'onboarded'])->group(function () {
         Route::post('/', [TransactionController::class, 'store'])->name('store');
         Route::put('/{transaction}', [TransactionController::class, 'update'])->name('update');
         Route::delete('/{transaction}', [TransactionController::class, 'destroy'])->name('destroy');
+        Route::get('/export', [TransactionController::class, 'exportCsv'])->name('export');
         Route::get('/{transaction}/logs', [TransactionController::class, 'editLogs'])->name('logs');
     });
 

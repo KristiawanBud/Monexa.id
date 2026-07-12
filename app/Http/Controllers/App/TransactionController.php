@@ -4,12 +4,16 @@ namespace App\Http\Controllers\App;
 
 use App\Exceptions\InsufficientBalanceException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\App\DompetFilterRequest;
 use App\Models\Bank;
 use App\Models\Transaction;
 use App\Models\TransactionCategory;
 use App\Models\TransactionEditLog;
+use App\Models\User;
 use App\Services\WalletService;
+use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -19,81 +23,40 @@ class TransactionController extends Controller
 {
     public function __construct(private WalletService $walletService) {}
 
-    public function index(Request $request): Response
+    public function index(DompetFilterRequest $request): Response
     {
         $user = $request->user();
+        $range = $this->resolveRange($request);
 
-        $range = in_array($request->range, ['today', 'week', 'month']) ? $request->range : 'today';
-
-        $query = $user->transactions()
-            ->with(['wallet:id,display_name', 'category:id,name,emoji,type,icon_path'])
-            ->orderByDesc('transacted_at')
-            ->orderByDesc('created_at');
-
-        if ($request->period) {
-            $query->forPeriod($request->period);
-        } else {
-            match ($range) {
-                'week' => $query->whereBetween('transacted_at', [now()->startOfWeek(), now()->endOfWeek()]),
-                'month' => $query->forPeriod(now()->format('Y-m')),
-                default => $query->whereDate('transacted_at', now()->toDateString()),
-            };
-        }
-
-        if ($request->wallet_id) {
-            $query->where('wallet_id', $request->wallet_id);
-        }
-        if ($request->type) {
-            $query->where('type', $request->type);
-        }
-        if ($request->category_id) {
-            $query->where('category_id', $request->category_id);
-        }
-        if ($request->search) {
-            $query->where('note', 'like', '%'.$request->search.'%');
-        }
-        if ($request->min_amount) {
-            $query->where('amount', '>=', $request->min_amount);
-        }
-        if ($request->max_amount) {
-            $query->where('amount', '<=', $request->max_amount);
-        }
-
-        $transactions = $query->paginate(30)->through(fn ($t) => [
-            'id' => $t->id,
-            'type' => $t->type,
-            'amount' => (float) $t->amount,
-            'note' => $t->note,
-            'category' => $t->category?->name,
-            'category_emoji' => $t->category?->emoji,
-            'category_icon_url' => $t->category?->icon_path ? Storage::url($t->category->icon_path) : null,
-            'wallet' => $t->wallet?->display_name,
-            'wallet_id' => $t->wallet_id,
-            'category_id' => $t->category_id,
-            'transacted_at' => $t->transacted_at->format('Y-m-d'),
-            'transacted_at_label' => $t->transacted_at->translatedFormat('d M Y'),
-            'transacted_at_time' => $t->created_at?->format('H:i'),
-            'source' => $t->source,
-        ]);
+        $transactions = $this->buildFilteredQuery($request, $user, $range)
+            ->paginate(30)
+            ->through(fn ($t) => [
+                'id' => $t->id,
+                'type' => $t->type,
+                'amount' => (float) $t->amount,
+                'note' => $t->note,
+                'category' => $t->category?->name,
+                'category_emoji' => $t->category?->emoji,
+                'category_icon_url' => $t->category?->icon_path ? Storage::url($t->category->icon_path) : null,
+                'wallet' => $t->wallet?->display_name,
+                'wallet_id' => $t->wallet_id,
+                'category_id' => $t->category_id,
+                'transacted_at' => $t->transacted_at->format('Y-m-d'),
+                'transacted_at_label' => $t->transacted_at->translatedFormat('d M Y'),
+                'transacted_at_time' => $t->created_at?->format('H:i'),
+                'source' => $t->source,
+            ]);
 
         $period = $request->period ?? now()->format('Y-m');
 
         // ── Ringkasan sesuai range yang dipilih (Masuk / Keluar) ──
         $rangeSummaryQuery = $user->transactions();
-        match ($range) {
-            'week' => $rangeSummaryQuery->whereBetween('transacted_at', [now()->startOfWeek(), now()->endOfWeek()]),
-            'month' => $rangeSummaryQuery->forPeriod(now()->format('Y-m')),
-            default => $rangeSummaryQuery->whereDate('transacted_at', now()->toDateString()),
-        };
+        $this->applyDateFilter($rangeSummaryQuery, $request, $range);
         $rangeSummary = $rangeSummaryQuery->get();
         $rangeIncome = (float) $rangeSummary->where('type', 'income')->sum('amount');
         $rangeExpense = (float) $rangeSummary->where('type', 'expense')->sum('amount');
 
-        $rangeLabel = match ($range) {
-            'week' => 'Minggu Ini',
-            'month' => 'Bulan Ini',
-            default => 'Hari Ini',
-        };
+        $rangeLabel = $this->resolveRangeLabel($request, $range);
 
         // Dompet (wallets) dengan saldo — untuk tab "Dompet"
         $walletsRaw = $user->wallets()
@@ -150,6 +113,8 @@ class TransactionController extends Controller
             'period' => $period,
             'range' => $range,
             'range_label' => $rangeLabel,
+            'start_date' => $request->start_date,
+            'end_date' => $request->end_date,
             'total_income' => $rangeIncome,
             'total_expense' => $rangeExpense,
             'total_balance' => (float) $wallets->sum('balance'),
@@ -286,5 +251,107 @@ class TransactionController extends Controller
                 ->orderByDesc('created_at')
                 ->get()
         );
+    }
+
+    public function exportCsv(DompetFilterRequest $request)
+    {
+        $user = $request->user();
+        $range = $this->resolveRange($request);
+
+        $transactions = $this->buildFilteredQuery($request, $user, $range)
+            ->limit(5000)
+            ->get();
+
+        $handle = fopen('php://temp', 'w+');
+        fputcsv($handle, ['Tanggal', 'Tipe', 'Kategori', 'Dompet', 'Catatan', 'Jumlah']);
+
+        foreach ($transactions as $t) {
+            fputcsv($handle, [
+                $t->transacted_at->format('d/m/Y'),
+                $t->type === 'income' ? 'Pemasukan' : 'Pengeluaran',
+                $t->category?->name ?? '-',
+                $t->wallet?->display_name ?? '-',
+                $t->note ?? '-',
+                (float) $t->amount,
+            ]);
+        }
+
+        rewind($handle);
+        $csv = stream_get_contents($handle);
+        fclose($handle);
+
+        $filename = 'transaksi-dompet-'.now()->format('Y-m-d').'.csv';
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+    }
+
+    private function resolveRange(Request $request): string
+    {
+        return in_array($request->range, ['today', 'week', 'month']) ? $request->range : 'today';
+    }
+
+    private function applyDateFilter(Builder $query, Request $request, string $range): void
+    {
+        if ($request->start_date && $request->end_date) {
+            $query->whereBetween('transacted_at', [$request->start_date, $request->end_date]);
+        } elseif ($request->period) {
+            $query->forPeriod($request->period);
+        } else {
+            match ($range) {
+                'week' => $query->whereBetween('transacted_at', [now()->startOfWeek(), now()->endOfWeek()]),
+                'month' => $query->forPeriod(now()->format('Y-m')),
+                default => $query->whereDate('transacted_at', now()->toDateString()),
+            };
+        }
+    }
+
+    private function resolveRangeLabel(Request $request, string $range): string
+    {
+        if ($request->start_date && $request->end_date) {
+            $start = Carbon::parse($request->start_date)->translatedFormat('d M');
+            $end = Carbon::parse($request->end_date)->translatedFormat('d M Y');
+
+            return "{$start} - {$end}";
+        }
+
+        return match ($range) {
+            'week' => 'Minggu Ini',
+            'month' => 'Bulan Ini',
+            default => 'Hari Ini',
+        };
+    }
+
+    private function buildFilteredQuery(Request $request, User $user, string $range): Builder
+    {
+        $query = $user->transactions()
+            ->with(['wallet:id,display_name', 'category:id,name,emoji,type,icon_path'])
+            ->orderByDesc('transacted_at')
+            ->orderByDesc('created_at');
+
+        $this->applyDateFilter($query, $request, $range);
+
+        if ($request->wallet_id) {
+            $query->where('wallet_id', $request->wallet_id);
+        }
+        if ($request->type) {
+            $query->where('type', $request->type);
+        }
+        if ($request->category_id) {
+            $query->where('category_id', $request->category_id);
+        }
+        if ($request->search) {
+            $query->where('note', 'like', '%'.$request->search.'%');
+        }
+        if ($request->min_amount) {
+            $query->where('amount', '>=', $request->min_amount);
+        }
+        if ($request->max_amount) {
+            $query->where('amount', '<=', $request->max_amount);
+        }
+
+        return $query;
     }
 }
