@@ -9,18 +9,14 @@
             <h1 class="hero-page-title">Dompet 👛</h1>
             <div class="hero-page-sub">Kelola semua rekening dan uangmu di sini.</div>
           </div>
-          <button class="hero-add-btn" @click="openAddForTab" aria-label="Tambah">＋</button>
+          <button class="hero-add-btn" @click="openAddForTab">＋</button>
         </div>
 
         <AppIcon slug="dompet_hero" class="dompet-hero-illustration">👛</AppIcon>
 
         <div class="hero-saldo-row">
           <span class="hero-saldo-label">TOTAL SALDO</span>
-          <button
-            class="hero-eye-btn"
-            @click="balanceHidden = !balanceHidden"
-            :aria-label="balanceHidden ? 'Tampilkan saldo' : 'Sembunyikan saldo'"
-          >
+          <button class="hero-eye-btn" @click="balanceHidden = !balanceHidden">
             <svg v-if="balanceHidden" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M3 3l18 18M10.58 10.58a2 2 0 002.83 2.83M9.88 5.09A9.77 9.77 0 0112 5c5 0 9 4 10 7-.36 1.1-1 2.19-1.87 3.19M6.1 6.1C4.2 7.4 2.8 9.4 2 12c1.14 3.5 5.05 7 10 7 1.52 0 2.96-.34 4.24-.94" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
@@ -35,29 +31,6 @@
           <span v-else class="hidden-text">••••••••••</span>
         </div>
         <div class="hero-wallet-badge">● {{ active_wallets_count }} Dompet Aktif</div>
-
-        <!-- Ringkasan pemasukan/pengeluaran, direposisi ke hero di breakpoint md+ -->
-        <div class="hero-stats-row">
-          <div class="hero-stat">
-            <span class="hero-stat-label">↓ Masuk</span>
-            <span class="hero-stat-val up">{{ formatShort(total_income) }}</span>
-          </div>
-          <div class="hero-stat">
-            <span class="hero-stat-label">↑ Keluar</span>
-            <span class="hero-stat-val down">{{ formatShort(total_expense) }}</span>
-          </div>
-          <div class="hero-stat">
-            <span class="hero-stat-label">Saldo {{ range_label }}</span>
-            <span class="hero-stat-val">{{ formatShort(total_balance) }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Toolbar aksi eksplisit (tablet/desktop, md+) -->
-      <div class="page-toolbar">
-        <button type="button" class="btn-primary page-toolbar-btn" @click="showAddTx = true">+ Tambah Transaksi</button>
-        <button v-if="wallets.length >= 2" type="button" class="btn-secondary page-toolbar-btn" @click="showTransfer = true">🔄 Transfer Antar Dompet</button>
-        <button type="button" class="btn-secondary page-toolbar-btn" @click="tab = 'dompet'">👛 Kelola Dompet</button>
       </div>
 
       <!-- Breakdown Saldo -->
@@ -130,7 +103,7 @@
             <span class="search-icon">🔍</span>
             <input v-model="searchQuery" @keyup.enter="applySearch" type="text" placeholder="Cari transaksi..." />
           </div>
-          <button class="filter-btn" @click="showFilterDrawer = true" aria-label="Buka filter transaksi">▤ Filter</button>
+          <button class="filter-btn" @click="alert('Filter lanjutan segera hadir')">▤ Filter</button>
         </div>
 
         <div class="tx-list-heading">
@@ -139,24 +112,26 @@
 
         <!-- Transaction List -->
         <div class="card tx-list-card">
-          <template v-if="isLoading">
-            <SkeletonLoader v-for="n in 5" :key="n" variant="list-item" />
-          </template>
-          <ErrorState
-            v-else-if="hasError"
-            message="Gagal memuat transaksi. Periksa koneksi internet kamu."
-            @retry="reload()"
-          />
-          <EmptyState
-            v-else-if="!transactions.data || transactions.data.length === 0"
-            icon="📝"
-            title="Belum ada transaksi"
-            action-label="+ Catat Transaksi"
-            @action="showAddTx = true"
-          />
-          <template v-else>
-            <TransactionItem v-for="t in transactions.data" :key="t.id" :transaction="t" @click="openEditTx" />
-          </template>
+          <div v-if="!transactions.data || transactions.data.length === 0" class="empty-state">
+            <div class="empty-illust">📝</div>
+            <div class="empty-text">Belum ada transaksi bulan ini</div>
+            <button class="btn-primary" style="margin-top:14px;max-width:220px;" @click="showAddTx = true">
+              + Catat Transaksi
+            </button>
+          </div>
+
+          <div v-for="t in transactions.data" :key="t.id" class="tx-item" @click="openEditTx(t)">
+            <div class="tx-icon" :style="`background:${t.type === 'income' ? 'var(--success-bg)' : 'var(--danger-bg)'}`">
+              {{ t.category_emoji || (t.type === 'income' ? '💵' : '🛍️') }}
+            </div>
+            <div class="tx-info">
+              <div class="tx-name">{{ t.note || t.category || 'Transaksi' }}</div>
+              <div class="tx-cat">{{ t.category }} · {{ t.wallet }} · {{ t.transacted_at_label }}</div>
+            </div>
+            <div :class="['tx-amt', t.type === 'income' ? 'up' : 'down']">
+              {{ t.type === 'income' ? '+' : '−' }}{{ formatShort(t.amount) }}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -174,25 +149,26 @@
           🔄 Transfer Antar Dompet
         </button>
 
-        <template v-if="isLoading">
-          <SkeletonLoader v-for="n in 3" :key="n" variant="card" />
-        </template>
-        <ErrorState
-          v-else-if="hasError"
-          message="Gagal memuat dompet. Periksa koneksi internet kamu."
-          @retry="reload()"
-        />
-        <EmptyState
-          v-else-if="wallets.length === 0"
-          icon="👛"
-          title="Belum ada dompet"
-          action-label="+ Tambah Dompet"
-          @action="showAddWallet = true"
-        />
-        <div v-else class="wallet-grid">
-          <button v-for="w in wallets" :key="w.id" type="button" class="wallet-card-btn" @click="openEditWallet(w)">
-            <CardDompet :wallet="w" :balance-hidden="balanceHidden" />
+        <div v-if="wallets.length === 0" class="empty-state card">
+          <div class="empty-illust">👛</div>
+          <div class="empty-text">Belum ada dompet</div>
+          <button class="btn-primary" style="margin-top:14px;max-width:220px;" @click="showAddWallet = true">
+            + Tambah Dompet
           </button>
+        </div>
+
+        <div v-for="w in wallets" :key="w.id" class="card wallet-card" @click="openEditWallet(w)">
+          <div class="wallet-row">
+            <div class="wallet-logo" :style="`background:${w.bank_color}`">
+              <img v-if="w.logo_url" :src="w.logo_url" class="wallet-logo-img" />
+              <span v-else>{{ w.bank_initial }}</span>
+            </div>
+            <div class="wallet-info">
+              <div class="wallet-name">{{ w.display_name }}</div>
+              <div class="wallet-type">{{ w.is_saham ? 'Saham' : typeLabel(w.type) }}</div>
+            </div>
+            <div class="wallet-balance">{{ formatRupiah(w.balance) }}</div>
+          </div>
         </div>
 
         <button class="add-wallet-btn" @click="showAddWallet = true">
@@ -203,38 +179,29 @@
       <!-- ═══════════ TAB: TAGIHAN ═══════════ -->
       <div v-if="tab === 'tagihan'">
 
-        <template v-if="isLoading">
-          <SkeletonLoader v-for="n in 3" :key="n" variant="list-item" />
-        </template>
-        <ErrorState
-          v-else-if="hasError"
-          message="Gagal memuat tagihan. Periksa koneksi internet kamu."
-          @retry="reload()"
-        />
-        <EmptyState
-          v-else-if="bills.length === 0"
-          icon="📋"
-          title="Belum ada tagihan"
-          action-label="+ Tambah Tagihan"
-          @action="showAddBill = true"
-        />
-        <template v-else>
-          <div v-for="b in bills" :key="b.id" class="card bill-card">
-            <div class="bill-row">
-              <div class="bill-icon">{{ b.emoji || '📋' }}</div>
-              <div class="bill-info">
-                <div class="bill-name">{{ b.name }}</div>
-                <div class="bill-due" :class="b.status_color">
-                  {{ b.is_paid_this_month ? '✅ Lunas bulan ini' : dueLabel(b.days_until_due) }}
-                </div>
+        <div v-if="bills.length === 0" class="empty-state card">
+          <div class="empty-illust">📋</div>
+          <div class="empty-text">Belum ada tagihan</div>
+          <button class="btn-primary" style="margin-top:14px;max-width:220px;" @click="showAddBill = true">
+            + Tambah Tagihan
+          </button>
+        </div>
+
+        <div v-for="b in bills" :key="b.id" class="card bill-card">
+          <div class="bill-row">
+            <div class="bill-icon">{{ b.emoji || '📋' }}</div>
+            <div class="bill-info">
+              <div class="bill-name">{{ b.name }}</div>
+              <div class="bill-due" :class="b.status_color">
+                {{ b.is_paid_this_month ? '✅ Lunas bulan ini' : dueLabel(b.days_until_due) }}
               </div>
-              <div class="bill-amt">{{ formatShort(b.amount) }}</div>
             </div>
-            <button v-if="!b.is_paid_this_month" class="bill-pay-btn" @click="openPayBill(b)">
-              Bayar Sekarang
-            </button>
+            <div class="bill-amt">{{ formatShort(b.amount) }}</div>
           </div>
-        </template>
+          <button v-if="!b.is_paid_this_month" class="bill-pay-btn" @click="openPayBill(b)">
+            Bayar Sekarang
+          </button>
+        </div>
 
         <button class="add-wallet-btn" @click="showAddBill = true">
           <span style="font-size:20px;">＋</span> Tambah Tagihan Baru
@@ -242,15 +209,6 @@
       </div>
 
     </div>
-
-    <FilterDrawer
-      :open="showFilterDrawer"
-      :wallets="wallets"
-      :categories="categories"
-      :filters="filterDrawerFilters"
-      @apply="onApplyFilter"
-      @close="showFilterDrawer = false"
-    />
 
     <!-- ═══════════ MODAL: Tambah/Edit Transaksi ═══════════ -->
     <Teleport to="body">
@@ -470,17 +428,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useForm, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import EmojiPicker from '@/Components/EmojiPicker.vue'
 import AppIcon from '@/Components/AppIcon.vue'
-import CardDompet from '@/Components/Wallet/CardDompet.vue'
-import TransactionItem from '@/Components/Wallet/TransactionItem.vue'
-import FilterDrawer from '@/Components/Wallet/FilterDrawer.vue'
-import EmptyState from '@/Components/Wallet/EmptyState.vue'
-import ErrorState from '@/Components/Wallet/ErrorState.vue'
-import SkeletonLoader from '@/Components/Wallet/SkeletonLoader.vue'
 
 const props = defineProps({
   transactions: Object,
@@ -491,8 +443,6 @@ const props = defineProps({
   period: String,
   range: { type: String, default: 'today' },
   range_label: { type: String, default: 'Hari Ini' },
-  start_date: { type: String, default: null },
-  end_date: { type: String, default: null },
   total_income: Number,
   total_expense: Number,
   total_balance: Number,
@@ -506,60 +456,19 @@ const props = defineProps({
 
 const balanceHidden = ref(false)
 const showRangeMenu = ref(false)
-const showFilterDrawer = ref(false)
 const searchQuery = ref(props.search_query || '')
-
-// ── Filter & Reload State ──
-const activeFilters = reactive({
-  range: props.range,
-  period: props.period || '',
-  start_date: props.start_date || '',
-  end_date: props.end_date || '',
-  wallet_id: '',
-  category_id: '',
-  search: props.search_query || '',
-})
-
-const filterDrawerFilters = computed(() => ({
-  start_date: activeFilters.start_date,
-  end_date: activeFilters.end_date,
-  wallet_id: activeFilters.wallet_id,
-  category_id: activeFilters.category_id,
-  search: activeFilters.search,
-}))
-
-const isLoading = ref(false)
-const hasError = ref(false)
-
-function reload(overrides = {}) {
-  Object.assign(activeFilters, overrides)
-  const params = { ...activeFilters, tab: tab.value }
-  Object.keys(params).forEach((key) => {
-    if (params[key] === '' || params[key] === null || params[key] === undefined) delete params[key]
-  })
-  router.get(route('dompet.index'), params, {
-    preserveState: true,
-    preserveScroll: true,
-    onStart: () => { isLoading.value = true },
-    onFinish: () => { isLoading.value = false },
-    onSuccess: () => { hasError.value = false },
-    onError: () => { hasError.value = true },
-  })
-}
 
 function changeRange(newRange) {
   showRangeMenu.value = false
-  reload({ range: newRange, period: '', start_date: '', end_date: '' })
+  router.get(route('dompet.index'), { range: newRange, tab: 'transaksi' }, {
+    preserveState: true, preserveScroll: true,
+  })
 }
 
 function applySearch() {
-  reload({ search: searchQuery.value })
-}
-
-function onApplyFilter(payload) {
-  searchQuery.value = payload.search
-  reload(payload)
-  showFilterDrawer.value = false
+  router.get(route('dompet.index'), { range: props.range, search: searchQuery.value, tab: 'transaksi' }, {
+    preserveState: true, preserveScroll: true,
+  })
 }
 
 const tab = ref(props.active_tab === 'in' || props.active_tab === 'out' ? 'transaksi' : (props.active_tab === 'bill' ? 'tagihan' : props.active_tab))
@@ -752,6 +661,7 @@ const submitPayBill = () => {
   })
 }
 
+const typeLabel = (t) => ({ both: 'Multi Fungsi', cash_flow: 'Transaksi', saving: 'Tabungan' }[t] ?? t)
 const dueLabel = (d) => {
   if (d === null) return 'Belum ada jadwal'
   if (d === 0) return '🔴 Jatuh tempo hari ini'
@@ -769,18 +679,7 @@ const formatShort = (n) => {
 </script>
 
 <style scoped>
-/* ── Breakpoints ──
-   xs  < 480px, sm 480–767px, md 768–1023px, lg 1024–1279px, xl >= 1280px
-*/
-
 .page-content { padding: 20px; }
-
-@media (min-width: 768px) {
-  .page-content { padding: 28px 32px 40px; }
-}
-@media (min-width: 1024px) {
-  .page-content { padding: 32px 40px 48px; max-width: 1200px; margin: 0 auto; }
-}
 
 .dompet-hero-bg {
   position: relative; overflow: hidden;
@@ -788,14 +687,6 @@ const formatShort = (n) => {
   margin: -20px -20px 0; padding: 20px 20px 24px;
   border-radius: 0 0 26px 26px;
 }
-
-@media (min-width: 768px) {
-  .dompet-hero-bg { margin: -28px -32px 0; padding: 28px 32px 32px; border-radius: 0 0 32px 32px; }
-}
-@media (min-width: 1024px) {
-  .dompet-hero-bg { margin: -32px -40px 0; padding: 32px 40px 36px; }
-}
-
 .hero-top-row { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; position:relative; z-index:2; }
 .hero-page-title { font-family:'Plus Jakarta Sans',sans-serif; font-size:22px; font-weight:800; color:white; }
 .hero-page-sub { font-size:12px; color:rgba(255,255,255,.75); margin-top:4px; }
@@ -803,28 +694,11 @@ const formatShort = (n) => {
 .dompet-hero-illustration { position:absolute; right:14px; top:50px; width:80px; height:80px; opacity:.95; pointer-events:none; z-index:1; }
 .hero-saldo-row { display:flex; align-items:center; gap:8px; position:relative; z-index:2; }
 .hero-saldo-label { font-size:11px; font-weight:700; letter-spacing:.06em; color:rgba(255,255,255,.8); }
-.hero-eye-btn { background:rgba(255,255,255,.18); border:none; border-radius:50%; width:44px; height:44px; cursor:pointer; display:flex; align-items:center; justify-content:center; color:white; }
+.hero-eye-btn { background:rgba(255,255,255,.18); border:none; border-radius:50%; width:26px; height:26px; cursor:pointer; display:flex; align-items:center; justify-content:center; color:white; }
 .hero-eye-btn svg { width:14px; height:14px; }
-.hero-eye-btn:focus-visible { box-shadow: var(--shadow-focus); outline: none; }
 .hero-saldo-amount { font-family:'Plus Jakarta Sans',sans-serif; font-size:28px; font-weight:800; color:white; margin:4px 0 10px; position:relative; z-index:2; }
 .hidden-text { letter-spacing:.1em; color:rgba(255,255,255,.6); }
 .hero-wallet-badge { display:inline-block; background:rgba(255,255,255,.18); color:white; font-size:11px; font-weight:600; padding:5px 12px; border-radius:99px; position:relative; z-index:2; }
-
-.hero-stats-row { display:none; gap:24px; margin-top:18px; position:relative; z-index:2; }
-@media (min-width: 768px) {
-  .hero-stats-row { display:flex; }
-}
-.hero-stat { display:flex; flex-direction:column; gap:2px; }
-.hero-stat-label { font-size:11px; color:rgba(255,255,255,.75); font-weight:600; }
-.hero-stat-val { font-family:'Plus Jakarta Sans',sans-serif; font-size:15px; font-weight:800; color:white; }
-.hero-stat-val.up { color:#BBF7D0; }
-.hero-stat-val.down { color:#FECACA; }
-
-.page-toolbar { display:none; gap:12px; margin:16px 0; flex-wrap:wrap; }
-@media (min-width: 768px) {
-  .page-toolbar { display:flex; }
-}
-.page-toolbar-btn { width:auto; padding:12px 20px; }
 
 .breakdown-card { display:flex; gap:14px; margin: -14px 0 16px; padding:16px; position:relative; z-index:3; }
 .breakdown-item { flex:1; display:flex; gap:8px; align-items:flex-start; }
@@ -856,17 +730,11 @@ const formatShort = (n) => {
 .rs-val.up { color:var(--success); }
 .rs-val.down { color:var(--danger); }
 
-@media (min-width: 768px) {
-  /* Ringkasan masuk/keluar sudah dipindah ke .hero-stats-row */
-  .range-filter-row .range-stat { display:none; }
-}
-
 .search-row { display:flex; gap:8px; margin-bottom:16px; }
 .search-box { flex:1; display:flex; align-items:center; gap:8px; background:var(--surface); border-radius:var(--radius-md); padding:10px 14px; box-shadow:var(--shadow-card); }
-.search-box input { border:none; outline:none; background:none; font-size:13px; flex:1; font-family:inherit; min-height:24px; }
+.search-box input { border:none; outline:none; background:none; font-size:13px; flex:1; font-family:inherit; }
 .search-icon { font-size:14px; opacity:.6; }
-.filter-btn { background:var(--surface); border:none; padding:10px 16px; min-height:44px; border-radius:var(--radius-md); font-size:12px; font-weight:700; box-shadow:var(--shadow-card); cursor:pointer; white-space:nowrap; }
-.filter-btn:focus-visible { box-shadow: var(--shadow-focus); outline: none; }
+.filter-btn { background:var(--surface); border:none; padding:10px 16px; border-radius:var(--radius-md); font-size:12px; font-weight:700; box-shadow:var(--shadow-card); cursor:pointer; white-space:nowrap; }
 
 .tx-list-heading { margin-bottom:10px; }
 .page-header {
@@ -890,22 +758,31 @@ const formatShort = (n) => {
 .summary-val.down { color:var(--danger); }
 
 .tx-list-card { padding:8px 16px; }
-@media (min-width: 1024px) {
-  .tx-list-card { max-width: 720px; margin: 0 auto; }
-}
+.tx-item { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--border); cursor:pointer; }
+.tx-item:last-child { border-bottom:none; }
+.tx-item:active { opacity:.7; }
+.tx-icon { width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+.tx-info { flex:1; min-width:0; }
+.tx-name { font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tx-cat { font-size:11px; color:var(--text-secondary); }
+.tx-amt { font-size:13px; font-weight:700; flex-shrink:0; }
+.tx-amt.up { color:var(--success); }
+.tx-amt.down { color:var(--danger); }
 
-.wallet-grid { display:flex; flex-direction:column; gap:10px; }
-@media (min-width: 768px) {
-  .wallet-grid { display:grid; grid-template-columns: repeat(2, 1fr); gap:14px; }
-}
-@media (min-width: 1024px) {
-  .wallet-grid { grid-template-columns: repeat(3, 1fr); }
-}
-.wallet-card-btn { display:block; width:100%; text-align:left; padding:0; margin-bottom:10px; background:none; border:none; cursor:pointer; border-radius:var(--radius-lg); font-family:inherit; }
-.wallet-grid .wallet-card-btn { margin-bottom:0; }
-.wallet-card-btn:focus-visible { box-shadow: var(--shadow-focus); outline: none; }
+.empty-state { text-align:center; padding:32px 20px; }
+.empty-illust { font-size:40px; margin-bottom:10px; }
+.empty-text { font-size:14px; font-weight:600; color:var(--text-secondary); }
 
-.transfer-btn { width:100%; padding:12px; min-height:44px; background:var(--primary-bg); color:var(--primary); border:none; border-radius:var(--radius-md); font-size:13px; font-weight:700; cursor:pointer; margin-bottom:12px; }
+.wallet-card { margin-bottom:10px; cursor:pointer; }
+.wallet-row { display:flex; align-items:center; gap:12px; }
+.wallet-logo { width:44px; height:44px; border-radius:12px; color:white; font-weight:800; font-family:'Plus Jakarta Sans',sans-serif; font-size:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; }
+.wallet-logo-img { width:100%; height:100%; object-fit:cover; }
+.wallet-info { flex:1; }
+.wallet-name { font-size:14px; font-weight:700; }
+.wallet-type { font-size:11px; color:var(--text-secondary); }
+.wallet-balance { font-family:'Plus Jakarta Sans',sans-serif; font-size:14px; font-weight:800; }
+
+.transfer-btn { width:100%; padding:12px; background:var(--primary-bg); color:var(--primary); border:none; border-radius:var(--radius-md); font-size:13px; font-weight:700; cursor:pointer; margin-bottom:12px; }
 .danger-text { color:var(--danger) !important; border-color:var(--danger-bg) !important; }
 
 .add-wallet-btn { width:100%; padding:16px; background:none; border:2px dashed var(--border); border-radius:var(--radius-lg); font-size:13px; font-weight:600; color:var(--text-secondary); cursor:pointer; margin-top:8px; display:flex; align-items:center; justify-content:center; gap:8px; transition:all .15s; }
@@ -918,7 +795,7 @@ const formatShort = (n) => {
 .bill-name { font-size:14px; font-weight:700; }
 .bill-due { font-size:11px; font-weight:600; margin-top:2px; }
 .bill-amt { font-family:'Plus Jakarta Sans',sans-serif; font-size:14px; font-weight:800; }
-.bill-pay-btn { width:100%; padding:10px; min-height:44px; background:var(--primary-bg); color:var(--primary); border:none; border-radius:var(--radius-md); font-size:13px; font-weight:700; cursor:pointer; }
+.bill-pay-btn { width:100%; padding:10px; background:var(--primary-bg); color:var(--primary); border:none; border-radius:var(--radius-md); font-size:13px; font-weight:700; cursor:pointer; }
 
 /* Modal */
 .modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,.45); z-index:500; display:flex; align-items:flex-end; justify-content:center; backdrop-filter:blur(4px); }

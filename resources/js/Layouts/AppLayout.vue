@@ -25,9 +25,8 @@
       </Link>
 
       <div class="bn-center">
-        <button class="fab" @click="showQuickAdd = true" aria-label="Tambah Transaksi">
+        <button class="fab" @click="showQuickAdd = true" aria-label="Tambah">
           <span class="fab-plus">＋</span>
-          <span class="fab-label">Tambah Transaksi</span>
         </button>
       </div>
 
@@ -133,14 +132,6 @@ const goTo = (action) => {
 </script>
 
 <style scoped>
-/* ── Breakpoints ──
-   xs  < 480px   (mobile kecil)
-   sm  480–767px (mobile besar)
-   md  768–1023px (tablet)
-   lg  1024–1279px (desktop kecil)
-   xl  >= 1280px  (desktop besar)
-*/
-
 .app-shell {
   max-width: 480px;
   margin: 0 auto;
@@ -149,25 +140,9 @@ const goTo = (action) => {
   position: relative;
 }
 
-@media (min-width: 768px) {
-  .app-shell { max-width: 100%; }
-}
-
-@media (min-width: 1024px) {
-  .app-shell { display: flex; }
-}
-
 .main-content { padding-bottom: 88px; }
 
-@media (min-width: 1024px) {
-  .main-content {
-    flex: 1;
-    margin-left: 240px;
-    padding-bottom: 32px;
-  }
-}
-
-/* ── Bottom Nav (mobile & tablet) / Sidebar Nav (desktop) ── */
+/* ── Bottom Nav ── */
 .bottom-nav {
   position: fixed;
   bottom: 0;
@@ -185,30 +160,6 @@ const goTo = (action) => {
   box-shadow: 0 -4px 20px rgba(15,23,42,.05);
 }
 
-@media (min-width: 768px) and (max-width: 1023px) {
-  .bottom-nav { max-width: 600px; }
-}
-
-@media (min-width: 1024px) {
-  .bottom-nav {
-    left: 0;
-    top: 0;
-    bottom: 0;
-    transform: none;
-    width: 240px;
-    max-width: 240px;
-    height: 100vh;
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: flex-start;
-    padding: 24px 12px;
-    gap: 4px;
-    border-top: none;
-    border-right: 1px solid var(--border);
-    box-shadow: none;
-  }
-}
-
 .bn-item {
   flex: 1;
   display: flex;
@@ -224,32 +175,12 @@ const goTo = (action) => {
   transition: all .15s;
   position: relative;
   font-family: 'Plus Jakarta Sans', sans-serif;
-  min-height: 44px;
-}
-
-@media (min-width: 1024px) {
-  .bn-item {
-    flex: none;
-    flex-direction: row;
-    justify-content: flex-start;
-    gap: 12px;
-    padding: 12px 14px;
-    border-radius: var(--radius-md);
-    font-size: 13px;
-  }
-  .bn-item.active { background: var(--primary-bg); }
 }
 
 .bn-item.active { color: var(--primary); }
 .bn-icon { font-size: 22px; line-height: 1; filter: grayscale(1) opacity(.55); transition: filter .15s, transform .15s; }
 .bn-item.active .bn-icon { filter: grayscale(0) opacity(1); transform: translateY(-1px); }
-@media (min-width: 1024px) {
-  .bn-item.active .bn-icon { transform: none; }
-}
 .bn-label { font-size: 10px; }
-@media (min-width: 1024px) {
-  .bn-label { font-size: 13px; }
-}
 
 .bn-badge {
   position: absolute;
@@ -264,31 +195,9 @@ const goTo = (action) => {
   text-align: center;
 }
 
-@media (min-width: 1024px) {
-  .bn-badge { top: 8px; right: 10px; }
-}
-
-/* ── FAB Center (mobile/tablet) / Tombol Tambah (desktop sidebar) ── */
+/* ── FAB Center ── */
 .bn-center { flex: 1; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
 .fab-plus { color: white; font-size: 26px; font-weight: 300; line-height: 1; margin-top: -1px; }
-.fab-label { display: none; }
-
-@media (min-width: 1024px) {
-  .bn-center { margin-bottom: 8px; order: -1; }
-  .fab {
-    width: 100%;
-    height: auto;
-    border-radius: var(--radius-md);
-    flex-direction: row;
-    gap: 10px;
-    padding: 13px 16px;
-    font-size: 15px;
-    font-weight: 700;
-    font-family: 'Plus Jakarta Sans', sans-serif;
-  }
-  .fab-plus { font-size: 18px; margin-top: 0; }
-  .fab-label { display: inline; }
-}
 
 /* ── Flash Toast ── */
 .flash-toast {
