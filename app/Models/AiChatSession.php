@@ -19,7 +19,7 @@ class AiChatSession extends Model
     protected function casts(): array
     {
         return [
-            'messages'        => 'array',
+            'messages' => 'array',
             'last_message_at' => 'datetime',
         ];
     }
@@ -31,10 +31,10 @@ class AiChatSession extends Model
 
     public function addMessage(string $role, string $content): void
     {
-        $messages   = $this->messages ?? [];
+        $messages = $this->messages ?? [];
         $messages[] = [
-            'role'      => $role, // 'user' | 'assistant'
-            'content'   => $content,
+            'role' => $role, // 'user' | 'assistant'
+            'content' => $content,
             'timestamp' => now()->toISOString(),
         ];
 
@@ -44,8 +44,8 @@ class AiChatSession extends Model
         }
 
         $this->update([
-            'messages'        => $messages,
-            'message_count'   => $this->message_count + 1,
+            'messages' => $messages,
+            'message_count' => $this->message_count + 1,
             'last_message_at' => now(),
         ]);
     }
@@ -53,6 +53,7 @@ class AiChatSession extends Model
     public function getLastNMessages(int $n = 10): array
     {
         $messages = $this->messages ?? [];
+
         return array_slice($messages, -$n);
     }
 }

@@ -36,8 +36,8 @@ class CuanAiController extends Controller
         $session->addMessage('assistant', $result['reply']);
 
         return response()->json([
-            'reply'        => $result['reply'],
-            'timestamp'    => now()->format('H:i'),
+            'reply' => $result['reply'],
+            'timestamp' => now()->format('H:i'),
             'action_taken' => $result['action_taken'] ?? false,
         ]);
     }

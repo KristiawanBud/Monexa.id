@@ -8,6 +8,7 @@ use App\Models\TransactionCategory;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -19,7 +20,7 @@ class BudgetController extends Controller
     // ─────────────────────────────────────────────────────────────
     public function index(Request $request): Response
     {
-        $user   = $request->user();
+        $user = $request->user();
         $period = $request->input('period', now()->format('Y-m'));
 
         $categories = TransactionCategory::forUser($user->id)
@@ -37,7 +38,7 @@ class BudgetController extends Controller
             ->forPeriod($period)
             ->get()
             ->groupBy('category_id')
-            ->map(fn($txs) => (float) $txs->sum('amount'));
+            ->map(fn ($txs) => (float) $txs->sum('amount'));
 
         $totalIncome = (float) $user->transactions()
             ->where('type', 'income')
@@ -45,17 +46,17 @@ class BudgetController extends Controller
             ->sum('amount');
 
         $totalBudget = (float) $budgets->sum('amount');
-        $totalSpent  = (float) $actuals->sum();
+        $totalSpent = (float) $actuals->sum();
 
         // Bangun data budget per kategori
-        $budgetData = $categories->map(fn($cat) => [
-            'category_id'      => $cat->id,
-            'category_name'    => $cat->name,
-            'category_emoji'   => $cat->emoji,
+        $budgetData = $categories->map(fn ($cat) => [
+            'category_id' => $cat->id,
+            'category_name' => $cat->name,
+            'category_emoji' => $cat->emoji,
             'allocation_group' => $cat->allocation_group,
-            'budget'           => (float) ($budgets->get($cat->id)?->amount ?? 0),
-            'spent'            => (float) ($actuals->get($cat->id) ?? 0),
-            'percent'          => $budgets->has($cat->id) && $budgets->get($cat->id)->amount > 0
+            'budget' => (float) ($budgets->get($cat->id)?->amount ?? 0),
+            'spent' => (float) ($actuals->get($cat->id) ?? 0),
+            'percent' => $budgets->has($cat->id) && $budgets->get($cat->id)->amount > 0
                 ? min(100, round(
                     ($actuals->get($cat->id, 0) / $budgets->get($cat->id)->amount) * 100
                 ))
@@ -70,14 +71,14 @@ class BudgetController extends Controller
         $strategy = $this->calculate503020Dynamic($totalIncome, $actuals, $user->id);
 
         return Inertia::render('App/Budget', [
-            'period'       => $period,
-            'periodLabel'  => Carbon::createFromFormat('Y-m', $period)->translatedFormat('F Y'),
-            'budgets'      => $budgetData,
+            'period' => $period,
+            'periodLabel' => Carbon::createFromFormat('Y-m', $period)->translatedFormat('F Y'),
+            'budgets' => $budgetData,
             'total_income' => $totalIncome,
             'total_budget' => $totalBudget,
-            'total_spent'  => $totalSpent,
-            'strategy'     => $strategy,
-            'months'       => $this->getLast12Months(),
+            'total_spent' => $totalSpent,
+            'strategy' => $strategy,
+            'months' => $this->getLast12Months(),
         ]);
     }
 
@@ -87,13 +88,13 @@ class BudgetController extends Controller
     public function upsert(Request $request): RedirectResponse
     {
         $request->validate([
-            'budgets'               => ['required', 'array'],
+            'budgets' => ['required', 'array'],
             'budgets.*.category_id' => ['required', 'exists:transaction_categories,id'],
-            'budgets.*.amount'      => ['required', 'numeric', 'min:0'],
-            'period'                => ['required', 'string', 'regex:/^\d{4}-\d{2}$/'],
+            'budgets.*.amount' => ['required', 'numeric', 'min:0'],
+            'period' => ['required', 'string', 'regex:/^\d{4}-\d{2}$/'],
         ]);
 
-        $user   = $request->user();
+        $user = $request->user();
         $period = $request->input('period');
 
         foreach ($request->input('budgets') as $b) {
@@ -103,14 +104,15 @@ class BudgetController extends Controller
                     ->where('category_id', $b['category_id'])
                     ->where('period', $period)
                     ->delete();
+
                 continue;
             }
 
             Budget::updateOrCreate(
                 [
-                    'user_id'     => $user->id,
+                    'user_id' => $user->id,
                     'category_id' => $b['category_id'],
-                    'period'      => $period,
+                    'period' => $period,
                 ],
                 ['amount' => $b['amount']]
             );
@@ -128,8 +130,8 @@ class BudgetController extends Controller
             'period' => ['required', 'string', 'regex:/^\d{4}-\d{2}$/'],
         ]);
 
-        $user       = $request->user();
-        $period     = $request->input('period');
+        $user = $request->user();
+        $period = $request->input('period');
         $lastPeriod = Carbon::createFromFormat('Y-m', $period)
             ->subMonth()
             ->format('Y-m');
@@ -145,7 +147,7 @@ class BudgetController extends Controller
         foreach ($lastBudgets as $b) {
             Budget::updateOrCreate(
                 ['user_id' => $user->id, 'category_id' => $b->category_id, 'period' => $period],
-                ['amount'  => $b->amount]
+                ['amount' => $b->amount]
             );
         }
 
@@ -166,7 +168,7 @@ class BudgetController extends Controller
     // ─────────────────────────────────────────────────────────────
     private function calculate503020Dynamic(
         float $income,
-        \Illuminate\Support\Collection $actuals,
+        Collection $actuals,
         string $userId
     ): array {
         if ($income <= 0) {
@@ -177,7 +179,7 @@ class BudgetController extends Controller
         $categories = TransactionCategory::where('type', 'expense')
             ->where(function ($q) use ($userId) {
                 $q->whereNull('user_id')        // kategori sistem
-                  ->orWhere('user_id', $userId); // kategori kustom user
+                    ->orWhere('user_id', $userId); // kategori kustom user
             })
             ->whereNotNull('allocation_group')
             ->get()
@@ -198,18 +200,18 @@ class BudgetController extends Controller
         return [
             'kebutuhan' => [
                 'target' => $income * 0.50,
-                'spent'  => $grouped['needs'],
-                'pct'    => round(($grouped['needs'] / $income) * 100, 1),
+                'spent' => $grouped['needs'],
+                'pct' => round(($grouped['needs'] / $income) * 100, 1),
             ],
             'keinginan' => [
                 'target' => $income * 0.30,
-                'spent'  => $grouped['wants'],
-                'pct'    => round(($grouped['wants'] / $income) * 100, 1),
+                'spent' => $grouped['wants'],
+                'pct' => round(($grouped['wants'] / $income) * 100, 1),
             ],
-            'tabungan'  => [
+            'tabungan' => [
                 'target' => $income * 0.20,
-                'spent'  => $grouped['savings'],
-                'pct'    => round(($grouped['savings'] / $income) * 100, 1),
+                'spent' => $grouped['savings'],
+                'pct' => round(($grouped['savings'] / $income) * 100, 1),
             ],
         ];
     }
@@ -219,10 +221,17 @@ class BudgetController extends Controller
     // ─────────────────────────────────────────────────────────────
     private function getBudgetStatus(float $spent, float $budget): string
     {
-        if ($budget <= 0) return 'unset';
+        if ($budget <= 0) {
+            return 'unset';
+        }
         $pct = ($spent / $budget) * 100;
-        if ($pct >= 100) return 'over';
-        if ($pct >= 80)  return 'warn';
+        if ($pct >= 100) {
+            return 'over';
+        }
+        if ($pct >= 80) {
+            return 'warn';
+        }
+
         return 'ok';
     }
 
@@ -239,6 +248,7 @@ class BudgetController extends Controller
                 'label' => $d->format('M Y'),
             ];
         }
+
         return $months;
     }
 }

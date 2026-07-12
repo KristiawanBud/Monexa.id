@@ -18,7 +18,7 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->char('user_id', 26)->nullable(false);
             $table->foreign('user_id', 'fk_ua_user')
-                  ->references('id')->on('users')->cascadeOnDelete();
+                ->references('id')->on('users')->cascadeOnDelete();
             $table->string('name', 100);
             $table->string('emoji', 10)->nullable();
             $table->enum('type', ['liquid', 'fixed', 'investment', 'receivable']);
@@ -34,13 +34,13 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->char('user_id', 26)->nullable(false);
             $table->foreign('user_id', 'fk_rs_user')
-                  ->references('id')->on('users')->cascadeOnDelete();
+                ->references('id')->on('users')->cascadeOnDelete();
             $table->string('image_url');
             $table->json('parsed_result')->nullable();
             $table->enum('status', ['pending', 'parsed', 'confirmed', 'failed'])->default('pending');
             $table->char('transaction_id', 26)->nullable();
             $table->foreign('transaction_id', 'fk_rs_tx')
-                  ->references('id')->on('transactions')->nullOnDelete();
+                ->references('id')->on('transactions')->nullOnDelete();
             $table->string('ai_provider', 30)->default('gemini');
             $table->text('error_message')->nullable();
             $table->timestamps();

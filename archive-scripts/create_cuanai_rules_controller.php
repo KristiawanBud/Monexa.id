@@ -1,14 +1,16 @@
 <?php
 
 $controllerPath = '/var/www/monexa/app/Http/Controllers/Admin/CuanAiRulesController.php';
-$vuePath        = '/var/www/monexa/resources/js/Pages/Admin/CuanAiRules.vue';
+$vuePath = '/var/www/monexa/resources/js/Pages/Admin/CuanAiRules.vue';
 
 // ── Controller ──
 if (file_exists($controllerPath)) {
     echo "SKIP (sudah ada): $controllerPath\n";
 } else {
     $dir = dirname($controllerPath);
-    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    if (! is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
 
     file_put_contents($controllerPath, <<<'EOT'
 <?php
@@ -69,7 +71,9 @@ if (file_exists($vuePath)) {
     echo "SKIP (sudah ada): $vuePath\n";
 } else {
     $dir = dirname($vuePath);
-    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    if (! is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
 
     file_put_contents($vuePath, <<<'EOT'
 <template>

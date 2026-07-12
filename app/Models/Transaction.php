@@ -20,8 +20,8 @@ class Transaction extends Model
     protected function casts(): array
     {
         return [
-            'amount'         => 'decimal:2',
-            'transacted_at'  => 'date',
+            'amount' => 'decimal:2',
+            'transacted_at' => 'date',
         ];
     }
 
@@ -42,25 +42,33 @@ class Transaction extends Model
     }
 
     // ── Scopes ──
-    public function scopeIncome($q)     { return $q->where('type', 'income'); }
-    public function scopeExpense($q)    { return $q->where('type', 'expense'); }
+    public function scopeIncome($q)
+    {
+        return $q->where('type', 'income');
+    }
+
+    public function scopeExpense($q)
+    {
+        return $q->where('type', 'expense');
+    }
 
     public function scopeThisMonth($q)
     {
         return $q->whereMonth('transacted_at', now()->month)
-                 ->whereYear('transacted_at', now()->year);
+            ->whereYear('transacted_at', now()->year);
     }
 
     public function scopeForPeriod($q, string $period)
     {
         [$year, $month] = explode('-', $period);
+
         return $q->whereYear('transacted_at', $year)
-                 ->whereMonth('transacted_at', $month);
+            ->whereMonth('transacted_at', $month);
     }
 
     // ── Helpers ──
     public function getFormattedAmountAttribute(): string
     {
-        return 'Rp ' . number_format((float)$this->amount, 0, ',', '.');
+        return 'Rp '.number_format((float) $this->amount, 0, ',', '.');
     }
 }

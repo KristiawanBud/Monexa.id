@@ -1,16 +1,23 @@
 <?php
 
-function writeFile(string $path, string $content): void {
+function writeFile(string $path, string $content): void
+{
     $dir = dirname($path);
-    if (!is_dir($dir)) mkdir($dir, 0755, true);
-    if (file_exists($path)) copy($path, $path . '.bak_' . date('Ymd_His'));
+    if (! is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    if (file_exists($path)) {
+        copy($path, $path.'.bak_'.date('Ymd_His'));
+    }
     file_put_contents($path, $content);
     echo "Ditulis: $path\n";
 }
 
-function patchFile(string $path, array $replacements): void {
-    if (!file_exists($path)) {
+function patchFile(string $path, array $replacements): void
+{
+    if (! file_exists($path)) {
         echo "SKIP (tidak ditemukan): $path\n";
+
         return;
     }
     $content = file_get_contents($path);
@@ -19,8 +26,8 @@ function patchFile(string $path, array $replacements): void {
 
     foreach ($replacements as $old => $new) {
         if (strpos($content, $old) !== false) {
-            if (!$backupMade) {
-                copy($path, $path . '.bak_' . date('Ymd_His'));
+            if (! $backupMade) {
+                copy($path, $path.'.bak_'.date('Ymd_His'));
                 $backupMade = true;
             }
             $content = str_replace($old, $new, $content);
@@ -167,8 +174,7 @@ EOT
 // 3. AppLayout.vue — patch nav bawah & menu tambah transaksi
 // ─────────────────────────────────────────────
 patchFile('/var/www/monexa/resources/js/Layouts/AppLayout.vue', [
-    "import CuanAI from '@/Components/CuanAI.vue'" =>
-        "import CuanAI from '@/Components/CuanAI.vue'\nimport AppIcon from '@/Components/AppIcon.vue'",
+    "import CuanAI from '@/Components/CuanAI.vue'" => "import CuanAI from '@/Components/CuanAI.vue'\nimport AppIcon from '@/Components/AppIcon.vue'",
 
     '<span class="bn-icon">🏠</span>' => '<AppIcon slug="nav_dashboard" class="bn-icon">🏠</AppIcon>',
     '<span class="bn-icon">👛</span>' => '<AppIcon slug="nav_dompet" class="bn-icon">👛</AppIcon>',
@@ -189,22 +195,19 @@ patchFile('/var/www/monexa/resources/js/Layouts/AppLayout.vue', [
 // 4. App/Dashboard.vue — patch quick actions row + ilustrasi hero card
 // ─────────────────────────────────────────────
 patchFile('/var/www/monexa/resources/js/Pages/App/Dashboard.vue', [
-    "import AppLayout from '@/Layouts/AppLayout.vue'" =>
-        "import AppLayout from '@/Layouts/AppLayout.vue'\nimport AppIcon from '@/Components/AppIcon.vue'",
+    "import AppLayout from '@/Layouts/AppLayout.vue'" => "import AppLayout from '@/Layouts/AppLayout.vue'\nimport AppIcon from '@/Components/AppIcon.vue'",
 
-    '<div class="qa-icon pemasukan">💵</div>'   => '<div class="qa-icon pemasukan"><AppIcon slug="qa_pemasukan">💵</AppIcon></div>',
+    '<div class="qa-icon pemasukan">💵</div>' => '<div class="qa-icon pemasukan"><AppIcon slug="qa_pemasukan">💵</AppIcon></div>',
     '<div class="qa-icon pengeluaran">🔥</div>' => '<div class="qa-icon pengeluaran"><AppIcon slug="qa_pengeluaran">🔥</AppIcon></div>',
-    '<div class="qa-icon scan">📷</div>'        => '<div class="qa-icon scan"><AppIcon slug="qa_scan">📷</AppIcon></div>',
-    '<div class="qa-icon aset">💎</div>'        => '<div class="qa-icon aset"><AppIcon slug="qa_aset">💎</AppIcon></div>',
+    '<div class="qa-icon scan">📷</div>' => '<div class="qa-icon scan"><AppIcon slug="qa_scan">📷</AppIcon></div>',
+    '<div class="qa-icon aset">💎</div>' => '<div class="qa-icon aset"><AppIcon slug="qa_aset">💎</AppIcon></div>',
 
     '<!-- Hero Budget Card -->
-      <div class="hero-card">' =>
-    '<!-- Hero Budget Card -->
+      <div class="hero-card">' => '<!-- Hero Budget Card -->
       <div class="hero-card">
         <AppIcon slug="dashboard_hero" class="hero-illustration"></AppIcon>',
 
-    '.hero-card { background:linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color:white; border-radius:var(--radius-xl); padding:22px; margin-bottom:14px; box-shadow:0 10px 30px rgba(37,99,235,.25); }' =>
-    '.hero-card { position:relative; overflow:hidden; background:linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color:white; border-radius:var(--radius-xl); padding:22px; margin-bottom:14px; box-shadow:0 10px 30px rgba(37,99,235,.25); }
+    '.hero-card { background:linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color:white; border-radius:var(--radius-xl); padding:22px; margin-bottom:14px; box-shadow:0 10px 30px rgba(37,99,235,.25); }' => '.hero-card { position:relative; overflow:hidden; background:linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color:white; border-radius:var(--radius-xl); padding:22px; margin-bottom:14px; box-shadow:0 10px 30px rgba(37,99,235,.25); }
 .hero-illustration { position:absolute; right:12px; bottom:8px; width:90px; height:90px; opacity:.9; pointer-events:none; }',
 ]);
 

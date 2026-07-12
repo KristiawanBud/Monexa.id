@@ -17,8 +17,8 @@ class CuanAiRulesController extends Controller
         $current = SystemSetting::get('cuan_ai_system_prompt');
 
         return Inertia::render('Admin/CuanAiRules', [
-            'prompt'         => $current ?? CuanAiService::defaultPromptTemplate(),
-            'is_custom'      => $current !== null,
+            'prompt' => $current ?? CuanAiService::defaultPromptTemplate(),
+            'is_custom' => $current !== null,
             'default_prompt' => CuanAiService::defaultPromptTemplate(),
         ]);
     }

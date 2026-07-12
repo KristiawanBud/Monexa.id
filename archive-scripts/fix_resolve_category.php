@@ -45,8 +45,9 @@ $files = [
 ];
 
 foreach ($files as $file) {
-    if (!file_exists($file)) {
+    if (! file_exists($file)) {
         echo "SKIP (tidak ditemukan): $file\n";
+
         continue;
     }
 
@@ -54,10 +55,11 @@ foreach ($files as $file) {
 
     if (strpos($content, $old) === false) {
         echo "⚠️  PATTERN TIDAK KETEMU PERSIS di: $file — kirim isi method resolveCategory() dari file ini, jangan lanjut dulu.\n";
+
         continue;
     }
 
-    copy($file, $file . '.bak_' . date('Ymd_His'));
+    copy($file, $file.'.bak_'.date('Ymd_His'));
 
     $newContent = str_replace($old, $new, $content);
     file_put_contents($file, $newContent);

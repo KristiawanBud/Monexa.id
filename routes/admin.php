@@ -1,15 +1,15 @@
 <?php
 
-use App\Http\Controllers\Admin\WaGatewayController;
-use App\Http\Controllers\Admin\IconController;
-use App\Http\Controllers\Admin\CuanAiRulesController;
-use App\Http\Controllers\Admin\SubscriptionAdminController;
 use App\Http\Controllers\Admin\AdminDashboardController;
-use App\Http\Controllers\Admin\UserManagementController;
-use App\Http\Controllers\Admin\PackageController;
 use App\Http\Controllers\Admin\BankAdminController;
-use App\Http\Controllers\Admin\CategoryAdminController;
 use App\Http\Controllers\Admin\BrandingController;
+use App\Http\Controllers\Admin\CategoryAdminController;
+use App\Http\Controllers\Admin\CuanAiRulesController;
+use App\Http\Controllers\Admin\IconController;
+use App\Http\Controllers\Admin\PackageController;
+use App\Http\Controllers\Admin\SubscriptionAdminController;
+use App\Http\Controllers\Admin\UserManagementController;
+use App\Http\Controllers\Admin\WaGatewayController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'admin'])
@@ -59,15 +59,15 @@ Route::middleware(['auth', 'admin'])
     });
 
 Route::middleware('super_admin')->prefix('wa-gateway')->name('admin.gateway.')->group(function () {
-    Route::get('/',                              [WaGatewayController::class, 'index'])->name('index');
-    Route::post('/',                             [WaGatewayController::class, 'store'])->name('store');
-    Route::put('/{gateway}',                     [WaGatewayController::class, 'update'])->name('update');
-    Route::delete('/{gateway}',                  [WaGatewayController::class, 'destroy'])->name('destroy');
-    Route::post('/{gateway}/test',               [WaGatewayController::class, 'test'])->name('test');
-    Route::get('/{gateway}/users',               [WaGatewayController::class, 'users'])->name('users');
-    Route::post('/reassign',                     [WaGatewayController::class, 'reassign'])->name('reassign');
-    Route::post('/release-inactive',             [WaGatewayController::class, 'releaseInactive'])->name('release-inactive');
-    Route::post('/recalculate',                  [WaGatewayController::class, 'recalculate'])->name('recalculate');
-    Route::post('/owner-number',                 [WaGatewayController::class, 'saveOwnerNumber'])->name('owner-number');
-    Route::post('/ping-all',                     [WaGatewayController::class, 'pingAll'])->name('ping-all');
+    Route::get('/', [WaGatewayController::class, 'index'])->name('index');
+    Route::post('/', [WaGatewayController::class, 'store'])->name('store');
+    Route::put('/{gateway}', [WaGatewayController::class, 'update'])->name('update');
+    Route::delete('/{gateway}', [WaGatewayController::class, 'destroy'])->name('destroy');
+    Route::post('/{gateway}/test', [WaGatewayController::class, 'test'])->name('test');
+    Route::get('/{gateway}/users', [WaGatewayController::class, 'users'])->name('users');
+    Route::post('/reassign', [WaGatewayController::class, 'reassign'])->name('reassign');
+    Route::post('/release-inactive', [WaGatewayController::class, 'releaseInactive'])->name('release-inactive');
+    Route::post('/recalculate', [WaGatewayController::class, 'recalculate'])->name('recalculate');
+    Route::post('/owner-number', [WaGatewayController::class, 'saveOwnerNumber'])->name('owner-number');
+    Route::post('/ping-all', [WaGatewayController::class, 'pingAll'])->name('ping-all');
 });

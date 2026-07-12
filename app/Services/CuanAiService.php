@@ -2,14 +2,16 @@
 
 namespace App\Services;
 
-use App\Models\User;
+use App\Exceptions\InsufficientBalanceException;
 use App\Models\AiChatSession;
 use App\Models\Bank;
-use App\Models\Bill;
 use App\Models\BillPayment;
+use App\Models\Budget;
 use App\Models\SystemSetting;
 use App\Models\TransactionCategory;
+use App\Models\User;
 use App\Models\UserWallet;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class CuanAiService
@@ -25,7 +27,7 @@ class CuanAiService
         $context = $this->buildFinancialContext($user);
         $history = $session->getLastNMessages(10);
 
-        $actionNote  = $this->detectAndExecuteAction($user, $userMessage, $context);
+        $actionNote = $this->detectAndExecuteAction($user, $userMessage, $context);
         $actionTaken = $actionNote !== null && str_starts_with($actionNote, 'BERHASIL');
 
         $effectiveMessage = $actionNote
@@ -34,26 +36,26 @@ class CuanAiService
 
         // ── Tentukan boleh/nggaknya AI menyapa "Halo" dsb ──
         $allowGreeting = is_null($previousLastMessageAt)
-            || \Carbon\Carbon::parse($previousLastMessageAt)->diffInMinutes(now()) >= 180;
+            || Carbon::parse($previousLastMessageAt)->diffInMinutes(now()) >= 180;
 
         $greetingInstruction = $allowGreeting
-            ? "Ini pesan pertama di sesi ini atau sudah lama tidak chat — boleh pakai sapaan pembuka (misal \"Halo!\") di awal balasan."
-            : "User masih dalam sesi chat yang sama dengan pesan sebelumnya — JANGAN pakai sapaan pembuka seperti \"Halo\" lagi, langsung ke inti jawaban.";
+            ? 'Ini pesan pertama di sesi ini atau sudah lama tidak chat — boleh pakai sapaan pembuka (misal "Halo!") di awal balasan.'
+            : 'User masih dalam sesi chat yang sama dengan pesan sebelumnya — JANGAN pakai sapaan pembuka seperti "Halo" lagi, langsung ke inti jawaban.';
 
         $context = $this->buildFinancialContext($user);
-        $prompt  = $this->buildPrompt($context, $history, $effectiveMessage, $greetingInstruction);
+        $prompt = $this->buildPrompt($context, $history, $effectiveMessage, $greetingInstruction);
 
         $result = $this->gemini->generate($prompt, 500);
 
-        if (!$result['success']) {
+        if (! $result['success']) {
             return [
-                'reply'        => 'Maaf, CuanAI sedang tidak tersedia. Coba lagi sebentar ya! 🙏',
+                'reply' => 'Maaf, CuanAI sedang tidak tersedia. Coba lagi sebentar ya! 🙏',
                 'action_taken' => $actionTaken,
             ];
         }
 
         return [
-            'reply'        => $result['text'],
+            'reply' => $result['text'],
             'action_taken' => $actionTaken,
         ];
     }
@@ -64,7 +66,7 @@ class CuanAiService
     private function detectAndExecuteAction(User $user, string $userMessage, array $ctx): ?string
     {
         $waContext = [
-            'wallets'    => collect($ctx['wallets'])->pluck('display_name')->toArray(),
+            'wallets' => collect($ctx['wallets'])->pluck('display_name')->toArray(),
             'categories' => TransactionCategory::forUser($user->id)->pluck('name')->toArray(),
         ];
 
@@ -72,12 +74,12 @@ class CuanAiService
         $intent = $parsed['intent'] ?? 'unknown';
 
         return match ($intent) {
-            'add_income'   => $this->executeAddTransaction($user, $parsed, 'income'),
-            'add_expense'  => $this->executeAddTransaction($user, $parsed, 'expense'),
+            'add_income' => $this->executeAddTransaction($user, $parsed, 'income'),
+            'add_expense' => $this->executeAddTransaction($user, $parsed, 'expense'),
             'add_multiple' => $this->executeMultipleTransactions($user, $parsed),
-            'pay_bill'     => $this->executePayBill($user, $parsed),
-            'add_wallet'   => $this->executeAddWallet($user, $parsed),
-            default        => null,
+            'pay_bill' => $this->executePayBill($user, $parsed),
+            'add_wallet' => $this->executeAddWallet($user, $parsed),
+            default => null,
         };
     }
 
@@ -86,44 +88,44 @@ class CuanAiService
     {
         $amount = $parsed['amount'] ?? null;
 
-        if (!$amount || $amount <= 0) {
-            return "GAGAL — nominal tidak jelas/tidak disebutkan user. Minta user sebutkan nominalnya dengan jelas.";
+        if (! $amount || $amount <= 0) {
+            return 'GAGAL — nominal tidak jelas/tidak disebutkan user. Minta user sebutkan nominalnya dengan jelas.';
         }
 
         $wallet = $this->resolveWallet($user, $parsed['wallet'] ?? null);
-        if (!$wallet) {
-            return "GAGAL — user belum punya dompet aktif. Sarankan user tambah dompet dulu.";
+        if (! $wallet) {
+            return 'GAGAL — user belum punya dompet aktif. Sarankan user tambah dompet dulu.';
         }
 
-        $category     = $this->resolveCategory($user, $parsed['category'] ?? null, $type);
+        $category = $this->resolveCategory($user, $parsed['category'] ?? null, $type);
         $transactedAt = $parsed['date'] ?? now()->toDateString();
 
         try {
             DB::transaction(function () use ($user, $wallet, $category, $type, $amount, $parsed, $transactedAt, &$transaction) {
                 $transaction = $user->transactions()->create([
-                    'wallet_id'     => $wallet->id,
-                    'category_id'   => $category?->id,
-                    'type'          => $type,
-                    'amount'        => $amount,
-                    'note'          => $parsed['note'] ?? null,
+                    'wallet_id' => $wallet->id,
+                    'category_id' => $category?->id,
+                    'type' => $type,
+                    'amount' => $amount,
+                    'note' => $parsed['note'] ?? null,
                     'transacted_at' => $transactedAt,
-                    'source'        => 'cuanai_chat',
-                    'created_by'    => $user->id,
+                    'source' => 'cuanai_chat',
+                    'created_by' => $user->id,
                 ]);
 
                 $this->walletService->applyTransaction($transaction);
             });
-        } catch (\App\Exceptions\InsufficientBalanceException $e) {
+        } catch (InsufficientBalanceException $e) {
             return "GAGAL — {$e->getMessage()}";
         }
 
-        $typeLabel  = $type === 'income' ? 'Pemasukan' : 'Pengeluaran';
+        $typeLabel = $type === 'income' ? 'Pemasukan' : 'Pengeluaran';
         $newBalance = number_format($wallet->fresh()->balance, 0, ',', '.');
 
-        return "BERHASIL mencatat {$typeLabel} sebesar Rp " . number_format($amount, 0, ',', '.')
-            . " ke dompet {$wallet->display_name}"
-            . ($category ? ", kategori {$category->name}" : '')
-            . ". Saldo {$wallet->display_name} sekarang Rp {$newBalance}.";
+        return "BERHASIL mencatat {$typeLabel} sebesar Rp ".number_format($amount, 0, ',', '.')
+            ." ke dompet {$wallet->display_name}"
+            .($category ? ", kategori {$category->name}" : '')
+            .". Saldo {$wallet->display_name} sekarang Rp {$newBalance}.";
     }
 
     // ── Eksekusi: Transaksi GANDA (lebih dari 1 dalam 1 pesan) ──
@@ -131,29 +133,29 @@ class CuanAiService
     {
         $items = $parsed['items'] ?? [];
 
-        if (empty($items) || !is_array($items)) {
-            return "GAGAL — sistem mendeteksi ada beberapa transaksi tapi tidak bisa memisahkan detailnya. Minta user sebutkan tiap transaksi & nominalnya lebih jelas.";
+        if (empty($items) || ! is_array($items)) {
+            return 'GAGAL — sistem mendeteksi ada beberapa transaksi tapi tidak bisa memisahkan detailnya. Minta user sebutkan tiap transaksi & nominalnya lebih jelas.';
         }
 
         $sharedWallet = $parsed['wallet'] ?? null;
-        $sharedDate   = $parsed['date'] ?? null;
+        $sharedDate = $parsed['date'] ?? null;
 
-        $results      = [];
+        $results = [];
         $successCount = 0;
 
         foreach ($items as $item) {
             $type = ($item['type'] ?? 'expense') === 'income' ? 'income' : 'expense';
 
             $itemParsed = [
-                'amount'   => $item['amount'] ?? null,
+                'amount' => $item['amount'] ?? null,
                 'category' => $item['category'] ?? null,
-                'note'     => $item['note'] ?? null,
-                'wallet'   => $item['wallet'] ?? $sharedWallet,
-                'date'     => $sharedDate,
+                'note' => $item['note'] ?? null,
+                'wallet' => $item['wallet'] ?? $sharedWallet,
+                'date' => $sharedDate,
             ];
 
             $itemResult = $this->executeAddTransaction($user, $itemParsed, $type);
-            $results[]  = $itemResult;
+            $results[] = $itemResult;
 
             if (str_starts_with($itemResult, 'BERHASIL')) {
                 $successCount++;
@@ -161,7 +163,7 @@ class CuanAiService
         }
 
         $totalCount = count($items);
-        $summary    = implode(' || ', $results);
+        $summary = implode(' || ', $results);
 
         $status = $successCount > 0 ? 'BERHASIL' : 'GAGAL';
 
@@ -173,8 +175,8 @@ class CuanAiService
     {
         $billName = $parsed['bill_name'] ?? null;
 
-        if (!$billName) {
-            return "GAGAL — user tidak menyebutkan nama tagihan. Minta user sebutkan nama tagihannya.";
+        if (! $billName) {
+            return 'GAGAL — user tidak menyebutkan nama tagihan. Minta user sebutkan nama tagihannya.';
         }
 
         $bill = $user->bills()
@@ -182,7 +184,7 @@ class CuanAiService
             ->where('name', 'like', "%{$billName}%")
             ->first();
 
-        if (!$bill) {
+        if (! $bill) {
             return $this->executePayBillAsExpense($user, $parsed, $billName);
         }
 
@@ -197,8 +199,8 @@ class CuanAiService
         }
 
         $wallet = $this->resolveWallet($user, $parsed['wallet'] ?? null);
-        if (!$wallet) {
-            return "GAGAL — user belum punya dompet aktif untuk membayar tagihan ini.";
+        if (! $wallet) {
+            return 'GAGAL — user belum punya dompet aktif untuk membayar tagihan ini.';
         }
 
         $tagCategory = TransactionCategory::where('type', 'expense')
@@ -209,36 +211,36 @@ class CuanAiService
         try {
             DB::transaction(function () use ($user, $bill, $wallet, $tagCategory, $forPeriod) {
                 $transaction = $user->transactions()->create([
-                    'wallet_id'     => $wallet->id,
-                    'category_id'   => $tagCategory?->id,
-                    'type'          => 'expense',
-                    'amount'        => $bill->amount,
-                    'note'          => 'Bayar tagihan: ' . $bill->name,
+                    'wallet_id' => $wallet->id,
+                    'category_id' => $tagCategory?->id,
+                    'type' => 'expense',
+                    'amount' => $bill->amount,
+                    'note' => 'Bayar tagihan: '.$bill->name,
                     'transacted_at' => now(),
-                    'source'        => 'cuanai_chat',
-                    'created_by'    => $user->id,
+                    'source' => 'cuanai_chat',
+                    'created_by' => $user->id,
                 ]);
 
                 $this->walletService->applyTransaction($transaction);
 
                 BillPayment::create([
-                    'bill_id'        => $bill->id,
-                    'wallet_id'      => $wallet->id,
+                    'bill_id' => $bill->id,
+                    'wallet_id' => $wallet->id,
                     'transaction_id' => $transaction->id,
-                    'amount_paid'    => $bill->amount,
-                    'paid_at'        => now(),
-                    'source'         => 'cuanai_chat',
-                    'for_period'     => $forPeriod,
+                    'amount_paid' => $bill->amount,
+                    'paid_at' => now(),
+                    'source' => 'cuanai_chat',
+                    'for_period' => $forPeriod,
                 ]);
 
                 $bill->update(['last_paid_at' => now()]);
             });
-        } catch (\App\Exceptions\InsufficientBalanceException $e) {
+        } catch (InsufficientBalanceException $e) {
             return "GAGAL — {$e->getMessage()}";
         }
 
         return "BERHASIL menandai tagihan \"{$bill->name}\" lunas sebesar Rp "
-            . number_format($bill->amount, 0, ',', '.') . " dari dompet {$wallet->display_name}.";
+            .number_format($bill->amount, 0, ',', '.')." dari dompet {$wallet->display_name}.";
     }
 
     // ── Eksekusi: Bayar "Tagihan" yang TIDAK terdaftar formal ──
@@ -246,13 +248,13 @@ class CuanAiService
     {
         $amount = $parsed['amount'] ?? null;
 
-        if (!$amount || $amount <= 0) {
+        if (! $amount || $amount <= 0) {
             return "GAGAL — tagihan \"{$billName}\" tidak terdaftar sebagai tagihan rutin di aplikasi, dan user tidak menyebutkan nominal pembayarannya. Minta user sebutkan nominalnya, misal 'Bayar {$billName} 200rb'.";
         }
 
         $wallet = $this->resolveWallet($user, $parsed['wallet'] ?? null);
-        if (!$wallet) {
-            return "GAGAL — user belum punya dompet aktif.";
+        if (! $wallet) {
+            return 'GAGAL — user belum punya dompet aktif.';
         }
 
         $tagCategory = TransactionCategory::where('type', 'expense')
@@ -263,26 +265,26 @@ class CuanAiService
         try {
             DB::transaction(function () use ($user, $wallet, $tagCategory, $amount, $billName, &$transaction) {
                 $transaction = $user->transactions()->create([
-                    'wallet_id'     => $wallet->id,
-                    'category_id'   => $tagCategory?->id,
-                    'type'          => 'expense',
-                    'amount'        => $amount,
-                    'note'          => 'Bayar tagihan: ' . $billName,
+                    'wallet_id' => $wallet->id,
+                    'category_id' => $tagCategory?->id,
+                    'type' => 'expense',
+                    'amount' => $amount,
+                    'note' => 'Bayar tagihan: '.$billName,
                     'transacted_at' => now(),
-                    'source'        => 'cuanai_chat',
-                    'created_by'    => $user->id,
+                    'source' => 'cuanai_chat',
+                    'created_by' => $user->id,
                 ]);
 
                 $this->walletService->applyTransaction($transaction);
             });
-        } catch (\App\Exceptions\InsufficientBalanceException $e) {
+        } catch (InsufficientBalanceException $e) {
             return "GAGAL — {$e->getMessage()}";
         }
 
         $newBalance = number_format($wallet->fresh()->balance, 0, ',', '.');
 
-        return "BERHASIL mencatat pengeluaran \"{$billName}\" sebesar Rp " . number_format($amount, 0, ',', '.')
-            . " dari dompet {$wallet->display_name} (dicatat sebagai transaksi kategori Tagihan — tagihan ini belum terdaftar sebagai tagihan rutin di menu Tagihan aplikasi). Saldo {$wallet->display_name} sekarang Rp {$newBalance}.";
+        return "BERHASIL mencatat pengeluaran \"{$billName}\" sebesar Rp ".number_format($amount, 0, ',', '.')
+            ." dari dompet {$wallet->display_name} (dicatat sebagai transaksi kategori Tagihan — tagihan ini belum terdaftar sebagai tagihan rutin di menu Tagihan aplikasi). Saldo {$wallet->display_name} sekarang Rp {$newBalance}.";
     }
 
     // ── Eksekusi: Tambah Dompet Baru ───────────────
@@ -290,7 +292,7 @@ class CuanAiService
     {
         $walletName = trim($parsed['wallet_name'] ?? '');
 
-        if (!$walletName) {
+        if (! $walletName) {
             return "GAGAL — user tidak menyebutkan nama dompet yang mau dibuat. Minta user sebutkan namanya, misal 'BCA' atau 'Dompet Belanja'.";
         }
 
@@ -306,7 +308,7 @@ class CuanAiService
         $bank = Bank::where('is_active', true)
             ->where(function ($q) use ($walletName) {
                 $q->where('name', 'like', "%{$walletName}%")
-                  ->orWhere('short_name', 'like', "%{$walletName}%");
+                    ->orWhere('short_name', 'like', "%{$walletName}%");
             })
             ->first();
 
@@ -316,22 +318,22 @@ class CuanAiService
             : 'cash_flow';
 
         $initialBalance = (float) ($parsed['initial_balance'] ?? 0);
-        $lastOrder      = $user->wallets()->max('sort_order') ?? 0;
+        $lastOrder = $user->wallets()->max('sort_order') ?? 0;
 
         $wallet = $user->wallets()->create([
-            'bank_id'         => $bank?->id,
-            'display_name'    => $walletName,
-            'account_number'  => null,
-            'balance'         => $initialBalance,
+            'bank_id' => $bank?->id,
+            'display_name' => $walletName,
+            'account_number' => null,
+            'balance' => $initialBalance,
             'initial_balance' => $initialBalance,
-            'type'            => $type,
-            'is_saham'        => false,
-            'is_active'       => true,
-            'sort_order'      => $lastOrder + 1,
+            'type' => $type,
+            'is_saham' => false,
+            'is_active' => true,
+            'sort_order' => $lastOrder + 1,
         ]);
 
         return "BERHASIL membuat dompet baru \"{$wallet->display_name}\" dengan saldo awal Rp "
-            . number_format($initialBalance, 0, ',', '.') . ".";
+            .number_format($initialBalance, 0, ',', '.').'.';
     }
 
     // ── PRIVATE HELPERS ────────────────────────────
@@ -341,7 +343,9 @@ class CuanAiService
 
         if ($walletName) {
             $byName = (clone $query)->where('display_name', 'like', "%{$walletName}%")->first();
-            if ($byName) return $byName;
+            if ($byName) {
+                return $byName;
+            }
         }
 
         return $query->orderBy('sort_order')->first();
@@ -356,20 +360,23 @@ class CuanAiService
 
             $byName = $categories->first(function ($cat) use ($needle) {
                 $catName = mb_strtolower($cat->name);
+
                 return str_contains($catName, $needle) || str_contains($needle, $catName);
             });
 
-            if ($byName) return $byName;
+            if ($byName) {
+                return $byName;
+            }
         }
 
-        return $categories->first(fn($cat) => $cat->name === 'Lainnya');
+        return $categories->first(fn ($cat) => $cat->name === 'Lainnya');
     }
 
     // ── Build konteks keuangan user real-time ─────
     private function buildFinancialContext(User $user): array
     {
-        $period       = now()->format('Y-m');
-        $periodLabel  = now()->translatedFormat('F Y');
+        $period = now()->format('Y-m');
+        $periodLabel = now()->translatedFormat('F Y');
 
         $wallets = $user->wallets()
             ->where('is_active', true)
@@ -377,15 +384,15 @@ class CuanAiService
 
         $totalBalance = $wallets->sum('balance');
 
-        $txThisMonth  = $user->transactions()->forPeriod($period)->get();
-        $totalIncome  = $txThisMonth->where('type', 'income')->sum('amount');
+        $txThisMonth = $user->transactions()->forPeriod($period)->get();
+        $totalIncome = $txThisMonth->where('type', 'income')->sum('amount');
         $totalExpense = $txThisMonth->where('type', 'expense')->sum('amount');
 
         $topCategories = $txThisMonth
             ->where('type', 'expense')
-            ->groupBy(fn($t) => $t->category?->name ?? 'Lainnya')
-            ->map(fn($txs) => [
-                'name'  => $txs->first()->category?->name ?? 'Lainnya',
+            ->groupBy(fn ($t) => $t->category?->name ?? 'Lainnya')
+            ->map(fn ($txs) => [
+                'name' => $txs->first()->category?->name ?? 'Lainnya',
                 'total' => $txs->sum('amount'),
             ])
             ->sortByDesc('total')
@@ -399,17 +406,17 @@ class CuanAiService
         $bills = $user->bills()
             ->where('is_active', true)
             ->get()
-            ->filter(fn($b) => $b->days_until_due !== null && $b->days_until_due <= 7)
+            ->filter(fn ($b) => $b->days_until_due !== null && $b->days_until_due <= 7)
             ->values();
 
-        $budgets = \App\Models\Budget::where('user_id', $user->id)
+        $budgets = Budget::where('user_id', $user->id)
             ->where('period', $period)
             ->with('category:id,name')
             ->get()
-            ->map(fn($b) => [
+            ->map(fn ($b) => [
                 'category' => $b->category?->name,
-                'budget'   => $b->amount,
-                'spent'    => $txThisMonth->where('type','expense')->where('category_id', $b->category_id)->sum('amount'),
+                'budget' => $b->amount,
+                'spent' => $txThisMonth->where('type', 'expense')->where('category_id', $b->category_id)->sum('amount'),
             ]);
 
         return compact(
@@ -421,55 +428,52 @@ class CuanAiService
     // ── Build full prompt ─────────────────────────
     private function buildPrompt(array $ctx, array $history, string $userMessage, string $greetingInstruction = ''): string
     {
-        $walletList = collect($ctx['wallets'])->map(fn($w) =>
-            "  - {$w->display_name}: Rp " . number_format($w->balance, 0, ',', '.')
-            . ($w->is_saham ? ' (Saham)' : '')
+        $walletList = collect($ctx['wallets'])->map(fn ($w) => "  - {$w->display_name}: Rp ".number_format($w->balance, 0, ',', '.')
+            .($w->is_saham ? ' (Saham)' : '')
         )->join("\n");
 
-        $topCatList = collect($ctx['topCategories'])->map(fn($c) =>
-            "  - {$c['name']}: Rp " . number_format($c['total'], 0, ',', '.')
+        $topCatList = collect($ctx['topCategories'])->map(fn ($c) => "  - {$c['name']}: Rp ".number_format($c['total'], 0, ',', '.')
         )->join("\n");
 
-        $goalList = collect($ctx['goals'])->map(fn($g) =>
-            "  - {$g->name}: " . number_format($g->current_amount, 0, ',', '.') . " / " . number_format($g->target_amount, 0, ',', '.')
+        $goalList = collect($ctx['goals'])->map(fn ($g) => "  - {$g->name}: ".number_format($g->current_amount, 0, ',', '.').' / '.number_format($g->target_amount, 0, ',', '.')
         )->join("\n");
 
-        $billList = collect($ctx['bills'])->map(fn($b) =>
-            "  - {$b->name}: Rp " . number_format($b->amount, 0, ',', '.') . " (H-{$b->days_until_due})"
+        $billList = collect($ctx['bills'])->map(fn ($b) => "  - {$b->name}: Rp ".number_format($b->amount, 0, ',', '.')." (H-{$b->days_until_due})"
         )->join("\n");
 
-        $budgetList = collect($ctx['budgets'])->map(function($b) {
-            $pct = $b['budget'] > 0 ? round(($b['spent']/$b['budget'])*100) : 0;
-            return "  - {$b['category']}: Rp " . number_format($b['spent'], 0, ',', '.') . " / Rp " . number_format($b['budget'], 0, ',', '.') . " ({$pct}%)";
+        $budgetList = collect($ctx['budgets'])->map(function ($b) {
+            $pct = $b['budget'] > 0 ? round(($b['spent'] / $b['budget']) * 100) : 0;
+
+            return "  - {$b['category']}: Rp ".number_format($b['spent'], 0, ',', '.').' / Rp '.number_format($b['budget'], 0, ',', '.')." ({$pct}%)";
         })->join("\n");
 
         $historyStr = '';
         foreach ($history as $msg) {
-            $role       = $msg['role'] === 'user' ? 'User' : 'CuanAI';
+            $role = $msg['role'] === 'user' ? 'User' : 'CuanAI';
             $historyStr .= "{$role}: {$msg['content']}\n";
         }
 
         $template = SystemSetting::get('cuan_ai_system_prompt') ?? static::defaultPromptTemplate();
 
         return strtr($template, [
-            '{periodLabel}'         => $ctx['periodLabel'],
-            '{totalBalance}'        => $this->fmt($ctx['totalBalance']),
-            '{walletList}'          => $walletList ?: '  (belum ada dompet aktif)',
-            '{totalIncome}'         => $this->fmt($ctx['totalIncome']),
-            '{totalExpense}'        => $this->fmt($ctx['totalExpense']),
-            '{topCategories}'       => $topCatList ?: '  (belum ada data pengeluaran)',
-            '{goalList}'            => $goalList ?: '  (belum ada goal tabungan aktif)',
-            '{billList}'            => $billList ?: '  (tidak ada tagihan jatuh tempo)',
-            '{budgetList}'          => $budgetList ?: '  (belum ada budget diatur)',
-            '{history}'             => $historyStr,
-            '{userMessage}'         => $userMessage,
+            '{periodLabel}' => $ctx['periodLabel'],
+            '{totalBalance}' => $this->fmt($ctx['totalBalance']),
+            '{walletList}' => $walletList ?: '  (belum ada dompet aktif)',
+            '{totalIncome}' => $this->fmt($ctx['totalIncome']),
+            '{totalExpense}' => $this->fmt($ctx['totalExpense']),
+            '{topCategories}' => $topCatList ?: '  (belum ada data pengeluaran)',
+            '{goalList}' => $goalList ?: '  (belum ada goal tabungan aktif)',
+            '{billList}' => $billList ?: '  (tidak ada tagihan jatuh tempo)',
+            '{budgetList}' => $budgetList ?: '  (belum ada budget diatur)',
+            '{history}' => $historyStr,
+            '{userMessage}' => $userMessage,
             '{greetingInstruction}' => $greetingInstruction,
         ]);
     }
 
     public static function defaultPromptTemplate(): string
     {
-        return <<<PROMPT
+        return <<<'PROMPT'
 Kamu adalah CuanAI, asisten keuangan pribadi yang cerdas dan friendly dari aplikasi CatatCuan.
 
 ATURAN PENTING:

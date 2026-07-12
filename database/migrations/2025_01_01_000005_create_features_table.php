@@ -12,7 +12,7 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->char('user_id', 26)->nullable(false);
             $table->foreign('user_id', 'fk_sg_user')
-                  ->references('id')->on('users')->cascadeOnDelete();
+                ->references('id')->on('users')->cascadeOnDelete();
             $table->string('name', 100);
             $table->string('emoji', 10)->nullable();
             $table->decimal('target_amount', 15, 2);
@@ -28,10 +28,10 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->char('saving_goal_id', 26)->nullable(false);
             $table->foreign('saving_goal_id', 'fk_sd_goal')
-                  ->references('id')->on('saving_goals')->cascadeOnDelete();
+                ->references('id')->on('saving_goals')->cascadeOnDelete();
             $table->char('wallet_id', 26)->nullable(false);
             $table->foreign('wallet_id', 'fk_sd_wallet')
-                  ->references('id')->on('user_wallets')->restrictOnDelete();
+                ->references('id')->on('user_wallets')->restrictOnDelete();
             $table->decimal('amount', 15, 2);
             $table->date('deposited_at');
             $table->string('note', 255)->nullable();
@@ -42,7 +42,7 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->char('user_id', 26)->nullable(false);
             $table->foreign('user_id', 'fk_bills_user')
-                  ->references('id')->on('users')->cascadeOnDelete();
+                ->references('id')->on('users')->cascadeOnDelete();
             $table->string('name', 100);
             $table->string('emoji', 10)->nullable();
             $table->enum('type', ['recurring', 'one_time'])->default('recurring');
@@ -62,13 +62,13 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->char('bill_id', 26)->nullable(false);
             $table->foreign('bill_id', 'fk_bp_bill')
-                  ->references('id')->on('bills')->cascadeOnDelete();
+                ->references('id')->on('bills')->cascadeOnDelete();
             $table->char('wallet_id', 26)->nullable(false);
             $table->foreign('wallet_id', 'fk_bp_wallet')
-                  ->references('id')->on('user_wallets')->restrictOnDelete();
+                ->references('id')->on('user_wallets')->restrictOnDelete();
             $table->char('transaction_id', 26)->nullable();
             $table->foreign('transaction_id', 'fk_bp_tx')
-                  ->references('id')->on('transactions')->nullOnDelete();
+                ->references('id')->on('transactions')->nullOnDelete();
             $table->decimal('amount_paid', 15, 2);
             $table->date('paid_at');
             $table->char('for_period', 7);
@@ -80,10 +80,10 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->char('user_id', 26)->nullable(false);
             $table->foreign('user_id', 'fk_budgets_user')
-                  ->references('id')->on('users')->cascadeOnDelete();
+                ->references('id')->on('users')->cascadeOnDelete();
             $table->unsignedSmallInteger('category_id');
             $table->foreign('category_id', 'fk_budgets_cat')
-                  ->references('id')->on('transaction_categories')->cascadeOnDelete();
+                ->references('id')->on('transaction_categories')->cascadeOnDelete();
             $table->char('period', 7);
             $table->decimal('amount', 15, 2);
             $table->timestamps();
@@ -94,7 +94,7 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->char('user_id', 26)->nullable(false);
             $table->foreign('user_id', 'fk_ms_user')
-                  ->references('id')->on('users')->cascadeOnDelete();
+                ->references('id')->on('users')->cascadeOnDelete();
             $table->char('period', 7);
             $table->decimal('total_income', 15, 2)->default(0);
             $table->decimal('total_expense', 15, 2)->default(0);
@@ -108,7 +108,7 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->char('user_id', 26)->nullable(false);
             $table->foreign('user_id', 'fk_notif_user')
-                  ->references('id')->on('users')->cascadeOnDelete();
+                ->references('id')->on('users')->cascadeOnDelete();
             $table->string('type', 50);
             $table->string('title', 100);
             $table->text('body')->nullable();

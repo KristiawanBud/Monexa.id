@@ -12,7 +12,7 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->char('user_id', 26)->nullable();
             $table->foreign('user_id', 'fk_wml_user')
-                  ->references('id')->on('users')->nullOnDelete();
+                ->references('id')->on('users')->nullOnDelete();
             $table->enum('direction', ['incoming', 'outgoing']);
             $table->string('from_number', 25);
             $table->text('message');
@@ -27,7 +27,7 @@ return new class extends Migration
             $table->smallIncrements('id');
             $table->char('user_id', 26)->nullable();
             $table->foreign('user_id', 'fk_tc_user')
-                  ->references('id')->on('users')->nullOnDelete();
+                ->references('id')->on('users')->nullOnDelete();
             $table->enum('type', ['income', 'expense']);
             $table->string('name', 50);
             $table->string('emoji', 10)->nullable();
@@ -40,13 +40,13 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->char('user_id', 26)->nullable(false);
             $table->foreign('user_id', 'fk_tx_user')
-                  ->references('id')->on('users')->cascadeOnDelete();
+                ->references('id')->on('users')->cascadeOnDelete();
             $table->char('wallet_id', 26)->nullable(false);
             $table->foreign('wallet_id', 'fk_tx_wallet')
-                  ->references('id')->on('user_wallets')->restrictOnDelete();
+                ->references('id')->on('user_wallets')->restrictOnDelete();
             $table->unsignedSmallInteger('category_id')->nullable();
             $table->foreign('category_id', 'fk_tx_category')
-                  ->references('id')->on('transaction_categories')->nullOnDelete();
+                ->references('id')->on('transaction_categories')->nullOnDelete();
             $table->enum('type', ['income', 'expense']);
             $table->decimal('amount', 15, 2);
             $table->string('note', 255)->nullable();
@@ -54,10 +54,10 @@ return new class extends Migration
             $table->date('transacted_at');
             $table->char('wa_message_id', 26)->nullable();
             $table->foreign('wa_message_id', 'fk_tx_wa_msg')
-                  ->references('id')->on('wa_message_logs')->nullOnDelete();
+                ->references('id')->on('wa_message_logs')->nullOnDelete();
             $table->char('created_by', 26)->nullable(false);
             $table->foreign('created_by', 'fk_tx_creator')
-                  ->references('id')->on('users')->restrictOnDelete();
+                ->references('id')->on('users')->restrictOnDelete();
             $table->timestamps();
             $table->softDeletes();
             $table->index('user_id', 'idx_tx_user');
@@ -68,10 +68,10 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->char('transaction_id', 26)->nullable(false);
             $table->foreign('transaction_id', 'fk_tel_tx')
-                  ->references('id')->on('transactions')->cascadeOnDelete();
+                ->references('id')->on('transactions')->cascadeOnDelete();
             $table->char('edited_by', 26)->nullable(false);
             $table->foreign('edited_by', 'fk_tel_editor')
-                  ->references('id')->on('users')->restrictOnDelete();
+                ->references('id')->on('users')->restrictOnDelete();
             $table->json('old_data');
             $table->json('new_data');
             $table->enum('action', ['create', 'update', 'delete']);

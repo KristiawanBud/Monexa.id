@@ -1,20 +1,20 @@
 <?php
 
-use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\Auth\RegisterController;
-use App\Http\Controllers\App\OnboardingController;
-use App\Http\Controllers\App\DashboardController;
-use App\Http\Controllers\App\TransactionController;
-use App\Http\Controllers\App\SavingGoalController;
-use App\Http\Controllers\App\BillController;
-use App\Http\Controllers\App\ReportController;
 use App\Http\Controllers\App\AccountController;
 use App\Http\Controllers\App\AssetController;
-use App\Http\Controllers\App\ReceiptScanController;
-use App\Http\Controllers\App\CuanAiController;
-use App\Http\Controllers\App\ImportController;
+use App\Http\Controllers\App\BillController;
 use App\Http\Controllers\App\BudgetController;
+use App\Http\Controllers\App\CuanAiController;
+use App\Http\Controllers\App\DashboardController;
+use App\Http\Controllers\App\ImportController;
+use App\Http\Controllers\App\OnboardingController;
+use App\Http\Controllers\App\ReceiptScanController;
+use App\Http\Controllers\App\ReportController;
+use App\Http\Controllers\App\SavingGoalController;
+use App\Http\Controllers\App\TransactionController;
 use App\Http\Controllers\App\WalletController;
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\RegisterController;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth ─────────────────────────────────────────────
@@ -142,4 +142,4 @@ Route::middleware(['auth', 'subscribed', 'onboarded'])->group(function () {
 });
 
 // ── Admin ─────────────────────────────────────────────
-require __DIR__ . '/admin.php';
+require __DIR__.'/admin.php';
