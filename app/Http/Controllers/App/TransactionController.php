@@ -244,6 +244,50 @@ class TransactionController extends Controller
         return back()->with('success', 'Transaksi berhasil dihapus.');
     }
 
+    public function duplicate(Request $request, Transaction $transaction)
+    {
+        abort_if($transaction->user_id !== $request->user()->id, 403);
+
+        // NB: 'wallet_transfer' bukan nilai valid di enum transactions.source saat ini (lihat migration
+        // 2026_07_08_000001) dan transfer antar dompet dicatat lewat WalletTransfer, bukan Transaction —
+        // guard ini defensif sesuai kontrak spec, saat ini tidak pernah match data nyata.
+        if ($transaction->source === 'wallet_transfer') {
+            return back()->with('error', 'Transaksi hasil transfer antar dompet tidak bisa diduplikasi langsung.');
+        }
+
+        $user = $request->user();
+
+        try {
+            DB::transaction(function () use ($transaction, $user) {
+                $duplicate = $user->transactions()->create([
+                    'wallet_id' => $transaction->wallet_id,
+                    'category_id' => $transaction->category_id,
+                    'type' => $transaction->type,
+                    'amount' => $transaction->amount,
+                    'note' => $transaction->note,
+                    'transacted_at' => now()->toDateString(),
+                    'source' => 'manual',
+                    'created_by' => $user->id,
+                ]);
+
+                $this->walletService->applyTransaction($duplicate);
+
+                TransactionEditLog::create([
+                    'transaction_id' => $duplicate->id,
+                    'edited_by' => $user->id,
+                    'action' => 'create',
+                    'old_data' => [],
+                    'new_data' => $duplicate->toArray(),
+                    'edited_at' => now(),
+                ]);
+            });
+        } catch (InsufficientBalanceException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Transaksi berhasil diduplikasi.');
+    }
+
     public function editLogs(Transaction $transaction)
     {
         return response()->json(
