@@ -31,7 +31,12 @@
         <span v-if="!balanceHidden">{{ formatRupiah(totalBalance) }}</span>
         <span v-else class="hidden-text">••••••••••</span>
       </div>
-      <div class="hero-wallet-badge">● {{ activeWalletsCount }} Dompet Aktif</div>
+      <div class="hero-badges-row">
+        <div class="hero-wallet-badge">● {{ activeWalletsCount }} Dompet Aktif</div>
+        <div v-if="percentChange !== null && !balanceHidden" class="hero-trend-badge" :class="percentChange >= 0 ? 'up' : 'down'">
+          {{ percentChange >= 0 ? '▲' : '▼' }} {{ percentChange >= 0 ? '+' : '' }}{{ percentChange.toFixed(2) }}% (7 hari)
+        </div>
+      </div>
 
       <div v-if="showRangeStats" class="hero-range-stats">
         <div class="hrs-item">
@@ -92,6 +97,7 @@ const props = defineProps({
   totalIncome: { type: Number, default: 0 },
   totalExpense: { type: Number, default: 0 },
   rangeLabel: { type: String, default: '' },
+  percentChange: { type: Number, default: null },
 })
 defineEmits(['update:balanceHidden', 'add'])
 
@@ -116,7 +122,11 @@ const barWidth = (value) => (props.totalBalance ? Math.min(100, (value / props.t
 .hero-eye-btn svg { width: 14px; height: 14px; }
 .hero-saldo-amount { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 28px; font-weight: 800; color: white; margin: 4px 0 10px; position: relative; z-index: 2; }
 .hidden-text { letter-spacing: .1em; color: rgba(255,255,255,.6); }
-.hero-wallet-badge { display: inline-block; background: rgba(255,255,255,.18); color: white; font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: 99px; position: relative; z-index: 2; }
+.hero-badges-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; position: relative; z-index: 2; }
+.hero-wallet-badge { display: inline-block; background: rgba(255,255,255,.18); color: white; font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: 99px; }
+.hero-trend-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 800; padding: 5px 12px; border-radius: 99px; }
+.hero-trend-badge.up { background: var(--success-bg); color: var(--success); }
+.hero-trend-badge.down { background: var(--danger-bg); color: var(--danger); }
 
 .hero-range-stats { display: flex; gap: 18px; margin-top: 16px; position: relative; z-index: 2; }
 .hrs-item { display: flex; flex-direction: column; gap: 2px; }

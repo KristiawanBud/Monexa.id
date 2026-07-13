@@ -13,7 +13,8 @@
         :total-income="total_income"
         :total-expense="total_expense"
         :range-label="range_label"
-        @update:balance-hidden="balanceHidden = $event"
+        :percent-change="heroPercentChange"
+        @update:balance-hidden="toggleBalanceHidden"
         @add="openAddForTab"
       />
 
@@ -98,6 +99,10 @@
 
           <div class="tx-list-heading">
             <h2 class="section-title">Transaksi {{ range_label }}</h2>
+            <select v-model="sortBy" class="form-input-cc tx-sort-select" aria-label="Urutkan transaksi" @change="onSortByChange">
+              <option value="date">Terbaru</option>
+              <option value="amount">Terbesar</option>
+            </select>
           </div>
 
           <div class="card tx-list-card">
@@ -448,6 +453,7 @@
 <script setup>
 import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useForm, router } from '@inertiajs/vue3'
+import axios from 'axios'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import EmojiPicker from '@/Components/EmojiPicker.vue'
 import BalanceSummaryCard from '@/Components/Wallet/BalanceSummaryCard.vue'
@@ -486,9 +492,27 @@ const props = defineProps({
   search_query: String,
   active_tab: { type: String, default: 'transaksi' },
   include_archived: { type: Boolean, default: false },
+  sort_by: { type: String, default: 'date' },
+  hide_balance: { type: Boolean, default: false },
 })
 
-const balanceHidden = ref(false)
+const balanceHidden = ref(props.hide_balance)
+const heroPercentChange = ref(null)
+
+async function toggleBalanceHidden() {
+  try {
+    const { data } = await axios.post(route('dashboard.toggle-balance'))
+    balanceHidden.value = data.hidden
+  } catch {}
+}
+
+async function fetchHeroTrend() {
+  try {
+    const { data } = await axios.get(route('dompet.balanceTrend'), { params: { range: '7d' } })
+    heroPercentChange.value = data.percent_change ?? 0
+  } catch {}
+}
+
 const showRangeMenu = ref(false)
 const searchQuery = ref(props.search_query || '')
 const searchInputRef = ref(null)
@@ -509,6 +533,12 @@ function readQueryFilters() {
 }
 
 const filters = reactive(readQueryFilters())
+const sortBy = ref(props.sort_by || 'date')
+
+function onSortByChange() {
+  trackEvent('dompet_sort_change', { sort_by: sortBy.value })
+  reload({ sort_by: sortBy.value === 'date' ? undefined : sortBy.value })
+}
 
 // ── Tab Dompet: sort + search client-side, toggle arsip via reload ──
 const walletSearchQuery = ref('')
@@ -567,6 +597,7 @@ function buildQuery(extra = {}) {
     type: filters.type || undefined,
     category_id: filters.category_id || undefined,
     search: searchQuery.value || undefined,
+    sort_by: sortBy.value !== 'date' ? sortBy.value : undefined,
   }
   return { ...base, ...extra }
 }
@@ -579,6 +610,7 @@ function persistFilters(query) {
     wallet_id: query.wallet_id || '',
     type: query.type || '',
     category_id: query.category_id || '',
+    sort_by: query.sort_by || '',
   }))
 }
 
@@ -977,7 +1009,7 @@ let removeStart, removeFinish, removeError
 
 onMounted(() => {
   // A.4c: restore filter tersimpan kalau tidak ada query param eksplisit di URL
-  const filterKeys = ['range', 'period', 'start_date', 'end_date', 'wallet_id', 'type', 'category_id', 'search']
+  const filterKeys = ['range', 'period', 'start_date', 'end_date', 'wallet_id', 'type', 'category_id', 'search', 'sort_by']
   const params = new URLSearchParams(window.location.search)
   const hasExplicitFilter = filterKeys.some((k) => params.has(k))
   if (!hasExplicitFilter) {
@@ -994,10 +1026,13 @@ onMounted(() => {
     }
   }
 
+  fetchHeroTrend()
+
   removeStart = router.on('start', () => { isLoading.value = true; hasError.value = false })
   removeFinish = router.on('finish', () => {
     isLoading.value = false
     Object.assign(filters, readQueryFilters())
+    sortBy.value = new URLSearchParams(window.location.search).get('sort_by') || 'date'
   })
   removeError = router.on('error', () => { hasError.value = true })
 
@@ -1037,6 +1072,13 @@ onUnmounted(() => {
   .tx-main { max-width: 720px; }
 }
 
+/* ── Desktop (≥1025px): panel filter/ringkasan dipindah ke kolom kanan (A.1) ── */
+@media (min-width: 1025px) {
+  .tx-layout { grid-template-columns: 1fr 280px; }
+  .tx-sidebar { order: 2; }
+  .tx-main { order: 1; max-width: none; }
+}
+
 .range-summary-card { display: flex; flex-direction: column; gap: 14px; }
 .range-dropdown { position: relative; }
 .range-btn { background: var(--primary-bg); color: var(--primary); border: none; padding: 10px 14px; border-radius: 10px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 4px; min-height: 44px; width: 100%; justify-content: center; }
@@ -1058,8 +1100,9 @@ onUnmounted(() => {
 .d-mobile-only { }
 @media (min-width: 481px) { .d-mobile-only { display: none; } }
 
-.tx-list-heading { margin-bottom: 10px; }
+.tx-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
 .section-title { font-size: 15px; font-weight: 800; font-family: 'Plus Jakarta Sans', sans-serif; }
+.tx-sort-select { width: auto; min-height: 36px; padding: 6px 10px; font-size: 12px; }
 
 .tx-list-card { padding: 8px 16px; }
 
@@ -1081,6 +1124,9 @@ onUnmounted(() => {
 }
 @media (min-width: 1025px) {
   .wallet-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (min-width: 1400px) {
+  .wallet-grid { grid-template-columns: repeat(4, 1fr); }
 }
 
 .summary-row { display: flex; gap: 10px; margin-bottom: 16px; }

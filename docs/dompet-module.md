@@ -9,8 +9,11 @@ dan spec Round 1-nya). Dokumen ini murni referensi struktur — kontrak API ada 
 ```
 Pages/App/Dompet.vue                 — halaman utama, 3 tab: Transaksi / Dompet / Tagihan
 Components/Wallet/
-  BalanceSummaryCard.vue             — hero saldo + breakdown Cash/Bank/E-Wallet
-  BalanceTrendChart.vue              — mini sparkline tren saldo 7/30 hari (lazy fetch on-scroll)
+  BalanceSummaryCard.vue             — hero saldo + breakdown Cash/Bank/E-Wallet + badge persentase
+                                        perubahan saldo 7 hari (fetch sendiri saat mount, terpisah dari
+                                        BalanceTrendChart karena hero tampil di semua tab)
+  BalanceTrendChart.vue              — mini sparkline tren saldo 7/30 hari (lazy fetch on-scroll) + label
+                                        persentase perubahan di header (`percent_change` dari respons API)
   CardDompet.vue                     — kartu 1 dompet: badge Utama/Diarsipkan, quick actions
   CategoryChipFilter.vue             — chip filter kategori cepat
   EmptyState.vue / ErrorState.vue    — state kosong/gagal generik
@@ -39,6 +42,8 @@ lib/
 | `banks`, `categories` | Array | referensi untuk form |
 | `total_income`/`total_expense`/`total_balance` | Number | ringkasan sesuai range aktif |
 | `include_archived` | Boolean | state awal toggle "Tampilkan yang diarsipkan" |
+| `sort_by` | String (`'date'`\|`'amount'`) | state awal dropdown sort transaksi (Round 3 §A.3), default `'date'` |
+| `hide_balance` | Boolean | state awal toggle sembunyikan saldo, dibaca dari `user_profiles.hide_balance` (Round 3 §A.5) — `balanceHidden` di `Dompet.vue` diinisialisasi dari prop ini, bukan lokal, dan disinkronkan lewat endpoint `dashboard.toggle-balance` yang sama dipakai `Dashboard.vue` |
 
 `CardDompet.vue` menerima 1 wallet object dan meng-emit `set-primary` / `archive` / `restore` /
 `click` (untuk edit) ke parent — parent yang memanggil `router.patch(...)` ke endpoint
@@ -77,6 +82,7 @@ tanpa mengubah titik panggil di UI.
 | `dompet_copy_account_number` | `CardDompet` → "Salin No. Rekening" | `{ wallet_id }` |
 | `dompet_transfer_submit` | Submit form transfer antar dompet | `{ from_wallet_id, to_wallet_id }` |
 | `dompet_theme_change` | `ThemeToggle` pilih tema | `{ theme }` |
+| `dompet_sort_change` | Dropdown sort transaksi (header list, tab Transaksi) | `{ sort_by: 'date'\|'amount' }` |
 
 ## Catatan scope
 
