@@ -240,6 +240,9 @@
             <button type="submit" class="btn-primary" :disabled="txForm.processing">
               {{ txForm.processing ? 'Menyimpan...' : 'Simpan Transaksi' }}
             </button>
+            <button v-if="editingTx" type="button" class="btn-secondary" style="margin-top:10px;" @click="duplicateTx">
+              📋 Duplikasi
+            </button>
             <button v-if="editingTx" type="button" class="btn-secondary" style="margin-top:10px;color:var(--danger);border-color:var(--danger);" @click="deleteTx">
               🗑️ Hapus Transaksi
             </button>
@@ -509,22 +512,29 @@ function reload(extra = {}) {
   router.get(route('dompet.index'), query, { preserveState: true, preserveScroll: true, replace: true })
 }
 
+function trackFilterUsed(extra = {}) {
+  trackEvent('transaction_filter_used', { filters: { ...filters, ...extra } })
+}
+
 function changeRange(newRange) {
   showRangeMenu.value = false
   filters.start_date = ''
   filters.end_date = ''
+  trackFilterUsed({ range: newRange })
   reload({ range: newRange, start_date: undefined, end_date: undefined })
 }
 
 function applyFilters(payload) {
   Object.assign(filters, payload)
   trackEvent('dompet_filter_apply', payload)
+  trackFilterUsed(payload)
   reload()
 }
 
 function onQuickCategorySelect(id) {
   filters.category_id = id || ''
   trackEvent('dompet_category_chip', { category_id: filters.category_id })
+  trackFilterUsed({ category_id: filters.category_id })
   reload()
 }
 
@@ -538,6 +548,7 @@ watch(searchQuery, (val) => {
   clearTimeout(searchDebounceTimer)
   searchDebounceTimer = setTimeout(() => {
     trackEvent('dompet_search', { query: val })
+    trackFilterUsed({ search: val })
     reload({ search: val || undefined })
   }, 400)
 })
@@ -607,6 +618,7 @@ const openAddIncome = () => {
   txForm.type = 'income'
   showAddTx.value = true
   trackEvent('dompet_quick_action', { action: 'add-income' })
+  trackEvent('quick_add_clicked', { action: 'add-income', surface: 'dompet-toolbar' })
 }
 
 const openAddExpense = () => {
@@ -614,6 +626,7 @@ const openAddExpense = () => {
   txForm.type = 'expense'
   showAddTx.value = true
   trackEvent('dompet_quick_action', { action: 'add-expense' })
+  trackEvent('quick_add_clicked', { action: 'add-expense', surface: 'dompet-toolbar' })
 }
 
 const submitTx = () => {
@@ -631,6 +644,14 @@ const submitTx = () => {
 const deleteTx = () => {
   if (!confirm('Hapus transaksi ini?')) return
   router.delete(route('dompet.destroy', editingTx.value.id), {
+    onSuccess: () => closeTxModal()
+  })
+}
+
+const duplicateTx = () => {
+  if (!editingTx.value) return
+  trackEvent('dompet_tx_duplicate', { transaction_id: editingTx.value.id })
+  router.post(route('dompet.duplicate', editingTx.value.id), {}, {
     onSuccess: () => closeTxModal()
   })
 }
@@ -691,6 +712,7 @@ const onTransferAmountInput = (e) => {
 const openTransfer = () => {
   showTransfer.value = true
   trackEvent('dompet_quick_action', { action: 'transfer' })
+  trackEvent('quick_add_clicked', { action: 'transfer', surface: 'dompet-toolbar' })
 }
 
 const submitTransfer = () => {
@@ -863,6 +885,8 @@ watch(() => props.transactions?.data, () => { scrollTracked = false })
 let removeStart, removeFinish, removeError
 
 onMounted(() => {
+  trackEvent('wallet_opened', {})
+
   // A.4c: restore filter tersimpan kalau tidak ada query param eksplisit di URL
   const filterKeys = ['range', 'period', 'start_date', 'end_date', 'wallet_id', 'type', 'category_id', 'search']
   const params = new URLSearchParams(window.location.search)

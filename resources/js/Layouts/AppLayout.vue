@@ -28,7 +28,7 @@
         <span v-if="unreadCount > 0" class="sb-badge">{{ unreadCount }}</span>
       </Link>
 
-      <button class="sb-add-btn" @click="showQuickAdd = true">
+      <button class="sb-add-btn" @click="openQuickAdd">
         <span class="sb-add-plus">＋</span> Tambah Transaksi
       </button>
     </aside>
@@ -50,7 +50,7 @@
       </Link>
 
       <div class="bn-center">
-        <button class="fab" @click="showQuickAdd = true" aria-label="Tambah transaksi">
+        <button class="fab" @click="openQuickAdd" aria-label="Tambah transaksi">
           <span class="fab-plus">＋</span>
         </button>
       </div>
@@ -133,6 +133,7 @@ import { ref, computed } from 'vue'
 import { Link, usePage, router } from '@inertiajs/vue3'
 import CuanAI from '@/Components/CuanAI.vue'
 import AppIcon from '@/Components/AppIcon.vue'
+import { trackEvent } from '@/lib/analytics'
 
 const page = usePage()
 const showQuickAdd = ref(false)
@@ -141,8 +142,22 @@ const flash = computed(() => page.props.flash ?? {})
 const unreadCount = computed(() => page.props.unread_notifications ?? 0)
 const isActive = (component) => page.component === component
 
+const openQuickAdd = () => {
+  showQuickAdd.value = true
+  trackEvent('quick_add_clicked', { action: 'open', surface: 'global-fab' })
+}
+
+const QUICK_ADD_ACTION_MAP = {
+  income: 'add-income',
+  expense: 'add-expense',
+  scan: 'scan',
+  saving: 'saving',
+  bill: 'bill',
+}
+
 const goTo = (action) => {
   showQuickAdd.value = false
+  trackEvent('quick_add_clicked', { action: QUICK_ADD_ACTION_MAP[action] ?? action, surface: 'global-fab' })
   switch (action) {
     case 'income':   router.visit(route('dompet.index'), { data: { tab: 'in' } }); break
     case 'expense':  router.visit(route('dompet.index'), { data: { tab: 'out' } }); break
