@@ -252,7 +252,7 @@ const goTo = (action) => {
   padding: 13px;
   min-height: 44px;
   background: var(--primary);
-  color: white;
+  color: var(--primary-contrast);
   border: none;
   border-radius: var(--radius-md);
   font-size: 14px;
@@ -331,7 +331,7 @@ const goTo = (action) => {
 .flash-enter-from, .flash-leave-to { opacity: 0; transform: translateX(-50%) translateY(-12px); }
 
 /* ── Quick Add Sheet ── */
-.qa-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 400; backdrop-filter: blur(4px); }
+.qa-overlay { position: fixed; inset: 0; background: var(--overlay-scrim); z-index: 400; backdrop-filter: blur(4px); }
 .qa-sheet {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 100%; max-width: 480px;

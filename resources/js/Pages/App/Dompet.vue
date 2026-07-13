@@ -792,7 +792,7 @@ const groupedTransactions = computed(() => {
   return groups
 })
 
-// ── A.4a: Keyboard shortcut desktop (≥1025px) ──
+// ── A.4a: Keyboard shortcut desktop (≥1024px) ──
 function closeAllOverlays() {
   if (showAddTx.value) { closeTxModal(); return }
   if (showAddWallet.value) { showAddWallet.value = false; editingWallet.value = null; return }
@@ -805,7 +805,7 @@ function closeAllOverlays() {
 
 function onKeydown(e) {
   if (e.key === 'Escape') { closeAllOverlays(); return }
-  if (window.innerWidth < 1025) return
+  if (window.innerWidth < 1024) return
 
   const tagName = document.activeElement?.tagName
   if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tagName)) return
@@ -822,13 +822,13 @@ function onKeydown(e) {
   }
 }
 
-// ── A.4e: Pull-to-refresh (mobile only, ≤480px) ──
+// ── A.4e: Pull-to-refresh (mobile only, <640px) ──
 const pullDistance = ref(0)
 const refreshing = ref(false)
 let pullStartY = null
 
 function onTouchStart(e) {
-  if (window.innerWidth > 480 || window.scrollY > 0) { pullStartY = null; return }
+  if (window.innerWidth >= 640 || window.scrollY > 0) { pullStartY = null; return }
   pullStartY = e.touches[0].clientY
 }
 function onTouchMove(e) {
@@ -918,12 +918,25 @@ onUnmounted(() => {
   transition: height .2s ease;
 }
 
-/* ── Grid 2 kolom tablet/desktop (≥481px): sidebar filter kiri, list kanan ── */
+/* ── Breakpoint kontrak halaman Dompet: mobile <640px / tablet 640-1023px /
+   desktop ≥1024px (beda dari breakpoint shell global AppLayout.vue 481/1025px
+   yang tetap dipakai apa adanya — shell nav app-wide vs konten halaman Dompet). ── */
+
+/* Mobile (<640px): stack — ringkasan & filter di atas, daftar transaksi di bawah. */
 .tx-layout { display: block; }
 .tx-sidebar { display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
 .tx-main { min-width: 0; }
 
-@media (min-width: 481px) {
+/* Tablet (640-1023px): 2 kolom, sidebar lebih sempit, list mengisi sisa lebar
+   (tidak dibatasi max-width — beda dari desktop). */
+@media (min-width: 640px) and (max-width: 1023.98px) {
+  .tx-layout { display: grid; grid-template-columns: 240px 1fr; gap: 16px; align-items: start; }
+  .tx-sidebar { margin-bottom: 0; }
+}
+
+/* Desktop (≥1024px): 2 kolom lebih lega, list dibatasi max-width supaya baris
+   teks tidak melar di layar lebar. */
+@media (min-width: 1024px) {
   .tx-layout { display: grid; grid-template-columns: 280px 1fr; gap: 20px; align-items: start; }
   .tx-sidebar { margin-bottom: 0; }
   .tx-main { max-width: 720px; }
@@ -948,7 +961,7 @@ onUnmounted(() => {
 .search-icon { font-size: 14px; opacity: .6; }
 .filter-btn { background: var(--surface); border: none; padding: 10px 16px; border-radius: var(--radius-md); font-size: 12px; font-weight: 700; box-shadow: var(--shadow-card); cursor: pointer; white-space: nowrap; min-height: 44px; }
 .d-mobile-only { }
-@media (min-width: 481px) { .d-mobile-only { display: none; } }
+@media (min-width: 640px) { .d-mobile-only { display: none; } }
 
 .tx-list-heading { margin-bottom: 10px; }
 .section-title { font-size: 15px; font-weight: 800; font-family: 'Plus Jakarta Sans', sans-serif; }
@@ -958,11 +971,11 @@ onUnmounted(() => {
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
 .wallet-grid { display: block; }
-@media (min-width: 481px) {
+@media (min-width: 640px) {
   .wallet-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
   .wallet-grid :deep(.wallet-card) { margin-bottom: 0; }
 }
-@media (min-width: 1025px) {
+@media (min-width: 1024px) {
   .wallet-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
@@ -990,7 +1003,7 @@ onUnmounted(() => {
 .bill-pay-btn { width: 100%; padding: 10px; min-height: 44px; background: var(--primary-bg); color: var(--primary); border: none; border-radius: var(--radius-md); font-size: 13px; font-weight: 700; cursor: pointer; }
 
 /* Modal */
-.modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 500; display: flex; align-items: flex-end; justify-content: center; backdrop-filter: blur(4px); }
+.modal-overlay { position: fixed; inset: 0; background: var(--overlay-scrim); z-index: 500; display: flex; align-items: flex-end; justify-content: center; backdrop-filter: blur(4px); }
 .modal-sheet { background: var(--surface); border-radius: 28px 28px 0 0; width: 100%; max-width: 480px; padding: 24px 20px 40px; max-height: 90vh; overflow-y: auto; box-shadow: 0 -10px 40px rgba(15,23,42,.15); }
 .modal-handle { width: 40px; height: 4px; background: var(--border); border-radius: 99px; margin: 0 auto 20px; }
 .modal-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; margin-bottom: 16px; }
@@ -1005,5 +1018,5 @@ onUnmounted(() => {
 
 .remind-pills { display: flex; gap: 8px; }
 .remind-pill { padding: 8px 14px; min-height: 44px; border-radius: 99px; border: 1.5px solid var(--border); background: var(--surface); font-size: 12px; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
-.remind-pill.selected { border-color: var(--primary); background: var(--primary); color: white; }
+.remind-pill.selected { border-color: var(--primary); background: var(--primary); color: var(--primary-contrast); }
 </style>

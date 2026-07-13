@@ -101,6 +101,27 @@
         </form>
       </div>
 
+      <!-- Tampilan (Appearance) -->
+      <div class="section-title" style="margin-top:18px;">Tampilan</div>
+      <div class="card">
+        <div class="appearance-hint">Pilih tema warna aplikasi. Perubahan diterapkan langsung, tersimpan ke akunmu.</div>
+        <div class="theme-options" role="radiogroup" aria-label="Pilih tema tampilan">
+          <button
+            v-for="opt in themeOptions"
+            :key="opt.value"
+            type="button"
+            role="radio"
+            :aria-checked="currentTheme === opt.value"
+            :class="['theme-option', { active: currentTheme === opt.value }]"
+            @click="setTheme(opt.value)"
+          >
+            <span class="theme-swatch" :style="{ background: opt.swatch }"></span>
+            <span class="theme-option-label">{{ opt.label }}</span>
+            <span v-if="currentTheme === opt.value" class="theme-check" aria-hidden="true">✓</span>
+          </button>
+        </div>
+      </div>
+
       <!-- WA Bot info -->
       <div class="section-title" style="margin-top:18px;">WA Bot</div>
       <div v-if="bot_gateway" class="bot-card">
@@ -193,6 +214,7 @@ import { ref } from 'vue'
 import { useForm, Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import AppIcon from '@/Components/AppIcon.vue'
+import { useTheme } from '@/Composables/useTheme'
 
 const props = defineProps({
   user: Object,
@@ -202,6 +224,13 @@ const props = defineProps({
 })
 
 const showResetModal = ref(false)
+
+const { currentTheme, setTheme } = useTheme()
+const themeOptions = [
+  { value: 'blue', label: 'Biru & Putih (Default)', swatch: '#2563EB' },
+  { value: 'green', label: 'Hijau & Putih', swatch: '#16A34A' },
+  { value: 'dark', label: 'Gelap', swatch: '#0F172A' },
+]
 
 const profileForm = useForm({
   name:                    props.user.name,
@@ -285,6 +314,15 @@ const planLabel = (plan) => ({ trial: '🎁 Trial', monthly: '✅ Monthly', year
 input:checked + .slider { background:var(--primary); }
 input:checked + .slider:before { transform:translateX(20px); }
 
+.appearance-hint { font-size:12px; color:var(--text-secondary); margin-bottom:14px; line-height:1.5; }
+.theme-options { display:flex; flex-direction:column; gap:10px; }
+.theme-option { display:flex; align-items:center; gap:12px; width:100%; min-height:44px; padding:12px 14px; border-radius:var(--radius-md); border:1.5px solid var(--border); background:var(--surface); cursor:pointer; font-family:inherit; text-align:left; transition:all .15s; }
+.theme-option.active { border-color:var(--primary); background:var(--primary-bg); }
+.theme-option:focus-visible { outline:none; box-shadow:var(--shadow-focus); }
+.theme-swatch { width:24px; height:24px; border-radius:50%; flex-shrink:0; border:1.5px solid var(--border); }
+.theme-option-label { flex:1; font-size:13px; font-weight:600; color:var(--text-primary); }
+.theme-check { color:var(--primary); font-weight:800; font-size:14px; }
+
 .bot-card { background:linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); border-radius:var(--radius-xl); padding:18px; color:white; margin-bottom:4px; }
 .bg-label { font-size:10px; font-weight:700; letter-spacing:.06em; color:rgba(255,255,255,.7); margin-bottom:4px; }
 .bg-number { font-family:'Plus Jakarta Sans',sans-serif; font-size:18px; font-weight:800; }
@@ -298,7 +336,7 @@ input:checked + .slider:before { transform:translateX(20px); }
 
 .logout-btn { width:100%; padding:13px; background:none; border:1.5px solid var(--danger-bg); border-radius:var(--radius-md); color:#991B1B; font-size:14px; font-weight:600; cursor:pointer; text-align:center; font-family:inherit; }
 
-.modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,.45); z-index:500; display:flex; align-items:flex-end; justify-content:center; backdrop-filter:blur(4px); }
+.modal-overlay { position:fixed; inset:0; background:var(--overlay-scrim); z-index:500; display:flex; align-items:flex-end; justify-content:center; backdrop-filter:blur(4px); }
 .modal-sheet { background:var(--surface); border-radius:28px 28px 0 0; width:100%; max-width:480px; padding:24px 20px 40px; }
 .modal-handle { width:40px; height:4px; background:var(--border); border-radius:99px; margin:0 auto 20px; }
 .modal-title { font-family:'Plus Jakarta Sans',sans-serif; font-size:17px; font-weight:800; margin-bottom:14px; }

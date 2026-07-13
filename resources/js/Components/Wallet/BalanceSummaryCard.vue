@@ -142,7 +142,7 @@ const barWidth = (value) => (props.totalBalance ? Math.min(100, (value / props.t
 .bd-bar-fill.bank { background: var(--primary); }
 .bd-bar-fill.ewallet { background: var(--ewallet); }
 
-@media (min-width: 768px) {
+@media (min-width: 640px) {
   .breakdown-card { max-width: 480px; }
 }
 </style>

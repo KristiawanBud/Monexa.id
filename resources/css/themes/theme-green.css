@@ -25,6 +25,15 @@
   --ewallet:       #9333EA;
   --ewallet-bg:    #F3E8FF;
 
+  /* ── Kontras di atas --primary ──
+     Teks putih GAGAL AA normal di atas --primary tema ini (3.30:1, hanya
+     lulus ambang teks besar/bold ≥3:1). Dipakai teks gelap #0F172A sebagai
+     gantinya (5.42:1, lulus AA) — lihat docs/theming-guide.md bagian Kontras. */
+  --primary-contrast: #0F172A;
+
+  /* ── Overlay scrim (modal/drawer) ── */
+  --overlay-scrim: rgba(15, 23, 42, 0.45);
+
   /* ── Background & Surface ── */
   --background:    #F7FCF9;
   --surface:       #FFFFFF;

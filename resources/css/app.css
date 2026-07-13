@@ -43,6 +43,12 @@
   --ewallet:       #9333EA;
   --ewallet-bg:    #F3E8FF;
 
+  /* ── Kontras di atas --primary (identik dengan theme-blue.css) ── */
+  --primary-contrast: #FFFFFF;
+
+  /* ── Overlay scrim (modal/drawer) ── */
+  --overlay-scrim: rgba(15, 23, 42, 0.45);
+
   /* ── Background & Surface ── */
   --background:    #F8FAFC;
   --surface:       #FFFFFF;
@@ -108,7 +114,7 @@ code, pre { font-family: 'JetBrains Mono', monospace; }
   width: 100%;
   padding: 14px;
   background: var(--primary);
-  color: white;
+  color: var(--primary-contrast);
   border: none;
   border-radius: var(--radius-md);
   font-size: 15px;
@@ -188,7 +194,7 @@ code, pre { font-family: 'JetBrains Mono', monospace; }
 .chip:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
 .chip.active {
   background: var(--primary);
-  color: white;
+  color: var(--primary-contrast);
   border-color: var(--primary);
 }
 

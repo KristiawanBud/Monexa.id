@@ -1,5 +1,5 @@
 <template>
-  <div class="card wallet-card" role="button" tabindex="0" @click="$emit('click', wallet)" @keydown.enter="$emit('click', wallet)">
+  <div class="card wallet-card" role="button" tabindex="0" @click="$emit('click', wallet)" @keydown.enter="$emit('click', wallet)" @keydown.space.prevent="$emit('click', wallet)">
     <div class="wallet-row">
       <div class="wallet-logo" :style="`background:${wallet.bank_color}`">
         <img

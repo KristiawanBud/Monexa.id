@@ -127,11 +127,11 @@ const handleReset = () => {
 .fd-actions { display: flex; gap: 10px; }
 .fd-actions .btn-secondary, .fd-actions .btn-primary { width: auto; flex: 1; }
 
-/* ── Mobile (<481px): bottom sheet ── */
-@media (max-width: 480px) {
+/* ── Mobile (<640px): bottom sheet ── */
+@media (max-width: 639.98px) {
   .fd-overlay {
     display: none;
-    position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 300; backdrop-filter: blur(4px);
+    position: fixed; inset: 0; background: var(--overlay-scrim); z-index: 300; backdrop-filter: blur(4px);
   }
   .filter-drawer.is-open .fd-overlay { display: block; }
 
@@ -151,8 +151,8 @@ const handleReset = () => {
   .fd-close { display: block; }
 }
 
-/* ── Tablet & Desktop (≥481px): panel sisi sticky ── */
-@media (min-width: 481px) {
+/* ── Tablet & Desktop (≥640px): panel sisi sticky, terlihat langsung tanpa sheet ── */
+@media (min-width: 640px) {
   .fd-panel {
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-card);

@@ -25,6 +25,14 @@
   --ewallet:       #9333EA;
   --ewallet-bg:    #F3E8FF;
 
+  /* ── Kontras di atas --primary ──
+     Teks putih di atas --primary lulus AA normal (5.17:1) di tema ini,
+     lihat docs/theming-guide.md bagian Kontras untuk perhitungan & keputusan. */
+  --primary-contrast: #FFFFFF;
+
+  /* ── Overlay scrim (modal/drawer) ── */
+  --overlay-scrim: rgba(15, 23, 42, 0.45);
+
   /* ── Background & Surface ── */
   --background:    #F8FAFC;
   --surface:       #FFFFFF;

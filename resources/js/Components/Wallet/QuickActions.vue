@@ -24,7 +24,7 @@ defineEmits(['add-income', 'add-expense', 'transfer'])
    yang sama (Tambah Pemasukan/Pengeluaran/dst) di layar kecil. */
 .quick-actions { display: none; }
 
-@media (min-width: 481px) {
+@media (min-width: 640px) {
   .quick-actions {
     display: flex;
     gap: 10px;
