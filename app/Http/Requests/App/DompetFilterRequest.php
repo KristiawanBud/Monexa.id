@@ -32,6 +32,9 @@ class DompetFilterRequest extends FormRequest
             'tab' => 'nullable|string',
             'page' => 'nullable|integer|min:1',
             'include_archived' => 'nullable|boolean',
+            // Whitelist-longgar sama seperti range/tab: nilai tak dikenal di-fallback ke 'date'
+            // di controller (resolveSortBy()), bukan gagal 422.
+            'sort_by' => 'nullable|string',
         ];
     }
 }

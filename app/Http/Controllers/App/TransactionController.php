@@ -28,8 +28,9 @@ class TransactionController extends Controller
     {
         $user = $request->user();
         $range = $this->resolveRange($request);
+        $sortBy = $this->resolveSortBy($request);
 
-        $transactions = $this->buildFilteredQuery($request, $user, $range)
+        $transactions = $this->buildFilteredQuery($request, $user, $range, $sortBy)
             ->paginate(30)
             ->through(fn ($t) => [
                 'id' => $t->id,
@@ -135,6 +136,8 @@ class TransactionController extends Controller
             'active_tab' => $request->input('tab', 'transaksi'),
             'search_query' => $request->search,
             'include_archived' => $includeArchived,
+            'sort_by' => $sortBy,
+            'hide_balance' => $user->profile?->hide_balance ?? false,
         ]);
     }
 
@@ -295,7 +298,12 @@ class TransactionController extends Controller
         }
 
         if ($wallets->isEmpty()) {
-            return response()->json(['range' => $request->range, 'points' => array_values($points)]);
+            return response()->json([
+                'range' => $request->range,
+                'points' => array_values($points),
+                'percent_change' => 0.0,
+                'absolute_change' => 0.0,
+            ]);
         }
 
         // Log balance_after terakhir per wallet per tanggal, sampai akhir rentang —
@@ -337,9 +345,22 @@ class TransactionController extends Controller
             }
         }
 
+        $pointsList = array_values($points);
+        $firstBalance = (float) $pointsList[0]['total_balance'];
+        $lastBalance = (float) $pointsList[count($pointsList) - 1]['total_balance'];
+        $absoluteChange = $lastBalance - $firstBalance;
+
+        if ($firstBalance == 0.0) {
+            $percentChange = $lastBalance > 0 ? 100.0 : 0.0;
+        } else {
+            $percentChange = round(($lastBalance - $firstBalance) / $firstBalance * 100, 2);
+        }
+
         return response()->json([
             'range' => $request->range,
-            'points' => array_values($points),
+            'points' => $pointsList,
+            'percent_change' => $percentChange,
+            'absolute_change' => $absoluteChange,
         ]);
     }
 
@@ -383,6 +404,11 @@ class TransactionController extends Controller
         return in_array($request->range, ['today', 'week', 'month']) ? $request->range : 'today';
     }
 
+    private function resolveSortBy(Request $request): string
+    {
+        return in_array($request->sort_by, ['date', 'amount']) ? $request->sort_by : 'date';
+    }
+
     private function applyDateFilter(Builder $query, Request $request, string $range): void
     {
         if ($request->start_date && $request->end_date) {
@@ -414,12 +440,16 @@ class TransactionController extends Controller
         };
     }
 
-    private function buildFilteredQuery(Request $request, User $user, string $range): Builder
+    private function buildFilteredQuery(Request $request, User $user, string $range, ?string $sortBy = null): Builder
     {
         $query = $user->transactions()
-            ->with(['wallet:id,display_name', 'category:id,name,emoji,type,icon_path'])
-            ->orderByDesc('transacted_at')
-            ->orderByDesc('created_at');
+            ->with(['wallet:id,display_name', 'category:id,name,emoji,type,icon_path']);
+
+        if (($sortBy ?? $this->resolveSortBy($request)) === 'amount') {
+            $query->orderByDesc('amount');
+        } else {
+            $query->orderByDesc('transacted_at')->orderByDesc('created_at');
+        }
 
         $this->applyDateFilter($query, $request, $range);
 

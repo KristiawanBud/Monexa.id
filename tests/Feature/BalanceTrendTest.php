@@ -128,4 +128,57 @@ class BalanceTrendTest extends TestCase
             $this->assertSame(150000.0, (float) $point['total_balance']);
         }
     }
+
+    public function test_percent_change_and_absolute_change_are_derived_from_first_and_last_point(): void
+    {
+        $user = $this->makeUser();
+        $wallet = $this->makeWallet($user, ['balance' => 150000]);
+
+        $today = now()->startOfDay();
+
+        DB::table('wallet_balance_logs')->insert([
+            [
+                'wallet_id' => $wallet->id,
+                'type' => 'credit',
+                'amount' => 100000,
+                'balance_before' => 0,
+                'balance_after' => 100000,
+                'reference_type' => 'transaction',
+                'reference_id' => (string) Str::ulid(),
+                'created_at' => $today->copy()->subDays(6),
+            ],
+            [
+                'wallet_id' => $wallet->id,
+                'type' => 'credit',
+                'amount' => 50000,
+                'balance_before' => 100000,
+                'balance_after' => 150000,
+                'reference_type' => 'transaction',
+                'reference_id' => (string) Str::ulid(),
+                'created_at' => $today,
+            ],
+        ]);
+
+        $response = $this->actingAs($user)
+            ->getJson(route('dompet.balanceTrend', ['range' => '7d']))
+            ->assertOk()
+            ->json();
+
+        $this->assertSame(50.0, $response['percent_change']);
+        $this->assertSame(50000.0, $response['absolute_change']);
+    }
+
+    public function test_percent_change_is_zero_when_first_and_last_balance_are_both_zero(): void
+    {
+        $user = $this->makeUser();
+        $this->makeWallet($user, ['balance' => 0]);
+
+        $response = $this->actingAs($user)
+            ->getJson(route('dompet.balanceTrend', ['range' => '7d']))
+            ->assertOk()
+            ->json();
+
+        $this->assertSame(0.0, $response['percent_change']);
+        $this->assertSame(0.0, $response['absolute_change']);
+    }
 }
