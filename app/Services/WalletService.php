@@ -89,47 +89,51 @@ class WalletService
     }
 
     /**
-     * Transfer saldo antar dompet milik user yang sama.
+     * Transfer saldo antar dompet milik user yang sama. Dicatat sebagai 2 baris
+     * Transaction (expense di dompet asal, income di dompet tujuan) yang terhubung
+     * via transfer_id, lewat applyTransaction() supaya saldo + wallet_balance_logs
+     * konsisten dengan transaksi biasa (hindari double-mutation saldo).
      */
     public function transferBetweenWallets(
         UserWallet $fromWallet,
         UserWallet $toWallet,
         float $amount,
-        string $transferId
+        string $transferId,
+        string $transferredAt,
+        ?string $note = null
     ): void {
-        $fromBefore = (float) $fromWallet->balance;
-        $toBefore = (float) $toWallet->balance;
-
-        if ($fromBefore < $amount) {
+        if ((float) $fromWallet->balance < $amount) {
             throw new InsufficientBalanceException(
                 "Saldo {$fromWallet->display_name} tidak cukup untuk transfer ini."
             );
         }
 
-        DB::table('wallet_balance_logs')->insert([
-            [
-                'wallet_id' => $fromWallet->id,
-                'type' => 'debit',
-                'amount' => $amount,
-                'balance_before' => $fromBefore,
-                'balance_after' => $fromBefore - $amount,
-                'reference_type' => 'wallet_transfer',
-                'reference_id' => $transferId,
-                'created_at' => now(),
-            ],
-            [
-                'wallet_id' => $toWallet->id,
-                'type' => 'credit',
-                'amount' => $amount,
-                'balance_before' => $toBefore,
-                'balance_after' => $toBefore + $amount,
-                'reference_type' => 'wallet_transfer',
-                'reference_id' => $transferId,
-                'created_at' => now(),
-            ],
+        $expenseTransaction = Transaction::create([
+            'user_id' => $fromWallet->user_id,
+            'wallet_id' => $fromWallet->id,
+            'category_id' => null,
+            'type' => 'expense',
+            'amount' => $amount,
+            'note' => $note ?? "Transfer ke {$toWallet->display_name}",
+            'transacted_at' => $transferredAt,
+            'source' => 'wallet_transfer',
+            'transfer_id' => $transferId,
+            'created_by' => $fromWallet->user_id,
         ]);
+        $this->applyTransaction($expenseTransaction);
 
-        $fromWallet->decrement('balance', $amount);
-        $toWallet->increment('balance', $amount);
+        $incomeTransaction = Transaction::create([
+            'user_id' => $toWallet->user_id,
+            'wallet_id' => $toWallet->id,
+            'category_id' => null,
+            'type' => 'income',
+            'amount' => $amount,
+            'note' => $note ?? "Transfer dari {$fromWallet->display_name}",
+            'transacted_at' => $transferredAt,
+            'source' => 'wallet_transfer',
+            'transfer_id' => $transferId,
+            'created_by' => $toWallet->user_id,
+        ]);
+        $this->applyTransaction($incomeTransaction);
     }
 }

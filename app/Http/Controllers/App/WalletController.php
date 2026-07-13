@@ -2,7 +2,11 @@
 
 namespace App\Http\Controllers\App;
 
+use App\Exceptions\InsufficientBalanceException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\App\StoreWalletRequest;
+use App\Http\Requests\App\TransferWalletRequest;
+use App\Http\Requests\App\UpdateWalletRequest;
 use App\Models\UserWallet;
 use App\Models\WalletTransfer;
 use App\Services\WalletService;
@@ -18,17 +22,8 @@ class WalletController extends Controller
     // ─────────────────────────────────────────────
     // Tambah dompet baru
     // ─────────────────────────────────────────────
-    public function store(Request $request): RedirectResponse
+    public function store(StoreWalletRequest $request): RedirectResponse
     {
-        $request->validate([
-            'bank_id' => ['nullable', 'exists:banks,id'],
-            'display_name' => ['required', 'string', 'max:60'],
-            'account_number' => ['nullable', 'string', 'max:50'],
-            'initial_balance' => ['nullable', 'numeric', 'min:0'],
-            'type' => ['required', 'in:cash_flow,saving,both,investment'],
-            'is_saham' => ['boolean'],
-        ]);
-
         $user = $request->user();
         $lastOrder = $user->wallets()->max('sort_order') ?? 0;
 
@@ -41,6 +36,7 @@ class WalletController extends Controller
             'type' => $request->type,
             'is_saham' => $request->boolean('is_saham', false),
             'is_active' => true,
+            'currency' => $request->currency ?? 'IDR',
             'sort_order' => $lastOrder + 1,
         ]);
 
@@ -50,25 +46,85 @@ class WalletController extends Controller
     // ─────────────────────────────────────────────
     // Update dompet yang sudah ada
     // ─────────────────────────────────────────────
-    public function update(Request $request, UserWallet $wallet): RedirectResponse
+    public function update(UpdateWalletRequest $request, UserWallet $wallet): RedirectResponse
     {
         abort_if($wallet->user_id !== $request->user()->id, 403, 'Akses ditolak.');
-
-        $request->validate([
-            'display_name' => ['required', 'string', 'max:60'],
-            'account_number' => ['nullable', 'string', 'max:50'],
-            'type' => ['required', 'in:cash_flow,saving,both,investment'],
-            'is_active' => ['boolean'],
-        ]);
 
         $wallet->update([
             'display_name' => $request->display_name,
             'account_number' => $request->account_number,
             'type' => $request->type,
             'is_active' => $request->boolean('is_active', true),
+            'currency' => $request->currency ?? $wallet->currency,
         ]);
 
         return back()->with('success', "Dompet {$wallet->display_name} berhasil diupdate!");
+    }
+
+    // ─────────────────────────────────────────────
+    // Jadikan dompet utama (maksimal 1 is_primary=true per user)
+    // ─────────────────────────────────────────────
+    public function setPrimary(Request $request, UserWallet $wallet): RedirectResponse
+    {
+        abort_if($wallet->user_id !== $request->user()->id, 403, 'Akses ditolak.');
+
+        if (! $wallet->is_active) {
+            return back()->with('error', 'Tidak bisa menjadikan dompet yang diarsipkan sebagai dompet utama.');
+        }
+
+        DB::transaction(function () use ($request, $wallet) {
+            UserWallet::where('user_id', $request->user()->id)
+                ->where('id', '!=', $wallet->id)
+                ->update(['is_primary' => false]);
+
+            $wallet->update(['is_primary' => true]);
+        });
+
+        return back()->with('success', "{$wallet->display_name} dijadikan dompet utama.");
+    }
+
+    // ─────────────────────────────────────────────
+    // Arsipkan dompet (is_active=false, tanpa soft delete)
+    // ─────────────────────────────────────────────
+    public function archive(Request $request, UserWallet $wallet): RedirectResponse
+    {
+        abort_if($wallet->user_id !== $request->user()->id, 403, 'Akses ditolak.');
+
+        $user = $request->user();
+
+        if ($user->wallets()->where('is_active', true)->count() <= 1) {
+            return back()->with('error', 'Tidak bisa mengarsipkan dompet terakhir.');
+        }
+
+        DB::transaction(function () use ($user, $wallet) {
+            $wasPrimary = $wallet->is_primary;
+
+            $wallet->update(['is_active' => false, 'is_primary' => false]);
+
+            if ($wasPrimary) {
+                $nextPrimary = $user->wallets()
+                    ->where('is_active', true)
+                    ->where('id', '!=', $wallet->id)
+                    ->orderBy('sort_order')
+                    ->first();
+
+                $nextPrimary?->update(['is_primary' => true]);
+            }
+        });
+
+        return back()->with('success', "Dompet {$wallet->display_name} berhasil diarsipkan.");
+    }
+
+    // ─────────────────────────────────────────────
+    // Pulihkan dompet yang diarsipkan (tidak otomatis jadi primary)
+    // ─────────────────────────────────────────────
+    public function restore(Request $request, UserWallet $wallet): RedirectResponse
+    {
+        abort_if($wallet->user_id !== $request->user()->id, 403, 'Akses ditolak.');
+
+        $wallet->update(['is_active' => true]);
+
+        return back()->with('success', "Dompet {$wallet->display_name} berhasil dipulihkan.");
     }
 
     // ─────────────────────────────────────────────
@@ -106,17 +162,11 @@ class WalletController extends Controller
 
     // ─────────────────────────────────────────────
     // PRIORITAS #2: Transfer saldo antar dompet
+    // Dicatat sebagai 2 baris Transaction (expense/income) yang terhubung via
+    // transfer_id — lihat WalletService::transferBetweenWallets().
     // ─────────────────────────────────────────────
-    public function transfer(Request $request): RedirectResponse
+    public function transfer(TransferWalletRequest $request): RedirectResponse
     {
-        $request->validate([
-            'from_wallet_id' => ['required', 'exists:user_wallets,id', 'different:to_wallet_id'],
-            'to_wallet_id' => ['required', 'exists:user_wallets,id'],
-            'amount' => ['required', 'numeric', 'min:1'],
-            'note' => ['nullable', 'string', 'max:255'],
-            'transferred_at' => ['required', 'date'],
-        ]);
-
         $user = $request->user();
 
         $fromWallet = UserWallet::findOrFail($request->from_wallet_id);
@@ -132,26 +182,32 @@ class WalletController extends Controller
             );
         }
 
-        DB::transaction(function () use ($request, $user, $fromWallet, $toWallet) {
-            $transferId = (string) Str::ulid();
+        try {
+            DB::transaction(function () use ($request, $user, $fromWallet, $toWallet) {
+                $transferId = (string) Str::ulid();
 
-            WalletTransfer::create([
-                'id' => $transferId,
-                'user_id' => $user->id,
-                'from_wallet_id' => $fromWallet->id,
-                'to_wallet_id' => $toWallet->id,
-                'amount' => $request->amount,
-                'note' => $request->note,
-                'transferred_at' => $request->transferred_at,
-            ]);
+                WalletTransfer::create([
+                    'id' => $transferId,
+                    'user_id' => $user->id,
+                    'from_wallet_id' => $fromWallet->id,
+                    'to_wallet_id' => $toWallet->id,
+                    'amount' => $request->amount,
+                    'note' => $request->note,
+                    'transferred_at' => $request->transferred_at,
+                ]);
 
-            $this->walletService->transferBetweenWallets(
-                $fromWallet,
-                $toWallet,
-                (float) $request->amount,
-                $transferId
-            );
-        });
+                $this->walletService->transferBetweenWallets(
+                    $fromWallet,
+                    $toWallet,
+                    (float) $request->amount,
+                    $transferId,
+                    $request->transferred_at,
+                    $request->note
+                );
+            });
+        } catch (InsufficientBalanceException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return back()->with(
             'success',

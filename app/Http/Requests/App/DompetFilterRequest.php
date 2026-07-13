@@ -31,6 +31,7 @@ class DompetFilterRequest extends FormRequest
             'max_amount' => 'nullable|numeric|min:0',
             'tab' => 'nullable|string',
             'page' => 'nullable|integer|min:1',
+            'include_archived' => 'nullable|boolean',
         ];
     }
 }

@@ -59,6 +59,7 @@ Route::middleware(['auth', 'subscribed', 'onboarded'])->group(function () {
         Route::put('/{transaction}', [TransactionController::class, 'update'])->name('update');
         Route::delete('/{transaction}', [TransactionController::class, 'destroy'])->name('destroy');
         Route::get('/export', [TransactionController::class, 'exportCsv'])->name('export');
+        Route::get('/balance-trend', [TransactionController::class, 'balanceTrend'])->name('balanceTrend');
         Route::get('/{transaction}/logs', [TransactionController::class, 'editLogs'])->name('logs');
     });
 
@@ -138,6 +139,9 @@ Route::middleware(['auth', 'subscribed', 'onboarded'])->group(function () {
     Route::post('/dompet/wallets', [WalletController::class, 'store'])->name('wallets.store');
     Route::put('/dompet/wallets/{wallet}', [WalletController::class, 'update'])->name('wallets.update');
     Route::delete('/dompet/wallets/{wallet}', [WalletController::class, 'destroy'])->name('wallets.destroy');
+    Route::patch('/dompet/wallets/{wallet}/primary', [WalletController::class, 'setPrimary'])->name('wallets.setPrimary');
+    Route::patch('/dompet/wallets/{wallet}/archive', [WalletController::class, 'archive'])->name('wallets.archive');
+    Route::patch('/dompet/wallets/{wallet}/restore', [WalletController::class, 'restore'])->name('wallets.restore');
     Route::post('/dompet/transfer', [WalletController::class, 'transfer'])->name('wallets.transfer');
 
 });

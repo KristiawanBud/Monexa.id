@@ -4,6 +4,7 @@ namespace App\Http\Controllers\App;
 
 use App\Exceptions\InsufficientBalanceException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\App\BalanceTrendRequest;
 use App\Http\Requests\App\DompetFilterRequest;
 use App\Models\Bank;
 use App\Models\Transaction;
@@ -59,11 +60,16 @@ class TransactionController extends Controller
         $rangeLabel = $this->resolveRangeLabel($request, $range);
 
         // Dompet (wallets) dengan saldo — untuk tab "Dompet"
-        $walletsRaw = $user->wallets()
+        $allWalletsRaw = $user->wallets()
             ->with('bank:id,short_name,logo_color,logo_initial,type')
-            ->where('is_active', true)
+            ->withMax('transactions as last_transaction_at', 'transacted_at')
             ->orderBy('sort_order')
             ->get();
+
+        $activeWalletsRaw = $allWalletsRaw->where('is_active', true)->values();
+
+        $includeArchived = $request->boolean('include_archived');
+        $walletsRaw = ($includeArchived ? $allWalletsRaw : $activeWalletsRaw)->values();
 
         $wallets = $walletsRaw->map(fn ($w) => [
             'id' => $w->id,
@@ -77,12 +83,16 @@ class TransactionController extends Controller
             'bank_color' => $w->bank?->logo_color ?? '#2563EB',
             'bank_initial' => $w->bank?->logo_initial ?? strtoupper(substr($w->display_name, 0, 1)),
             'logo_url' => $w->bank?->logo_url ? Storage::url($w->bank->logo_url) : null,
+            'currency' => $w->currency,
+            'is_primary' => (bool) $w->is_primary,
+            'is_archived' => ! $w->is_active,
+            'last_transaction_at' => $w->last_transaction_at ? Carbon::parse($w->last_transaction_at)->format('Y-m-d') : null,
         ]);
 
-        // ── Breakdown saldo: Cash / Bank / E-Wallet ──
-        $cashTotal = (float) $walletsRaw->filter(fn ($w) => ! $w->bank_id)->sum('balance');
-        $ewalletTotal = (float) $walletsRaw->filter(fn ($w) => $w->bank?->type === 'digital')->sum('balance');
-        $bankTotal = (float) $walletsRaw->filter(fn ($w) => $w->bank_id && $w->bank?->type !== 'digital')->sum('balance');
+        // ── Breakdown saldo: Cash / Bank / E-Wallet (dompet aktif saja) ──
+        $cashTotal = (float) $activeWalletsRaw->filter(fn ($w) => ! $w->bank_id)->sum('balance');
+        $ewalletTotal = (float) $activeWalletsRaw->filter(fn ($w) => $w->bank?->type === 'digital')->sum('balance');
+        $bankTotal = (float) $activeWalletsRaw->filter(fn ($w) => $w->bank_id && $w->bank?->type !== 'digital')->sum('balance');
 
         // Tagihan aktif — untuk tab "Tagihan"
         $bills = $user->bills()
@@ -117,13 +127,14 @@ class TransactionController extends Controller
             'end_date' => $request->end_date,
             'total_income' => $rangeIncome,
             'total_expense' => $rangeExpense,
-            'total_balance' => (float) $wallets->sum('balance'),
-            'active_wallets_count' => $wallets->count(),
+            'total_balance' => (float) $activeWalletsRaw->sum('balance'),
+            'active_wallets_count' => $activeWalletsRaw->count(),
             'cash_total' => $cashTotal,
             'bank_total' => $bankTotal,
             'ewallet_total' => $ewalletTotal,
             'active_tab' => $request->input('tab', 'transaksi'),
             'search_query' => $request->search,
+            'include_archived' => $includeArchived,
         ]);
     }
 
@@ -175,6 +186,10 @@ class TransactionController extends Controller
     {
         abort_if($transaction->user_id !== $request->user()->id, 403);
 
+        if ($transaction->source === 'wallet_transfer') {
+            return back()->with('error', 'Transaksi hasil transfer antar dompet tidak bisa diedit langsung. Batalkan lewat fitur transfer.');
+        }
+
         $request->validate([
             'type' => 'required|in:income,expense',
             'amount' => 'required|numeric|min:1',
@@ -224,6 +239,10 @@ class TransactionController extends Controller
     {
         abort_if($transaction->user_id !== $request->user()->id, 403);
 
+        if ($transaction->source === 'wallet_transfer') {
+            return back()->with('error', 'Transaksi hasil transfer antar dompet tidak bisa dihapus langsung. Batalkan lewat fitur transfer.');
+        }
+
         $user = $request->user();
 
         DB::transaction(function () use ($transaction, $user) {
@@ -251,6 +270,77 @@ class TransactionController extends Controller
                 ->orderByDesc('created_at')
                 ->get()
         );
+    }
+
+    // ─────────────────────────────────────────────
+    // Mini-chart tren total saldo (semua dompet aktif) 7/30 hari — JSON, dipanggil
+    // lazy via fetch/axios saat chart di-mount, bukan bagian payload dompet.index.
+    // ─────────────────────────────────────────────
+    public function balanceTrend(BalanceTrendRequest $request)
+    {
+        $user = $request->user();
+        $days = $request->range === '30d' ? 30 : 7;
+
+        $endDate = Carbon::today();
+        $startDate = $endDate->copy()->subDays($days - 1);
+
+        $dates = collect(range(0, $days - 1))
+            ->map(fn ($i) => $startDate->copy()->addDays($i)->format('Y-m-d'));
+
+        $wallets = $user->wallets()->where('is_active', true)->get(['id', 'balance']);
+
+        $points = [];
+        foreach ($dates as $date) {
+            $points[$date] = ['date' => $date, 'total_balance' => 0.0];
+        }
+
+        if ($wallets->isEmpty()) {
+            return response()->json(['range' => $request->range, 'points' => array_values($points)]);
+        }
+
+        // Log balance_after terakhir per wallet per tanggal, sampai akhir rentang —
+        // dipakai untuk forward-fill tanggal yang tidak punya log persis di hari itu.
+        $logsByWalletAndDate = [];
+        DB::table('wallet_balance_logs')
+            ->whereIn('wallet_id', $wallets->pluck('id'))
+            ->whereDate('created_at', '<=', $endDate->toDateString())
+            ->orderBy('created_at')
+            ->get(['wallet_id', 'balance_after', 'created_at'])
+            ->each(function ($log) use (&$logsByWalletAndDate) {
+                $date = Carbon::parse($log->created_at)->format('Y-m-d');
+                $logsByWalletAndDate[$log->wallet_id][$date] = (float) $log->balance_after;
+            });
+
+        foreach ($wallets as $wallet) {
+            $walletLogs = $logsByWalletAndDate[$wallet->id] ?? [];
+            ksort($walletLogs);
+
+            // Starting point: balance_after log terakhir sebelum/pada tanggal awal rentang.
+            $carry = null;
+            foreach ($walletLogs as $logDate => $balance) {
+                if ($logDate <= $dates->first()) {
+                    $carry = $balance;
+                }
+            }
+
+            if ($carry === null) {
+                // Belum ada log sebelum rentang — pakai log paling awal dalam rentang kalau
+                // ada, kalau dompet belum pernah punya log sama sekali pakai saldo saat ini flat.
+                $carry = ! empty($walletLogs) ? reset($walletLogs) : (float) $wallet->balance;
+            }
+
+            foreach ($dates as $date) {
+                if (array_key_exists($date, $walletLogs)) {
+                    $carry = $walletLogs[$date];
+                }
+                $points[$date]['total_balance'] += $carry;
+            }
+        }
+
+        return response()->json([
+            'range' => $request->range,
+            'points' => array_values($points),
+        ]);
     }
 
     public function exportCsv(DompetFilterRequest $request)

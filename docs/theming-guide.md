@@ -19,15 +19,36 @@ yang men-define ulang variable yang sama di bawah selector `[data-theme="<nama>"
 Urutan prioritas penentuan tema aktif:
 1. Query param `?theme=` di URL
 2. `localStorage.monexa_theme`
-3. `import.meta.env.VITE_DEFAULT_THEME`
-4. Fallback `'blue'`
+3. `window.matchMedia('(prefers-color-scheme: dark)').matches` → default `'dark'` kalau `true`
+   **dan** user belum pernah pilih tema manual (langkah 2 kosong)
+4. `import.meta.env.VITE_DEFAULT_THEME`
+5. Fallback `'blue'`
 
 Nilai yang diterima hanya `blue`, `green`, `dark` — nilai lain otomatis fallback ke `blue`
 (whitelist ketat di `useTheme.js`, tidak pernah menulis input user langsung ke `dataset.theme`).
+Literal `'system'` tidak pernah ditulis ke `localStorage` — auto-detect hanya menentukan tema
+awal yang di-apply, bukan sebuah mode tema baru.
 
-**Tidak ada toggle tema di UI publik.** Mekanisme ini murni fondasi teknis untuk preview
-internal (`?theme=green`) dan pengembangan tema baru — belum ada persistensi preferensi tema
-per-user di database.
+`useTheme.js` juga memasang listener `matchMedia('(prefers-color-scheme: dark)').addEventListener
+('change', ...)` yang me-re-apply tema secara live saat OS/browser user berpindah light/dark —
+**tapi hanya kalau** `localStorage.monexa_theme` masih kosong (user belum pernah pilih manual
+lewat `ThemeToggle.vue`). Begitu user memilih tema secara eksplisit, auto-detect berhenti
+meng-override selamanya (sampai `localStorage` dibersihkan).
+
+### Toggle tema di UI
+
+Komponen `resources/js/Components/ThemeToggle.vue` menyediakan 3 tombol (Biru/Hijau/Gelap) yang
+memanggil `setTheme()` dari `useTheme()`. Render-nya **dibungkus feature flag**
+`import.meta.env.VITE_ENABLE_THEME_TOGGLE` (default `false` di `.env.example` — toggle
+disembunyikan di UI sampai diaktifkan secara eksplisit oleh owner/CEO). Saat ini dipasang di
+halaman Profil/Akun (`resources/js/Pages/App/Account.vue`, bagian "Preferensi Tampilan") karena
+tema bersifat app-wide, bukan cuma halaman Dompet.
+
+Untuk mengaktifkan: set `VITE_ENABLE_THEME_TOGGLE=true` di `.env`, lalu rebuild
+(`npm run build`/restart `npm run dev`) — tidak perlu deploy kode baru.
+
+Persistensi tema tetap murni `localStorage` (`monexa_theme`), **belum** ada kolom
+`users.theme_preference` di database — preferensi tema tidak lintas device untuk saat ini.
 
 ## Cara menambah tema baru
 
@@ -77,5 +98,4 @@ memecah kontrak "key identik di 3 tema" dan menyulitkan tema berikutnya.
 | Flag | Env var | Default | Keterangan |
 |---|---|---|---|
 | Tag/Label Transaksi | `FEATURE_TX_TAGS` | `false` | Fase 2, opsional — belum diimplementasikan di redesign UI Dompet ini (lihat kontrak B.6 di spec). Backend AI perlu men-share `config('features.transaction_tags')` via `HandleInertiaRequests` sebelum frontend bisa `v-if` render UI tag. |
-
-Belum ada feature flag lain yang aktif di halaman Dompet saat ini.
+| Toggle Tema UI | `VITE_ENABLE_THEME_TOGGLE` | `false` | Murni frontend (dibaca build-time oleh Vite, tidak perlu share dari Laravel). Kalau `false`, `ThemeToggle.vue` tidak me-render apa pun — auto-detect `prefers-color-scheme` tetap aktif terlepas dari flag ini. |

@@ -101,6 +101,14 @@
         </form>
       </div>
 
+      <!-- Preferensi Tampilan (tema) — hanya muncul kalau VITE_ENABLE_THEME_TOGGLE=true -->
+      <template v-if="themeToggleEnabled">
+        <div class="section-title" style="margin-top:18px;">Preferensi Tampilan</div>
+        <div class="card">
+          <ThemeToggle />
+        </div>
+      </template>
+
       <!-- WA Bot info -->
       <div class="section-title" style="margin-top:18px;">WA Bot</div>
       <div v-if="bot_gateway" class="bot-card">
@@ -193,6 +201,7 @@ import { ref } from 'vue'
 import { useForm, Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import AppIcon from '@/Components/AppIcon.vue'
+import ThemeToggle from '@/Components/ThemeToggle.vue'
 
 const props = defineProps({
   user: Object,
@@ -200,6 +209,8 @@ const props = defineProps({
   subscription: Object,
   bot_gateway: Object,
 })
+
+const themeToggleEnabled = import.meta.env.VITE_ENABLE_THEME_TOGGLE === 'true'
 
 const showResetModal = ref(false)
 

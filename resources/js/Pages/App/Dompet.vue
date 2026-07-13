@@ -106,7 +106,7 @@
             </template>
             <ErrorState v-else-if="hasError" @retry="retryLoad" />
             <EmptyState
-              v-else-if="!transactions.data || transactions.data.length === 0"
+              v-else-if="displayedTransactions.length === 0"
               icon="📝"
               title="Belum ada transaksi"
               action-label="+ Catat Transaksi"
@@ -120,6 +120,10 @@
                 :transactions="group.transactions"
                 @item-click="openEditTx"
               />
+              <template v-if="loadingMore">
+                <SkeletonLoader v-for="n in 3" :key="`more-${n}`" variant="list-item" />
+              </template>
+              <div v-if="hasMoreTransactions" ref="sentinelRef" class="scroll-sentinel" aria-hidden="true"></div>
             </template>
           </div>
         </div>
@@ -135,9 +139,28 @@
           </div>
         </div>
 
+        <BalanceTrendChart />
+
         <button v-if="wallets.length >= 2" class="transfer-btn" @click="openTransfer">
           🔄 Transfer Antar Dompet
         </button>
+
+        <div class="wallet-toolbar">
+          <div class="search-box wallet-search-box">
+            <span class="search-icon">🔍</span>
+            <input v-model="walletSearchQuery" type="text" placeholder="Cari dompet..." aria-label="Cari dompet" />
+          </div>
+          <select v-model="walletSortBy" class="form-input-cc wallet-sort-select" aria-label="Urutkan dompet">
+            <option value="balance">Urutkan: Saldo</option>
+            <option value="last_used">Urutkan: Terakhir Dipakai</option>
+            <option value="alpha">Urutkan: Alfabetis</option>
+          </select>
+        </div>
+
+        <label class="archived-toggle-row">
+          <input type="checkbox" v-model="showArchivedWallets" @change="toggleArchivedWallets" />
+          <span>Tampilkan yang diarsipkan</span>
+        </label>
 
         <EmptyState
           v-if="wallets.length === 0"
@@ -146,14 +169,22 @@
           action-label="+ Tambah Dompet"
           @action="showAddWallet = true"
         />
+        <EmptyState
+          v-else-if="sortedFilteredWallets.length === 0"
+          icon="🔎"
+          title="Dompet tidak ditemukan"
+        />
 
         <div v-else class="wallet-grid">
           <CardDompet
-            v-for="w in wallets"
+            v-for="w in sortedFilteredWallets"
             :key="w.id"
             :wallet="w"
             :balance-hidden="balanceHidden"
             @click="openEditWallet"
+            @set-primary="setWalletPrimary"
+            @archive="archiveWallet"
+            @restore="restoreWallet"
           />
         </div>
 
@@ -415,7 +446,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useForm, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import EmojiPicker from '@/Components/EmojiPicker.vue'
@@ -429,6 +460,8 @@ import EmptyState from '@/Components/Wallet/EmptyState.vue'
 import ErrorState from '@/Components/Wallet/ErrorState.vue'
 import SkeletonLoader from '@/Components/Wallet/SkeletonLoader.vue'
 import ExportButton from '@/Components/Wallet/ExportButton.vue'
+import BalanceTrendChart from '@/Components/Wallet/BalanceTrendChart.vue'
+import { usePullToRefresh } from '@/Composables/usePullToRefresh'
 import { formatRupiah, formatShort } from '@/lib/format'
 import { trackEvent } from '@/lib/analytics'
 
@@ -452,6 +485,7 @@ const props = defineProps({
   ewallet_total: { type: Number, default: 0 },
   search_query: String,
   active_tab: { type: String, default: 'transaksi' },
+  include_archived: { type: Boolean, default: false },
 })
 
 const balanceHidden = ref(false)
@@ -475,6 +509,52 @@ function readQueryFilters() {
 }
 
 const filters = reactive(readQueryFilters())
+
+// ── Tab Dompet: sort + search client-side, toggle arsip via reload ──
+const walletSearchQuery = ref('')
+const walletSortBy = ref('balance')
+const showArchivedWallets = ref(props.include_archived)
+
+const sortedFilteredWallets = computed(() => {
+  const q = walletSearchQuery.value.trim().toLowerCase()
+  let list = q
+    ? props.wallets.filter((w) => w.display_name.toLowerCase().includes(q))
+    : [...props.wallets]
+
+  list = [...list]
+  if (walletSortBy.value === 'balance') {
+    list.sort((a, b) => b.balance - a.balance)
+  } else if (walletSortBy.value === 'last_used') {
+    list.sort((a, b) => (b.last_transaction_at || '').localeCompare(a.last_transaction_at || ''))
+  } else if (walletSortBy.value === 'alpha') {
+    list.sort((a, b) => a.display_name.localeCompare(b.display_name, 'id'))
+  }
+  return list
+})
+
+function toggleArchivedWallets() {
+  const params = new URLSearchParams(window.location.search)
+  params.set('tab', 'dompet')
+  if (showArchivedWallets.value) params.set('include_archived', '1')
+  else params.delete('include_archived')
+  router.get(route('dompet.index'), Object.fromEntries(params), { preserveState: true, preserveScroll: true, replace: true })
+}
+
+function setWalletPrimary(wallet) {
+  trackEvent('dompet_wallet_set_primary', { wallet_id: wallet.id })
+  router.patch(route('wallets.setPrimary', wallet.id), {}, { preserveScroll: true })
+}
+
+function archiveWallet(wallet) {
+  if (!confirm(`Arsipkan dompet "${wallet.display_name}"?`)) return
+  trackEvent('dompet_wallet_archive', { wallet_id: wallet.id })
+  router.patch(route('wallets.archive', wallet.id), {}, { preserveScroll: true })
+}
+
+function restoreWallet(wallet) {
+  trackEvent('dompet_wallet_restore', { wallet_id: wallet.id })
+  router.patch(route('wallets.restore', wallet.id), {}, { preserveScroll: true })
+}
 
 function buildQuery(extra = {}) {
   const hasCustomRange = (extra.start_date ?? filters.start_date) && (extra.end_date ?? filters.end_date)
@@ -656,10 +736,12 @@ const openEditWallet = (w) => {
 
 const submitWallet = () => {
   if (editingWallet.value) {
+    trackEvent('dompet_wallet_update', { wallet_id: editingWallet.value.id })
     walletForm.put(route('wallets.update', editingWallet.value.id), {
       onSuccess: () => { showAddWallet.value = false; editingWallet.value = null }
     })
   } else {
+    trackEvent('dompet_wallet_create', {})
     walletForm.post(route('wallets.store'), {
       onSuccess: () => { showAddWallet.value = false; walletForm.reset() }
     })
@@ -694,6 +776,10 @@ const openTransfer = () => {
 }
 
 const submitTransfer = () => {
+  trackEvent('dompet_transfer_submit', {
+    from_wallet_id: transferForm.from_wallet_id,
+    to_wallet_id: transferForm.to_wallet_id,
+  })
   transferForm.post(route('wallets.transfer'), {
     onSuccess: () => {
       showTransfer.value = false
@@ -778,7 +864,7 @@ const yesterdayYMD = localYMD(new Date(Date.now() - 86400000))
 
 const groupedTransactions = computed(() => {
   const groups = []
-  for (const t of props.transactions.data || []) {
+  for (const t of displayedTransactions.value) {
     const last = groups[groups.length - 1]
     if (!last || last.key !== t.transacted_at) {
       let label = t.transacted_at_label
@@ -791,6 +877,56 @@ const groupedTransactions = computed(() => {
   }
   return groups
 })
+
+// ── Infinite scroll (ganti pagination click-through) — merge halaman baru ke
+// displayedTransactions tanpa mengubah tinggi elemen di atas sentinel (hindari CLS).
+// Reset ke halaman baru terjadi otomatis saat filter/search berubah karena Inertia
+// mengganti seluruh object props.transactions (bukan "load more" -> appendingNextPage=false).
+const displayedTransactions = ref([...(props.transactions.data || [])])
+const loadingMore = ref(false)
+const sentinelRef = ref(null)
+let appendingNextPage = false
+let scrollObserver = null
+
+const hasMoreTransactions = computed(() => (props.transactions.current_page || 1) < (props.transactions.last_page || 1))
+
+watch(() => props.transactions, (val) => {
+  if (appendingNextPage) {
+    displayedTransactions.value = [...displayedTransactions.value, ...(val.data || [])]
+    appendingNextPage = false
+  } else {
+    displayedTransactions.value = [...(val.data || [])]
+  }
+})
+
+function loadMoreTransactions() {
+  if (loadingMore.value || !hasMoreTransactions.value) return
+  const nextPage = (props.transactions.current_page || 1) + 1
+  loadingMore.value = true
+  appendingNextPage = true
+  trackEvent('dompet_infinite_scroll_load_more', { page: nextPage })
+  router.get(route('dompet.index'), buildQuery({ page: nextPage }), {
+    preserveState: true,
+    preserveScroll: true,
+    replace: true,
+    only: ['transactions'],
+    onFinish: () => { loadingMore.value = false },
+  })
+}
+
+function attachScrollObserver() {
+  scrollObserver?.disconnect()
+  if (!sentinelRef.value || typeof IntersectionObserver === 'undefined') return
+  scrollObserver = new IntersectionObserver((entries) => {
+    if (entries[0]?.isIntersecting) loadMoreTransactions()
+  }, { rootMargin: '300px' })
+  scrollObserver.observe(sentinelRef.value)
+}
+
+watch([tab, sentinelRef], async () => {
+  await nextTick()
+  attachScrollObserver()
+}, { immediate: true })
 
 // ── A.4a: Keyboard shortcut desktop (≥1025px) ──
 function closeAllOverlays() {
@@ -823,30 +959,7 @@ function onKeydown(e) {
 }
 
 // ── A.4e: Pull-to-refresh (mobile only, ≤480px) ──
-const pullDistance = ref(0)
-const refreshing = ref(false)
-let pullStartY = null
-
-function onTouchStart(e) {
-  if (window.innerWidth > 480 || window.scrollY > 0) { pullStartY = null; return }
-  pullStartY = e.touches[0].clientY
-}
-function onTouchMove(e) {
-  if (pullStartY === null) return
-  const delta = e.touches[0].clientY - pullStartY
-  if (delta > 0) pullDistance.value = Math.min(delta, 100)
-}
-function onTouchEnd() {
-  if (pullStartY === null) return
-  if (pullDistance.value > 60) {
-    refreshing.value = true
-    pullDistance.value = 0
-    router.reload({ onFinish: () => { refreshing.value = false } })
-  } else {
-    pullDistance.value = 0
-  }
-  pullStartY = null
-}
+const { pullDistance, refreshing } = usePullToRefresh(['transactions', 'wallets', 'bills'])
 
 // ── A.9: Scroll depth transaksi (analytics stub) ──
 let scrollTracked = false
@@ -890,9 +1003,6 @@ onMounted(() => {
 
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('scroll', onWindowScroll, { passive: true })
-  document.addEventListener('touchstart', onTouchStart, { passive: true })
-  document.addEventListener('touchmove', onTouchMove, { passive: true })
-  document.addEventListener('touchend', onTouchEnd, { passive: true })
 })
 
 onUnmounted(() => {
@@ -901,9 +1011,7 @@ onUnmounted(() => {
   removeError?.()
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('scroll', onWindowScroll)
-  document.removeEventListener('touchstart', onTouchStart)
-  document.removeEventListener('touchmove', onTouchMove)
-  document.removeEventListener('touchend', onTouchEnd)
+  scrollObserver?.disconnect()
 })
 </script>
 
@@ -956,6 +1064,15 @@ onUnmounted(() => {
 .tx-list-card { padding: 8px 16px; }
 
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+.wallet-toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.wallet-search-box { flex: 1; min-width: 160px; }
+.wallet-sort-select { flex-shrink: 0; width: auto; min-height: 44px; }
+
+.archived-toggle-row { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 14px; cursor: pointer; }
+.archived-toggle-row input { width: 16px; height: 16px; accent-color: var(--primary); }
+
+.scroll-sentinel { height: 1px; }
 
 .wallet-grid { display: block; }
 @media (min-width: 481px) {

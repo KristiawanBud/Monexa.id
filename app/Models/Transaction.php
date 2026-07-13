@@ -13,7 +13,7 @@ class Transaction extends Model
 
     protected $fillable = [
         'user_id', 'wallet_id', 'category_id', 'type',
-        'amount', 'note', 'transacted_at', 'source',
+        'amount', 'note', 'transacted_at', 'source', 'transfer_id',
         'wa_message_id', 'bill_payment_id', 'created_by',
     ];
 
