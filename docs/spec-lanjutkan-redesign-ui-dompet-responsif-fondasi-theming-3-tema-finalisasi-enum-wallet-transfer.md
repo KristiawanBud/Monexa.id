@@ -369,3 +369,123 @@ Tetap seperti existing di `WalletController@transfer` (inline `$request->validat
 - [ ] `pint` dan `phpstan analyse` bersih (tidak ada error baru di luar baseline existing).
 - [ ] PR menyertakan catatan eksplisit meminta konfirmasi CEO untuk Keputusan #1 (definisi enum
   wallet_transfer: Opsi A vs B) dan Keputusan #2 (nilai final `--primary-contrast` per tema).
+
+---
+
+## D. Audit Lanjutan (Iterasi 2 — 2026-07-14)
+
+CEO memberi arahan lanjutan yang isinya (Scope A/B/C) pada dasarnya sama persis dengan spec di atas.
+Sejak spec di atas ditulis, riwayat commit menunjukkan **Database → Backend → Frontend AI sudah
+mengerjakan hampir seluruh isi bagian A/B/C** (commit `c24b98b` database migration, `5b32d22` backend,
+`0825862` frontend — semua di branch ini). Bagian ini adalah audit ulang: apa yang **sudah terverifikasi
+selesai** vs apa yang **masih jadi gap nyata**, supaya iterasi berikutnya tidak mengulang kerjaan yang
+sudah ada maupun salah asumsi bahwa semuanya sudah 100% selesai.
+
+### D.1 Terverifikasi SELESAI (dicek langsung ke kode, bukan asumsi dari commit message)
+- **A.1/A.2 Breakpoint** — `Dompet.vue`, `BalanceSummaryCard.vue`, `FilterDrawer.vue`, `QuickActions.vue`
+  semua sudah konsisten pakai `640px`/`1024px` (bukan lagi campuran 480/481/768/1025). `AppLayout.vue`
+  tetap 481px/1025px sesuai keputusan (shell app-wide, di luar scope).
+- **A.1 Overlay scrim** — token `--overlay-scrim: rgba(15,23,42,.45)` sudah ada di 3 file tema
+  (`resources/css/themes/theme-{blue,green,dark}.css`) dan dipakai (bukan hardcoded lagi).
+- **A.1 Tap-target 44px** — `.filter-btn`, `.tx-item`, `.wallet-card`, `.qa-btn` (QuickActions ≥640px)
+  semua eksplisit `min-height: 44px`. Tombol aksi di scope Dompet (`.chip`, `.transfer-btn`,
+  `.add-wallet-btn`, dst) berlabel teks (bukan icon-only), jadi tidak butuh `aria-label` tambahan untuk
+  accessible name. Tidak ditemukan gap baru di audit ulang ini.
+- **B — Migration `user_profiles.theme`** — `database/migrations/2026_07_13_000001_add_theme_to_user_profiles_table.php`
+  persis sesuai kontrak B.2 (nullable, tanpa default DB, `after('app_name')`). `UserProfile::$fillable`
+  sudah include `'theme'`.
+- **B — Endpoint `PUT /account/theme`** — `routes/web.php:133`, `AccountController::updateTheme()`,
+  `UpdateThemeRequest` (`Rule::in(['blue','green','dark'])`) — semua sesuai kontrak B.2 persis.
+- **B — `useTheme.js`** — urutan resolusi sudah tepat sesuai spec: `?theme=` → `localStorage` → shared
+  prop Inertia (dibaca dari `#app[data-page]` sebelum hydrate, ditulis balik ke localStorage) →
+  `prefers-color-scheme: dark` → `VITE_DEFAULT_THEME` → `'blue'`. `setTheme()` sudah kirim
+  `router.put(route('account.theme'), ...)` optimistic, tidak revert kalau gagal.
+  `HandleInertiaRequests.php:38` share `theme` dari `$user->profile?->theme`.
+- **B — UI Settings > Appearance** — `Account.vue` punya section "Tampilan" (`role="radiogroup"`, 3
+  opsi, tap target 44px, instan tanpa submit terpisah) — sesuai spec.
+- **B — Keputusan #2 (kontras `--primary-contrast`) SUDAH DIPUTUSKAN & DITERAPKAN**: tema blue pakai
+  `#FFFFFF` (5.17:1, lulus AA), tema green & dark pakai `#0F172A` (masing-masing 5.42:1 & 5.62:1 vs
+  primary, lulus AA) — opsi (a) di Keputusan #2 yang dipilih. Terdokumentasi lengkap di
+  `docs/theming-guide.md` bagian "Kontras `--primary-contrast`". `docs/theming-guide.md` juga sudah
+  diperbarui dengan bagian persistensi DB, urutan prioritas baru, cara pakai Settings > Appearance, dan
+  "Cara menambah tema baru" (checklist token wajib + langkah audit kontras) — item todo A.2 "update
+  theming-guide.md" **selesai**.
+- **C — Enum & refactor** — `app/Enums/WalletTransfer.php` (native backed enum, `Debit`/`Credit`) persis
+  sesuai kontrak. `app/Models/WalletBalanceLog.php` (baru) dengan cast `'type' => WalletTransfer::class`
+  sudah ada. `WalletService.php` sudah 100% pakai `WalletBalanceLog::create()` + `WalletTransfer::Debit`/
+  `::Credit` di 4 titik (`applyTransaction`, `depositToSaving` — debit & credit, `transferBetweenWallets`)
+  — **tidak ada lagi** `DB::table('wallet_balance_logs')->insert()` maupun magic string `'credit'`/
+  `'debit'` di file ini. `UserWallet` & `WalletTransfer` model sudah pakai `HasFactory`.
+- **C — Test** — `tests/Unit/Enums/WalletTransferTest.php`, `tests/Unit/Models/WalletBalanceLogTest.php`,
+  `tests/Feature/WalletTransferTest.php` (110 baris, cover: transfer sukses + 2 log debit/credit,
+  saldo kurang, wallet bukan milik user, `from_wallet_id === to_wallet_id`) — semua ada, isinya sesuai
+  kontrak test yang diminta di A.3. `database/factories/UserWalletFactory.php` dan
+  `WalletTransferFactory.php` sudah dibuat.
+
+### D.2 ⚠️ Temuan Baru — Perlu Ditindaklanjuti (bukan bagian dari spec asli, ditemukan saat audit ulang)
+
+**Kolom `theme` DUPLIKAT & YATIM di tabel `users`** — migration
+`database/migrations/2026_07_14_000018_add_theme_to_users_table.php` (`string('theme')->default('blue')
+->after('id')`) menambahkan kolom `theme` KEDUA, kali ini di tabel `users`, di commit `315b9df` — commit
+ini **di luar pola pipeline AI** (author `root@server1.gammakaryaconstruction.co.id`, bukan
+`Athena AI Dev`; pesan commit `feat: add theme column to users table`, bukan format
+`feat(<task-slug>): <role>` yang dipakai 3 commit sebelumnya) dan dibuat **setelah** migration
+`user_profiles.theme` sudah ada & sudah dipakai penuh oleh Backend/Frontend (kontrak B.2 di atas).
+
+Sudah diverifikasi lewat pencarian kode: kolom `users.theme` ini **tidak dipakai di mana pun** —
+tidak ada di `User::$fillable`, tidak ada di `casts()`, tidak direferensikan controller/request/factory/
+seeder/Vue manapun. Ini kolom mati yang membingungkan (dua sumber kebenaran untuk hal yang sama) dan
+bertentangan langsung dengan keputusan eksplisit di bagian B audit lama ("BUKAN tabel `users` — ikuti
+pola existing, `UserProfile` sudah jadi rumah untuk preferensi user lain").
+
+- [ ] **Todo baru (Database AI)**: buat migration baru untuk `dropColumn('theme')` dari tabel `users`
+  (jangan edit/hapus file migration `2026_07_14_000018` yang sudah ter-commit — Laravel migration yang
+  sudah jalan di environment manapun tidak boleh diubah retroaktif, buat migration baru bertanggal
+  setelahnya khusus untuk drop). Down-nya: tambahkan kembali kolom (`string('theme')->default('blue')
+  ->after('id')`) supaya rollback aman.
+- [ ] Sertakan catatan di PR: kolom ini kemungkinan hasil eksperimen/commit tidak sengaja di luar
+  pipeline, minta konfirmasi CEO sebelum drop dieksekusi di production (meski di semua environment lokal
+  yang dicek kolom ini kosong/tidak dipakai, tetap ada risiko in-flight write dari proses lain yang tidak
+  terlihat dari repo ini).
+
+### D.3 Gap Tersisa dari Catatan Implementasi CEO (belum ada sama sekali di kode)
+CEO minta "Sertakan CHANGELOG ringkas dan update README/DEVNOTES tentang theming dan enum
+wallet_transfer" — dicek: **tidak ada file `CHANGELOG.md`** di root repo, dan `README.md` **tidak
+menyebut** theming maupun `wallet_transfer`/enum sama sekali.
+- [ ] **Todo baru (Backend/Frontend AI, siapa pun yang membuat PR final)**: buat `CHANGELOG.md` baru
+  (atau tambah entri kalau CEO ternyata ingin dibuatkan lebih dulu oleh role lain) berisi ringkasan 3
+  scope (UI Dompet responsif, theming 3-tema, enum `WalletTransfer`) dengan referensi commit.
+- [ ] Tambahkan section singkat di `README.md` yang menunjuk ke `docs/theming-guide.md` (sudah lengkap,
+  tidak perlu ditulis ulang) untuk theming, dan menyebutkan `app/Enums/WalletTransfer.php` sebagai
+  sumber kebenaran tipe log saldo dompet.
+
+### D.4 Belum Terverifikasi Otomatis di Iterasi Ini
+PM AI tidak menjalankan `pint`/`phpstan analyse`/`php artisan test` pada iterasi audit ini (di luar
+kewenangan role — PM AI hanya menulis spec, tidak mengeksekusi perintah build/test terhadap kode). Audit
+ini murni pembacaan kode statis. **Wajib dijalankan ulang oleh Backend AI sebelum PR final**:
+- [ ] `./vendor/bin/pint --test` — bersih.
+- [ ] `./vendor/bin/phpstan analyse` — tidak ada error baru di luar `phpstan-baseline.neon`.
+- [ ] `php artisan test --filter=WalletTransfer` dan `--filter=WalletBalanceLog` — hijau semua.
+- [ ] Migration baru di D.2 (drop `users.theme`) dijalankan di environment test, pastikan tidak ada
+  proses lain yang bergantung pada kolom itu sebelum drop di production.
+
+### D.5 Item Opsional yang Masih Belum Dikerjakan (sesuai spec asli, prioritas rendah, tidak wajib)
+- Quick toggle tema di header `AppLayout.vue` — masih belum ada (dicek ulang: tidak ditemukan
+  `cycleTheme`/toggle 2-state di `AppLayout.vue`). Sesuai spec asli A.2 ini **opsional/prioritas
+  rendah**, boleh di-skip untuk PR ini kalau waktu terbatas — Settings > Appearance sudah cukup memenuhi
+  acceptance criteria "bisa diganti oleh pengguna, persist antar reload".
+
+### D.6 Housekeeping Minor (bukan bagian scope CEO, hanya dicatat saat audit)
+Ditemukan banyak file backup stray `*.bak_YYYYMMDD_HHMMSS` di `resources/js/Pages/App/` (mis.
+`Dompet.vue.bak_20260708_082752`, `Account.vue.bak_20260708_025736`, belasan `Report.vue.bak_*`,
+`Dashboard.vue.bak_*`). Ini tidak memengaruhi build (bukan entrypoint yang di-import), jadi **tidak
+wajib** dibersihkan sebagai bagian task ini — hanya dicatat sebagai potensi task housekeeping terpisah
+di masa depan, jangan dikerjakan sekarang (di luar scope, hindari PR yang menyentuh file tidak relevan).
+
+### D.7 Kriteria Selesai Tambahan (melengkapi bagian C di atas)
+- [ ] Kolom `users.theme` sudah di-drop (atau CEO eksplisit konfirmasi untuk dipertahankan dengan alasan
+  yang jelas) — tidak ada 2 sumber kebenaran untuk preferensi tema.
+- [ ] `CHANGELOG.md` ada dan berisi ringkasan 3 scope task ini.
+- [ ] `README.md` menyebut theming (link ke `docs/theming-guide.md`) dan enum `WalletTransfer`.
+- [ ] `pint`, `phpstan analyse`, dan test suite wallet transfer dijalankan ulang dan hijau (dikonfirmasi
+  di PR, bukan hanya diasumsikan dari audit statis PM AI).
