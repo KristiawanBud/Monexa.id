@@ -35,6 +35,7 @@ class HandleInertiaRequests extends Middleware
             ],
             'unread_notifications' => $request->user()
                 ?->appNotifications()->where('is_read', false)->count() ?? 0,
+            'theme' => $request->user()?->profile?->theme,
             'icons' => Cache::remember('app_icons_map', 300, function () {
                 return collect(IconController::SLOTS)->keys()->mapWithKeys(function ($slug) {
                     $path = SystemSetting::get("icon:{$slug}");

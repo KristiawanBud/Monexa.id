@@ -130,6 +130,7 @@ Route::middleware(['auth', 'subscribed', 'onboarded'])->group(function () {
     Route::post('/dashboard/toggle-balance', [DashboardController::class, 'toggleHideBalance'])
         ->name('dashboard.toggle-balance');
     Route::put('/account/profile', [AccountController::class, 'updateProfile'])->name('account.profile');
+    Route::put('/account/theme', [AccountController::class, 'updateTheme'])->name('account.theme');
     Route::put('/account/password', [AccountController::class, 'updatePassword'])->name('account.password');
     Route::post('/account/reset-data', [AccountController::class, 'resetData'])->name('account.reset-data');
 

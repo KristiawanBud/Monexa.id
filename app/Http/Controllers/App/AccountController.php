@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\App;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\App\UpdateThemeRequest;
 use App\Models\UserProfile;
 use App\Services\WaGatewayService;
 use Illuminate\Http\Request;
@@ -79,6 +80,20 @@ class AccountController extends Controller
         }
 
         return back()->with('success', 'Profil berhasil diupdate!');
+    }
+
+    // ─────────────────────────────────────────────
+    // Ganti tema (Appearance) — terpisah dari updateProfile supaya
+    // ganti tema instan tanpa perlu kirim ulang name/wa_number/dll.
+    // ─────────────────────────────────────────────
+    public function updateTheme(UpdateThemeRequest $request)
+    {
+        UserProfile::updateOrCreate(
+            ['user_id' => $request->user()->id],
+            ['theme' => $request->theme]
+        );
+
+        return back()->with('success', 'Tema berhasil diganti!');
     }
 
     // ─────────────────────────────────────────────

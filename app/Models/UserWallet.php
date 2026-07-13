@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class UserWallet extends Model
 {
-    use HasUlids, SoftDeletes;
+    use HasFactory, HasUlids, SoftDeletes;
 
     protected $fillable = ['user_id', 'bank_id', 'display_name', 'account_number', 'type', 'balance', 'initial_balance', 'is_active', 'is_saham', 'saham_modal', 'saham_nilai_sekarang', 'sort_order'];
 
@@ -42,6 +43,11 @@ class UserWallet extends Model
     public function transfersIn(): HasMany
     {
         return $this->hasMany(WalletTransfer::class, 'to_wallet_id');
+    }
+
+    public function balanceLogs(): HasMany
+    {
+        return $this->hasMany(WalletBalanceLog::class, 'wallet_id');
     }
 
     public function getBankColorAttribute(): string

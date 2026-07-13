@@ -2,11 +2,12 @@
 
 namespace App\Services;
 
+use App\Enums\WalletTransfer;
 use App\Exceptions\InsufficientBalanceException;
 use App\Models\SavingDeposit;
 use App\Models\Transaction;
 use App\Models\UserWallet;
-use Illuminate\Support\Facades\DB;
+use App\Models\WalletBalanceLog;
 
 class WalletService
 {
@@ -28,15 +29,14 @@ class WalletService
             );
         }
 
-        DB::table('wallet_balance_logs')->insert([
+        WalletBalanceLog::create([
             'wallet_id' => $wallet->id,
-            'type' => $transaction->type === 'income' ? 'credit' : 'debit',
+            'type' => $transaction->type === 'income' ? WalletTransfer::Credit : WalletTransfer::Debit,
             'amount' => $transaction->amount,
             'balance_before' => $balanceBefore,
             'balance_after' => $balanceBefore + ($transaction->type === 'income' ? $transaction->amount : -$transaction->amount),
             'reference_type' => 'transaction',
             'reference_id' => $transaction->id,
-            'created_at' => now(),
         ]);
 
         if ($transaction->type === 'income') {
@@ -74,15 +74,14 @@ class WalletService
             );
         }
 
-        DB::table('wallet_balance_logs')->insert([
+        WalletBalanceLog::create([
             'wallet_id' => $wallet->id,
-            'type' => 'debit',
+            'type' => WalletTransfer::Debit,
             'amount' => $amount,
             'balance_before' => $balanceBefore,
             'balance_after' => $balanceBefore - $amount,
             'reference_type' => 'saving_deposit',
             'reference_id' => $deposit->id,
-            'created_at' => now(),
         ]);
 
         $wallet->decrement('balance', $amount);
@@ -106,27 +105,24 @@ class WalletService
             );
         }
 
-        DB::table('wallet_balance_logs')->insert([
-            [
-                'wallet_id' => $fromWallet->id,
-                'type' => 'debit',
-                'amount' => $amount,
-                'balance_before' => $fromBefore,
-                'balance_after' => $fromBefore - $amount,
-                'reference_type' => 'wallet_transfer',
-                'reference_id' => $transferId,
-                'created_at' => now(),
-            ],
-            [
-                'wallet_id' => $toWallet->id,
-                'type' => 'credit',
-                'amount' => $amount,
-                'balance_before' => $toBefore,
-                'balance_after' => $toBefore + $amount,
-                'reference_type' => 'wallet_transfer',
-                'reference_id' => $transferId,
-                'created_at' => now(),
-            ],
+        WalletBalanceLog::create([
+            'wallet_id' => $fromWallet->id,
+            'type' => WalletTransfer::Debit,
+            'amount' => $amount,
+            'balance_before' => $fromBefore,
+            'balance_after' => $fromBefore - $amount,
+            'reference_type' => 'wallet_transfer',
+            'reference_id' => $transferId,
+        ]);
+
+        WalletBalanceLog::create([
+            'wallet_id' => $toWallet->id,
+            'type' => WalletTransfer::Credit,
+            'amount' => $amount,
+            'balance_before' => $toBefore,
+            'balance_after' => $toBefore + $amount,
+            'reference_type' => 'wallet_transfer',
+            'reference_id' => $transferId,
         ]);
 
         $fromWallet->decrement('balance', $amount);
