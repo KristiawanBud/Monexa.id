@@ -41,6 +41,18 @@ php artisan boost:install
 
 Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
 
+## Monexa — Theming & Wallet Transfer
+
+Monexa mendukung 3 tema (biru/hijau/gelap) berbasis CSS variables, dengan preferensi tersimpan di
+`user_profiles.theme` dan endpoint `PUT /account/theme`. Mekanisme lengkap, urutan resolusi tema, dan
+cara menambah tema baru ada di [`docs/theming-guide.md`](docs/theming-guide.md).
+
+Arah debit/kredit pada log saldo dompet (`wallet_balance_logs.type`) memakai PHP native enum
+[`App\Enums\WalletTransfer`](app/Enums/WalletTransfer.php) sebagai sumber kebenaran tipe, di-cast lewat
+model `App\Models\WalletBalanceLog`.
+
+Ringkasan perubahan per rilis ada di [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Contributing
 
 Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
