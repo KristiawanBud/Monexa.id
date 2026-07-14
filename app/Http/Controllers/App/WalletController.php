@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\App;
 
+use App\Enums\WalletTransferStatus;
 use App\Http\Controllers\Controller;
 use App\Models\UserWallet;
 use App\Models\WalletTransfer;
@@ -143,6 +144,7 @@ class WalletController extends Controller
                 'amount' => $request->amount,
                 'note' => $request->note,
                 'transferred_at' => $request->transferred_at,
+                'status' => WalletTransferStatus::Completed,
             ]);
 
             $this->walletService->transferBetweenWallets(
