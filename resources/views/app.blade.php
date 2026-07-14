@@ -1,5 +1,10 @@
+@php
+    $initialTheme = in_array(auth()->user()?->profile?->theme, ['blue', 'green', 'dark'], true)
+        ? auth()->user()->profile->theme
+        : 'blue';
+@endphp
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" data-theme="{{ $initialTheme }}" class="{{ $initialTheme === 'dark' ? 'dark' : '' }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">

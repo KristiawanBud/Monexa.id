@@ -12,7 +12,7 @@ class UserWallet extends Model
 {
     use HasUlids, SoftDeletes;
 
-    protected $fillable = ['user_id', 'bank_id', 'display_name', 'account_number', 'type', 'balance', 'initial_balance', 'is_active', 'is_saham', 'saham_modal', 'saham_nilai_sekarang', 'sort_order'];
+    protected $fillable = ['user_id', 'bank_id', 'display_name', 'account_number', 'type', 'balance', 'initial_balance', 'is_active', 'is_saham', 'saham_modal', 'saham_nilai_sekarang', 'sort_order', 'icon', 'color'];
 
     protected function casts(): array
     {

@@ -6,6 +6,7 @@ use App\Exceptions\InsufficientBalanceException;
 use App\Models\SavingDeposit;
 use App\Models\Transaction;
 use App\Models\UserWallet;
+use App\Models\WalletTransfer;
 use Illuminate\Support\Facades\DB;
 
 class WalletService
@@ -131,5 +132,53 @@ class WalletService
 
         $fromWallet->decrement('balance', $amount);
         $toWallet->increment('balance', $amount);
+    }
+
+    /**
+     * Batalkan transfer: kembalikan saldo ke dompet asal, tarik lagi dari dompet tujuan.
+     * Ditolak kalau dompet tujuan sudah dipakai lagi hingga saldo akan negatif.
+     */
+    public function reverseTransfer(WalletTransfer $transfer): void
+    {
+        $fromWallet = $transfer->fromWallet;
+        $toWallet = $transfer->toWallet;
+        $amount = (float) $transfer->amount;
+
+        $fromBefore = (float) $fromWallet->balance;
+        $toBefore = (float) $toWallet->balance;
+
+        if ($toBefore < $amount) {
+            throw new InsufficientBalanceException(
+                "Saldo {$toWallet->display_name} tidak cukup untuk membatalkan transfer ini."
+            );
+        }
+
+        DB::table('wallet_balance_logs')->insert([
+            [
+                'wallet_id' => $fromWallet->id,
+                'type' => 'credit',
+                'amount' => $amount,
+                'balance_before' => $fromBefore,
+                'balance_after' => $fromBefore + $amount,
+                'reference_type' => 'wallet_transfer_reversal',
+                'reference_id' => $transfer->id,
+                'created_at' => now(),
+            ],
+            [
+                'wallet_id' => $toWallet->id,
+                'type' => 'debit',
+                'amount' => $amount,
+                'balance_before' => $toBefore,
+                'balance_after' => $toBefore - $amount,
+                'reference_type' => 'wallet_transfer_reversal',
+                'reference_id' => $transfer->id,
+                'created_at' => now(),
+            ],
+        ]);
+
+        $fromWallet->increment('balance', $amount);
+        $toWallet->decrement('balance', $amount);
+
+        $transfer->delete();
     }
 }

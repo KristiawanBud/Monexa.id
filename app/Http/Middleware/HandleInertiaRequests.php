@@ -29,6 +29,7 @@ class HandleInertiaRequests extends Middleware
                 'app_name' => $request->user()?->profile?->app_name ?? config('app.name'),
                 'app_logo' => $request->user()?->profile?->app_logo_url,
             ],
+            'theme' => $request->user()?->profile?->theme,
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),

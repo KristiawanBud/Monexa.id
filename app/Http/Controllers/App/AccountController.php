@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\App;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\App\UpdateThemeRequest;
 use App\Models\UserProfile;
 use App\Services\WaGatewayService;
 use Illuminate\Http\Request;
@@ -79,6 +80,21 @@ class AccountController extends Controller
         }
 
         return back()->with('success', 'Profil berhasil diupdate!');
+    }
+
+    // ─────────────────────────────────────────────
+    // Simpan preferensi tema (blue/green/dark/system) — resolusi
+    // 'system' -> tema konkret tetap dikerjakan client-side, server
+    // cukup menyimpan literal preferensi user.
+    // ─────────────────────────────────────────────
+    public function updateTheme(UpdateThemeRequest $request)
+    {
+        UserProfile::updateOrCreate(
+            ['user_id' => $request->user()->id],
+            ['theme' => $request->theme]
+        );
+
+        return back();
     }
 
     // ─────────────────────────────────────────────

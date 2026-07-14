@@ -65,7 +65,7 @@ class TransactionController extends Controller
             ->orderBy('sort_order')
             ->get();
 
-        $wallets = $walletsRaw->map(fn ($w) => [
+        $mapWallet = fn ($w) => [
             'id' => $w->id,
             'display_name' => $w->display_name,
             'account_number' => $w->account_number,
@@ -77,7 +77,22 @@ class TransactionController extends Controller
             'bank_color' => $w->bank?->logo_color ?? '#2563EB',
             'bank_initial' => $w->bank?->logo_initial ?? strtoupper(substr($w->display_name, 0, 1)),
             'logo_url' => $w->bank?->logo_url ? Storage::url($w->bank->logo_url) : null,
-        ]);
+            'icon' => $w->icon,
+            'color' => $w->color,
+        ];
+
+        $wallets = $walletsRaw->map($mapWallet);
+
+        // Dompet yang diarsipkan — hanya diambil kalau diminta eksplisit lewat
+        // ?show_archived=1, supaya tidak muncul di pilihan dompet form transaksi/transfer.
+        $archivedWallets = $request->boolean('show_archived')
+            ? $user->wallets()
+                ->with('bank:id,short_name,logo_color,logo_initial,type')
+                ->where('is_active', false)
+                ->orderBy('sort_order')
+                ->get()
+                ->map(fn ($w) => [...$mapWallet($w), 'is_active' => false])
+            : collect();
 
         // ── Breakdown saldo: Cash / Bank / E-Wallet ──
         $cashTotal = (float) $walletsRaw->filter(fn ($w) => ! $w->bank_id)->sum('balance');
@@ -107,6 +122,7 @@ class TransactionController extends Controller
         return Inertia::render('App/Dompet', [
             'transactions' => $transactions,
             'wallets' => $wallets,
+            'archived_wallets' => $archivedWallets,
             'bills' => $bills,
             'banks' => Bank::where('is_active', true)->orderBy('sort_order')->get(),
             'categories' => TransactionCategory::forUser($user->id),
