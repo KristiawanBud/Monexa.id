@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
+
 class User extends Authenticatable
 {
     use HasFactory, HasUlids, Notifiable;
@@ -31,6 +32,9 @@ class User extends Authenticatable
     }
 
     // ── Standard Relations ─────────────────────────
+    /**
+     * @return HasOne<UserProfile, $this>
+     */
     public function profile(): HasOne
     {
         return $this->hasOne(UserProfile::class);
