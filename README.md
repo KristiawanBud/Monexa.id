@@ -29,6 +29,16 @@ In addition, [Laracasts](https://laracasts.com) contains thousands of video tuto
 
 You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
 
+## Theming
+
+Monexa punya 4 opsi tema: `blue` (default), `green`, `dark`, dan `system` (ikuti
+`prefers-color-scheme` OS secara berkelanjutan). Pilih tema dari halaman **Akun → Tampilan**;
+preferensi tersimpan per-user (`user_profiles.theme`) sehingga ikut lintas device, dengan
+`localStorage` sebagai fallback cepat/guest. Urutan resolusi tema saat load: query param
+`?theme=` → preferensi tersimpan per-user → `localStorage` → env `VITE_DEFAULT_THEME` →
+fallback `blue`. Detail lengkap (cara kerja, cara menambah tema baru, mekanisme anti-FOUC) ada
+di [`docs/theming-guide.md`](docs/theming-guide.md).
+
 ## Agentic Development
 
 Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:

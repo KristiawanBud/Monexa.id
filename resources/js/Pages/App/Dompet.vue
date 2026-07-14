@@ -147,15 +147,45 @@
           @action="showAddWallet = true"
         />
 
-        <div v-else class="wallet-grid">
+        <label class="archived-toggle">
+          <input type="checkbox" v-model="showArchived" @change="onToggleArchived" />
+          Tampilkan yang diarsipkan
+        </label>
+
+        <div v-if="wallets.length" class="wallet-grid">
           <CardDompet
             v-for="w in wallets"
             :key="w.id"
             :wallet="w"
             :balance-hidden="balanceHidden"
             @click="openEditWallet"
-          />
+          >
+            <template #actions>
+              <button type="button" class="wallet-action-btn" @click="openEditWallet(w)">✏️ Edit</button>
+              <button type="button" class="wallet-action-btn" @click="toggleArchive(w)">
+                {{ w.is_active === false ? '✅ Aktifkan' : '📦 Arsipkan' }}
+              </button>
+            </template>
+          </CardDompet>
         </div>
+
+        <template v-if="showArchived && archived_wallets.length">
+          <div class="section-title" style="margin-top:16px;">Dompet Diarsipkan</div>
+          <div class="wallet-grid">
+            <CardDompet
+              v-for="w in archived_wallets"
+              :key="w.id"
+              :wallet="w"
+              :balance-hidden="balanceHidden"
+              @click="openEditWallet"
+            >
+              <template #actions>
+                <button type="button" class="wallet-action-btn" @click="openEditWallet(w)">✏️ Edit</button>
+                <button type="button" class="wallet-action-btn" @click="toggleArchive(w)">✅ Aktifkan</button>
+              </template>
+            </CardDompet>
+          </div>
+        </template>
 
         <button class="add-wallet-btn" @click="showAddWallet = true">
           <span style="font-size:20px;">＋</span> Tambah Dompet Baru
@@ -276,6 +306,26 @@
                 <option value="saving">Tabungan saja</option>
               </select>
             </div>
+            <div class="form-group">
+              <label class="form-label">Icon Dompet (opsional)</label>
+              <EmojiPicker v-model="walletForm.icon" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" id="wallet-color-label">Warna Dompet (opsional)</label>
+              <div class="color-swatch-row" role="radiogroup" aria-labelledby="wallet-color-label">
+                <button
+                  v-for="c in walletColorOptions"
+                  :key="c.value"
+                  type="button"
+                  role="radio"
+                  :aria-checked="walletForm.color === c.value"
+                  :aria-label="c.label"
+                  :class="['color-swatch', { selected: walletForm.color === c.value }]"
+                  :style="`background:var(--${c.value})`"
+                  @click="walletForm.color = walletForm.color === c.value ? '' : c.value"
+                />
+              </div>
+            </div>
             <button type="submit" class="btn-primary" :disabled="walletForm.processing">
               {{ walletForm.processing ? 'Menyimpan...' : 'Simpan Dompet' }}
             </button>
@@ -287,44 +337,78 @@
       </div>
 
       <!-- ═══════════ MODAL: Transfer Antar Dompet ═══════════ -->
-      <div v-if="showTransfer" class="modal-overlay" @click.self="showTransfer = false">
+      <div v-if="showTransfer" class="modal-overlay" @click.self="closeTransfer">
         <div class="modal-sheet">
           <div class="modal-handle"></div>
-          <div class="modal-title">🔄 Transfer Antar Dompet</div>
-          <form @submit.prevent="submitTransfer">
-            <div class="form-group">
-              <label class="form-label">Dari Dompet</label>
-              <select v-model="transferForm.from_wallet_id" class="form-input-cc" required>
-                <option value="">Pilih dompet asal...</option>
-                <option v-for="w in wallets" :key="w.id" :value="w.id">{{ w.display_name }} — {{ formatRupiah(w.balance) }}</option>
-              </select>
+
+          <template v-if="!showTransferConfirm">
+            <div class="modal-title">🔄 Transfer Antar Dompet</div>
+            <div v-if="hasTransferErrors" role="alert" class="field-error-banner">
+              Periksa kembali form transfer — ada isian yang belum valid.
             </div>
-            <div class="form-group">
-              <label class="form-label">Ke Dompet</label>
-              <select v-model="transferForm.to_wallet_id" class="form-input-cc" required>
-                <option value="">Pilih dompet tujuan...</option>
-                <option v-for="w in wallets" :key="w.id" :value="w.id" :disabled="w.id === transferForm.from_wallet_id">
-                  {{ w.display_name }}
-                </option>
-              </select>
+            <form @submit.prevent="reviewTransfer">
+              <div class="form-group">
+                <label class="form-label" for="transfer-from">Dari Dompet</label>
+                <select id="transfer-from" v-model="transferForm.from_wallet_id" class="form-input-cc"
+                  :aria-invalid="!!transferErrors.from_wallet_id" aria-describedby="transfer-from-error" required>
+                  <option value="">Pilih dompet asal...</option>
+                  <option v-for="w in wallets" :key="w.id" :value="w.id">{{ w.display_name }} — {{ formatRupiah(w.balance) }}</option>
+                </select>
+                <span v-if="transferErrors.from_wallet_id" id="transfer-from-error" class="field-error">{{ transferErrors.from_wallet_id }}</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="transfer-to">Ke Dompet</label>
+                <select id="transfer-to" v-model="transferForm.to_wallet_id" class="form-input-cc"
+                  :aria-invalid="!!transferErrors.to_wallet_id" aria-describedby="transfer-to-error" required>
+                  <option value="">Pilih dompet tujuan...</option>
+                  <option v-for="w in wallets" :key="w.id" :value="w.id" :disabled="w.id === transferForm.from_wallet_id">
+                    {{ w.display_name }}
+                  </option>
+                </select>
+                <span v-if="transferErrors.to_wallet_id" id="transfer-to-error" class="field-error">{{ transferErrors.to_wallet_id }}</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="transfer-amount">Jumlah (Rp)</label>
+                <input id="transfer-amount" v-model="transferAmountDisplay" @input="onTransferAmountInput" type="text" inputmode="numeric"
+                  class="form-input-cc amount-input" placeholder="0"
+                  :aria-invalid="!!transferErrors.amount" aria-describedby="transfer-amount-error" required />
+                <span v-if="transferErrors.amount" id="transfer-amount-error" class="field-error">{{ transferErrors.amount }}</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Catatan (opsional)</label>
+                <input v-model="transferForm.note" type="text" class="form-input-cc" placeholder="Contoh: Pindah ke tabungan" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="transfer-date">Tanggal</label>
+                <input id="transfer-date" v-model="transferForm.transferred_at" type="date" class="form-input-cc"
+                  :aria-invalid="!!transferErrors.transferred_at" aria-describedby="transfer-date-error" required />
+                <span v-if="transferErrors.transferred_at" id="transfer-date-error" class="field-error">{{ transferErrors.transferred_at }}</span>
+              </div>
+              <button type="submit" class="btn-primary" :disabled="transferForm.processing || !isTransferFormValid">
+                🔄 Transfer Sekarang
+              </button>
+            </form>
+          </template>
+
+          <template v-else>
+            <div class="modal-title">Konfirmasi Transfer</div>
+            <div v-if="serverError" role="alert" class="field-error-banner">{{ serverError }}</div>
+            <div class="transfer-summary">
+              <div class="ts-row"><span>Dompet Sumber</span><strong>{{ transferFromWallet?.display_name }}</strong></div>
+              <div class="ts-row"><span>Dompet Tujuan</span><strong>{{ transferToWallet?.display_name }}</strong></div>
+              <div class="ts-row"><span>Jumlah</span><strong>{{ formatRupiah(Number(transferForm.amount || 0)) }}</strong></div>
+              <div class="ts-row"><span>Tanggal</span><strong>{{ formatTransferDate(transferForm.transferred_at) }}</strong></div>
             </div>
-            <div class="form-group">
-              <label class="form-label">Jumlah (Rp)</label>
-              <input v-model="transferAmountDisplay" @input="onTransferAmountInput" type="text" inputmode="numeric"
-                class="form-input-cc amount-input" placeholder="0" required />
+            <div class="confirm-actions">
+              <button type="button" class="btn-secondary" aria-label="Kembali ke form transfer" @click="backToTransferForm">
+                Kembali
+              </button>
+              <button type="button" class="btn-primary" aria-label="Konfirmasi dan kirim transfer sekarang"
+                :disabled="transferForm.processing" @click="confirmTransfer">
+                {{ transferForm.processing ? 'Memproses...' : 'Konfirmasi & Kirim' }}
+              </button>
             </div>
-            <div class="form-group">
-              <label class="form-label">Catatan (opsional)</label>
-              <input v-model="transferForm.note" type="text" class="form-input-cc" placeholder="Contoh: Pindah ke tabungan" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Tanggal</label>
-              <input v-model="transferForm.transferred_at" type="date" class="form-input-cc" required />
-            </div>
-            <button type="submit" class="btn-primary" :disabled="transferForm.processing">
-              {{ transferForm.processing ? 'Memproses...' : '🔄 Transfer Sekarang' }}
-            </button>
-          </form>
+          </template>
         </div>
       </div>
 
@@ -416,7 +500,7 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useForm, router } from '@inertiajs/vue3'
+import { useForm, router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import EmojiPicker from '@/Components/EmojiPicker.vue'
 import BalanceSummaryCard from '@/Components/Wallet/BalanceSummaryCard.vue'
@@ -435,6 +519,7 @@ import { trackEvent } from '@/lib/analytics'
 const props = defineProps({
   transactions: Object,
   wallets: Array,
+  archived_wallets: { type: Array, default: () => [] },
   bills: Array,
   banks: Array,
   categories: Array,
@@ -454,6 +539,7 @@ const props = defineProps({
   active_tab: { type: String, default: 'transaksi' },
 })
 
+const page = usePage()
 const balanceHidden = ref(false)
 const showRangeMenu = ref(false)
 const searchQuery = ref(props.search_query || '')
@@ -638,7 +724,30 @@ const deleteTx = () => {
 // ── Wallet Form ──
 const walletForm = useForm({
   bank_id: '', display_name: '', initial_balance: '', type: 'both', is_active: true,
+  icon: '', color: '',
 })
+
+const walletColorOptions = [
+  { value: 'primary', label: 'Biru' },
+  { value: 'success', label: 'Hijau' },
+  { value: 'danger', label: 'Merah' },
+  { value: 'warning', label: 'Kuning' },
+  { value: 'info', label: 'Cyan' },
+]
+
+const showArchived = ref(false)
+
+function onToggleArchived() {
+  router.reload({
+    data: { show_archived: showArchived.value ? 1 : undefined },
+    only: ['archived_wallets'],
+    preserveScroll: true,
+  })
+}
+
+function toggleArchive(w) {
+  router.patch(route('wallets.archive', w.id), {}, { preserveScroll: true })
+}
 
 const setBankName = () => {
   if (!walletForm.bank_id) { walletForm.display_name = 'Cash'; return }
@@ -651,6 +760,8 @@ const openEditWallet = (w) => {
   walletForm.display_name = w.display_name
   walletForm.type = w.type
   walletForm.is_active = true
+  walletForm.icon = w.icon ?? ''
+  walletForm.color = w.color ?? ''
   showAddWallet.value = true
 }
 
@@ -676,11 +787,51 @@ const deleteWallet = () => {
 
 // ── Transfer Form ──
 const showTransfer = ref(false)
+const showTransferConfirm = ref(false)
+const transferErrors = reactive({})
 const transferForm = useForm({
   from_wallet_id: '', to_wallet_id: '', amount: '', note: '',
   transferred_at: new Date().toISOString().split('T')[0],
 })
 const transferAmountDisplay = ref('')
+
+const hasTransferErrors = computed(() => Object.keys(transferErrors).length > 0)
+
+const isTransferFormValid = computed(() =>
+  !!transferForm.from_wallet_id &&
+  !!transferForm.to_wallet_id &&
+  transferForm.from_wallet_id !== transferForm.to_wallet_id &&
+  Number(transferForm.amount) > 0 &&
+  !!transferForm.transferred_at
+)
+
+const transferFromWallet = computed(() => props.wallets.find((w) => w.id === transferForm.from_wallet_id))
+const transferToWallet = computed(() => props.wallets.find((w) => w.id === transferForm.to_wallet_id))
+
+const serverError = computed(() => page.props.flash?.error ?? null)
+
+function formatTransferDate(dateStr) {
+  if (!dateStr) return ''
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+function clearTransferErrors() {
+  Object.keys(transferErrors).forEach((k) => delete transferErrors[k])
+}
+
+function validateTransferForm() {
+  const errors = {}
+  if (!transferForm.from_wallet_id) errors.from_wallet_id = 'Pilih dompet asal.'
+  if (!transferForm.to_wallet_id) errors.to_wallet_id = 'Pilih dompet tujuan.'
+  if (transferForm.from_wallet_id && transferForm.from_wallet_id === transferForm.to_wallet_id) {
+    errors.to_wallet_id = 'Dompet tujuan harus berbeda dari dompet asal.'
+  }
+  if (!(Number(transferForm.amount) > 0)) errors.amount = 'Jumlah transfer harus lebih dari 0.'
+  if (!transferForm.transferred_at) errors.transferred_at = 'Tanggal wajib diisi.'
+  clearTransferErrors()
+  Object.assign(transferErrors, errors)
+  return Object.keys(errors).length === 0
+}
 
 const onTransferAmountInput = (e) => {
   const raw = e.target.value.replace(/\D/g, '')
@@ -690,15 +841,33 @@ const onTransferAmountInput = (e) => {
 
 const openTransfer = () => {
   showTransfer.value = true
+  showTransferConfirm.value = false
+  clearTransferErrors()
   trackEvent('dompet_quick_action', { action: 'transfer' })
 }
 
-const submitTransfer = () => {
+function closeTransfer() {
+  showTransfer.value = false
+  showTransferConfirm.value = false
+}
+
+function reviewTransfer() {
+  if (!validateTransferForm()) return
+  showTransferConfirm.value = true
+}
+
+function backToTransferForm() {
+  showTransferConfirm.value = false
+}
+
+function confirmTransfer() {
   transferForm.post(route('wallets.transfer'), {
+    preserveScroll: true,
     onSuccess: () => {
-      showTransfer.value = false
+      closeTransfer()
       transferForm.reset()
       transferAmountDisplay.value = ''
+      clearTransferErrors()
     }
   })
 }
@@ -796,7 +965,7 @@ const groupedTransactions = computed(() => {
 function closeAllOverlays() {
   if (showAddTx.value) { closeTxModal(); return }
   if (showAddWallet.value) { showAddWallet.value = false; editingWallet.value = null; return }
-  if (showTransfer.value) { showTransfer.value = false; return }
+  if (showTransfer.value) { closeTransfer(); return }
   if (showAddBill.value) { showAddBill.value = false; return }
   if (showPayBill.value) { showPayBill.value = false; return }
   if (filterDrawerOpen.value) { filterDrawerOpen.value = false; return }
@@ -965,6 +1134,31 @@ onUnmounted(() => {
 @media (min-width: 1025px) {
   .wallet-grid { grid-template-columns: repeat(3, 1fr); }
 }
+
+.archived-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px; cursor: pointer; min-height: 44px; }
+.archived-toggle input { width: 18px; height: 18px; accent-color: var(--primary); }
+
+.wallet-action-btn { flex: 1; padding: 8px; min-height: 40px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); background: var(--surface); font-size: 12px; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+.wallet-action-btn:hover { border-color: var(--primary); color: var(--primary); }
+.wallet-action-btn:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+
+.color-swatch-row { display: flex; gap: 10px; }
+.color-swatch { width: 32px; height: 32px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.color-swatch.selected { border-color: var(--text-primary); box-shadow: var(--shadow-focus); }
+.color-swatch:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+
+.field-error { display: block; font-size: 11px; color: var(--danger); font-weight: 600; margin-top: 5px; }
+.field-error-banner { background: var(--danger-bg); color: var(--danger); border-radius: var(--radius-md); padding: 10px 14px; font-size: 12px; font-weight: 600; margin-bottom: 14px; }
+
+.transfer-summary { background: var(--background); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 18px; }
+.ts-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.ts-row:last-child { border-bottom: none; }
+.ts-row span { color: var(--text-secondary); }
+.ts-row strong { font-weight: 700; text-align: right; }
+
+.confirm-actions { display: flex; gap: 10px; }
+.confirm-actions .btn-secondary { flex: 1; }
+.confirm-actions .btn-primary { flex: 1; }
 
 .summary-row { display: flex; gap: 10px; margin-bottom: 16px; }
 .summary-row.single { flex-direction: column; }

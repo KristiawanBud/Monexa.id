@@ -101,6 +101,25 @@
         </form>
       </div>
 
+      <!-- Tampilan / Tema -->
+      <div class="section-title" style="margin-top:18px;">Tampilan</div>
+      <div class="card">
+        <div class="theme-picker" role="radiogroup" aria-label="Pilih tema aplikasi">
+          <button
+            v-for="opt in themeOptions"
+            :key="opt.value"
+            type="button"
+            role="radio"
+            :aria-checked="currentTheme === opt.value"
+            :class="['theme-option', { active: currentTheme === opt.value }]"
+            @click="setTheme(opt.value)"
+          >
+            <span class="theme-swatch" :style="`background:${opt.swatch}`"></span>
+            <span class="theme-option-label">{{ opt.label }}</span>
+          </button>
+        </div>
+      </div>
+
       <!-- WA Bot info -->
       <div class="section-title" style="margin-top:18px;">WA Bot</div>
       <div v-if="bot_gateway" class="bot-card">
@@ -193,6 +212,19 @@ import { ref } from 'vue'
 import { useForm, Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import AppIcon from '@/Components/AppIcon.vue'
+import { useTheme } from '@/Composables/useTheme'
+
+const { currentTheme, setTheme } = useTheme()
+
+// Swatch preview tiap opsi tema mengikuti nilai --primary/--background asli di
+// resources/css/themes/theme-{blue,green,dark}.css — bukan var(--...) karena swatch
+// harus tetap merepresentasikan tampilan tema itu meski tema lain sedang aktif.
+const themeOptions = [
+  { value: 'blue', label: 'Biru', swatch: 'linear-gradient(135deg, #2563EB 50%, #FFFFFF 50%)' },
+  { value: 'green', label: 'Hijau', swatch: 'linear-gradient(135deg, #16A34A 50%, #FFFFFF 50%)' },
+  { value: 'dark', label: 'Gelap', swatch: 'linear-gradient(135deg, #5B8DF8 50%, #0F172A 50%)' },
+  { value: 'system', label: 'Ikuti Sistem', swatch: 'linear-gradient(135deg, #2563EB 50%, #0F172A 50%)' },
+]
 
 const props = defineProps({
   user: Object,
@@ -271,6 +303,14 @@ const planLabel = (plan) => ({ trial: '🎁 Trial', monthly: '✅ Monthly', year
 .form-label { font-size:12px; font-weight:600; color:var(--text-secondary); display:block; margin-bottom:6px; }
 .hint-text { font-size:11px; color:var(--text-faint); margin-top:5px; }
 .error-text { font-size:11px; color:var(--danger); margin-top:5px; font-weight:600; }
+
+.theme-picker { display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; }
+.theme-option { display:flex; flex-direction:column; align-items:center; gap:8px; padding:14px 10px; min-height:44px; border-radius:var(--radius-md); border:1.5px solid var(--border); background:var(--surface); cursor:pointer; font-family:inherit; }
+.theme-option.active { border-color:var(--primary); background:var(--primary-bg); }
+.theme-option:focus-visible { outline:none; box-shadow:var(--shadow-focus); }
+.theme-swatch { width:32px; height:32px; border-radius:50%; border:1px solid var(--border); }
+.theme-option-label { font-size:12px; font-weight:600; color:var(--text-secondary); }
+.theme-option.active .theme-option-label { color:var(--primary); }
 
 .toggle-list { margin:14px 0; }
 .toggle-row { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border); }
