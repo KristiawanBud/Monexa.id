@@ -10,10 +10,14 @@ use App\Models\Transaction;
 use App\Models\TransactionCategory;
 use App\Models\TransactionEditLog;
 use App\Models\User;
+use App\Models\WalletTransfer;
 use App\Services\WalletService;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -28,24 +32,7 @@ class TransactionController extends Controller
         $user = $request->user();
         $range = $this->resolveRange($request);
 
-        $transactions = $this->buildFilteredQuery($request, $user, $range)
-            ->paginate(30)
-            ->through(fn ($t) => [
-                'id' => $t->id,
-                'type' => $t->type,
-                'amount' => (float) $t->amount,
-                'note' => $t->note,
-                'category' => $t->category?->name,
-                'category_emoji' => $t->category?->emoji,
-                'category_icon_url' => $t->category?->icon_path ? Storage::url($t->category->icon_path) : null,
-                'wallet' => $t->wallet?->display_name,
-                'wallet_id' => $t->wallet_id,
-                'category_id' => $t->category_id,
-                'transacted_at' => $t->transacted_at->format('Y-m-d'),
-                'transacted_at_label' => $t->transacted_at->translatedFormat('d M Y'),
-                'transacted_at_time' => $t->created_at?->format('H:i'),
-                'source' => $t->source,
-            ]);
+        $transactions = $this->buildTransactionsPage($request, $user, $range);
 
         $period = $request->period ?? now()->format('Y-m');
 
@@ -353,5 +340,153 @@ class TransactionController extends Controller
         }
 
         return $query;
+    }
+
+    // ─────────────────────────────────────────────
+    // Gabungkan transactions + wallet_transfers jadi satu riwayat.
+    // Sumbernya 2 tabel berbeda, jadi tidak bisa pakai paginate() bawaan
+    // Eloquent di union query — diambil semua baris yang cocok filter,
+    // digabung, diurutkan, baru di-slice manual per halaman.
+    // ─────────────────────────────────────────────
+    private function buildTransactionsPage(Request $request, User $user, string $range): LengthAwarePaginator
+    {
+        $transactionRows = $this->buildFilteredQuery($request, $user, $range)
+            ->get()
+            ->map(fn ($t) => [
+                'id' => $t->id,
+                'type' => $t->type,
+                'amount' => (float) $t->amount,
+                'note' => $t->note,
+                'category' => $t->category?->name,
+                'category_emoji' => $t->category?->emoji,
+                'category_icon_url' => $t->category?->icon_path ? Storage::url($t->category->icon_path) : null,
+                'wallet' => $t->wallet?->display_name,
+                'wallet_id' => $t->wallet_id,
+                'category_id' => $t->category_id,
+                'transacted_at' => $t->transacted_at->format('Y-m-d'),
+                'transacted_at_label' => $t->transacted_at->translatedFormat('d M Y'),
+                'transacted_at_time' => $t->created_at?->format('H:i'),
+                'source' => $t->source,
+                'transfer_id' => null,
+                'counterparty_wallet' => null,
+                '_sort_date' => $t->transacted_at->format('Y-m-d'),
+                '_sort_time' => $t->created_at?->timestamp ?? $t->transacted_at->timestamp,
+            ]);
+
+        $merged = $transactionRows->concat($this->buildTransferRows($request, $user, $range))
+            ->sort(fn ($a, $b) => $b['_sort_date'] <=> $a['_sort_date'] ?: $b['_sort_time'] <=> $a['_sort_time'])
+            ->values();
+
+        $perPage = 30;
+        $page = max((int) $request->input('page', 1), 1);
+
+        $items = $merged->slice(($page - 1) * $perPage, $perPage)
+            ->map(fn ($row) => Arr::except($row, ['_sort_date', '_sort_time']))
+            ->values();
+
+        return new LengthAwarePaginator(
+            $items,
+            $merged->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+    }
+
+    // ─────────────────────────────────────────────
+    // Baris virtual dari wallet_transfers — satu transfer jadi 2 baris
+    // (transfer_out di sisi from_wallet, transfer_in di sisi to_wallet)
+    // supaya muncul di riwayat kedua dompet dengan penanda arah.
+    // ─────────────────────────────────────────────
+    private function buildTransferRows(Request $request, User $user, string $range): Collection
+    {
+        // Transfer tidak punya kategori — kalau filter category_id aktif, tidak relevan
+        if ($request->category_id) {
+            return collect();
+        }
+        if ($request->type && ! in_array($request->type, ['transfer_in', 'transfer_out'])) {
+            return collect();
+        }
+
+        $query = WalletTransfer::where('user_id', $user->id)
+            ->with(['fromWallet:id,display_name', 'toWallet:id,display_name']);
+
+        $this->applyTransferDateFilter($query, $request, $range);
+
+        if ($request->wallet_id) {
+            $query->where(function ($q) use ($request) {
+                $q->where('from_wallet_id', $request->wallet_id)
+                    ->orWhere('to_wallet_id', $request->wallet_id);
+            });
+        }
+        if ($request->min_amount) {
+            $query->where('amount', '>=', $request->min_amount);
+        }
+        if ($request->max_amount) {
+            $query->where('amount', '<=', $request->max_amount);
+        }
+        if ($request->search) {
+            $query->where('note', 'like', '%'.$request->search.'%');
+        }
+
+        $rows = collect();
+
+        foreach ($query->get() as $transfer) {
+            $showOut = ! $request->wallet_id || $request->wallet_id === $transfer->from_wallet_id;
+            $showIn = ! $request->wallet_id || $request->wallet_id === $transfer->to_wallet_id;
+
+            if ($showOut && (! $request->type || $request->type === 'transfer_out')) {
+                $rows->push($this->mapTransferRow($transfer, 'transfer_out'));
+            }
+            if ($showIn && (! $request->type || $request->type === 'transfer_in')) {
+                $rows->push($this->mapTransferRow($transfer, 'transfer_in'));
+            }
+        }
+
+        return $rows;
+    }
+
+    private function mapTransferRow(WalletTransfer $transfer, string $type): array
+    {
+        $isOut = $type === 'transfer_out';
+        $wallet = $isOut ? $transfer->fromWallet : $transfer->toWallet;
+        $counterparty = $isOut ? $transfer->toWallet : $transfer->fromWallet;
+
+        return [
+            'id' => 'transfer-'.$transfer->id.'-'.($isOut ? 'out' : 'in'),
+            'type' => $type,
+            'amount' => (float) $transfer->amount,
+            'note' => $transfer->note,
+            'category' => null,
+            'category_emoji' => null,
+            'category_icon_url' => null,
+            'wallet' => $wallet?->display_name,
+            'wallet_id' => $isOut ? $transfer->from_wallet_id : $transfer->to_wallet_id,
+            'category_id' => null,
+            'transacted_at' => $transfer->transferred_at->format('Y-m-d'),
+            'transacted_at_label' => $transfer->transferred_at->translatedFormat('d M Y'),
+            'transacted_at_time' => $transfer->created_at?->format('H:i'),
+            'source' => 'wallet_transfer',
+            'transfer_id' => $transfer->id,
+            'counterparty_wallet' => $counterparty?->display_name,
+            '_sort_date' => $transfer->transferred_at->format('Y-m-d'),
+            '_sort_time' => $transfer->created_at?->timestamp ?? $transfer->transferred_at->timestamp,
+        ];
+    }
+
+    private function applyTransferDateFilter(Builder $query, Request $request, string $range): void
+    {
+        if ($request->start_date && $request->end_date) {
+            $query->whereBetween('transferred_at', [$request->start_date, $request->end_date]);
+        } elseif ($request->period) {
+            [$year, $month] = explode('-', $request->period);
+            $query->whereYear('transferred_at', $year)->whereMonth('transferred_at', $month);
+        } else {
+            match ($range) {
+                'week' => $query->whereBetween('transferred_at', [now()->startOfWeek(), now()->endOfWeek()]),
+                'month' => $query->whereYear('transferred_at', now()->year)->whereMonth('transferred_at', now()->month),
+                default => $query->whereDate('transferred_at', now()->toDateString()),
+            };
+        }
     }
 }

@@ -131,6 +131,7 @@ Route::middleware(['auth', 'subscribed', 'onboarded'])->group(function () {
         ->name('dashboard.toggle-balance');
     Route::put('/account/profile', [AccountController::class, 'updateProfile'])->name('account.profile');
     Route::put('/account/password', [AccountController::class, 'updatePassword'])->name('account.password');
+    Route::put('/account/theme', [AccountController::class, 'updateTheme'])->name('account.theme');
     Route::post('/account/reset-data', [AccountController::class, 'resetData'])->name('account.reset-data');
 
     // Wallets
@@ -138,7 +139,9 @@ Route::middleware(['auth', 'subscribed', 'onboarded'])->group(function () {
     Route::post('/dompet/wallets', [WalletController::class, 'store'])->name('wallets.store');
     Route::put('/dompet/wallets/{wallet}', [WalletController::class, 'update'])->name('wallets.update');
     Route::delete('/dompet/wallets/{wallet}', [WalletController::class, 'destroy'])->name('wallets.destroy');
+    Route::patch('/dompet/wallets/{wallet}/archive', [WalletController::class, 'archive'])->name('wallets.archive');
     Route::post('/dompet/transfer', [WalletController::class, 'transfer'])->name('wallets.transfer');
+    Route::delete('/dompet/transfer/{walletTransfer}', [WalletController::class, 'destroyTransfer'])->name('wallets.transfer.destroy');
 
 });
 

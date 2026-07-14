@@ -6,6 +6,7 @@ use App\Exceptions\InsufficientBalanceException;
 use App\Models\SavingDeposit;
 use App\Models\Transaction;
 use App\Models\UserWallet;
+use App\Models\WalletTransfer;
 use Illuminate\Support\Facades\DB;
 
 class WalletService
@@ -131,5 +132,31 @@ class WalletService
 
         $fromWallet->decrement('balance', $amount);
         $toWallet->increment('balance', $amount);
+    }
+
+    /**
+     * Reversal penuh WalletTransfer: kembalikan saldo from_wallet (+amount) dan
+     * to_wallet (-amount), hapus log balance terkait. Ditolak kalau to_wallet
+     * sudah dipakai lagi sehingga saldo akan jadi negatif.
+     */
+    public function reverseTransfer(WalletTransfer $transfer): void
+    {
+        $fromWallet = $transfer->fromWallet;
+        $toWallet = $transfer->toWallet;
+        $amount = (float) $transfer->amount;
+
+        if ((float) $toWallet->balance < $amount) {
+            throw new InsufficientBalanceException(
+                "Tidak bisa membatalkan transfer, saldo {$toWallet->display_name} sudah terpakai."
+            );
+        }
+
+        DB::table('wallet_balance_logs')
+            ->where('reference_type', 'wallet_transfer')
+            ->where('reference_id', $transfer->id)
+            ->delete();
+
+        $toWallet->decrement('balance', $amount);
+        $fromWallet->increment('balance', $amount);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\App;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\App\UpdateThemeRequest;
 use App\Models\UserProfile;
 use App\Services\WaGatewayService;
 use Illuminate\Http\Request;
@@ -79,6 +80,16 @@ class AccountController extends Controller
         }
 
         return back()->with('success', 'Profil berhasil diupdate!');
+    }
+
+    // ─────────────────────────────────────────────
+    // Update preferensi tema (persist per-user, bukan cuma localStorage)
+    // ─────────────────────────────────────────────
+    public function updateTheme(UpdateThemeRequest $request)
+    {
+        $request->user()->profile->update(['theme' => $request->theme]);
+
+        return back()->with('success', 'Tema berhasil disimpan.');
     }
 
     // ─────────────────────────────────────────────

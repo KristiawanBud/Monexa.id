@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\App;
 
+use App\Exceptions\InsufficientBalanceException;
 use App\Http\Controllers\Controller;
 use App\Models\UserWallet;
 use App\Models\WalletTransfer;
@@ -27,6 +28,8 @@ class WalletController extends Controller
             'initial_balance' => ['nullable', 'numeric', 'min:0'],
             'type' => ['required', 'in:cash_flow,saving,both,investment'],
             'is_saham' => ['boolean'],
+            'icon' => ['nullable', 'string', 'max:8'],
+            'color' => ['nullable', 'string', 'in:primary,success,danger,warning,info'],
         ]);
 
         $user = $request->user();
@@ -42,6 +45,8 @@ class WalletController extends Controller
             'is_saham' => $request->boolean('is_saham', false),
             'is_active' => true,
             'sort_order' => $lastOrder + 1,
+            'icon' => $request->icon,
+            'color' => $request->color,
         ]);
 
         return back()->with('success', "Dompet {$wallet->display_name} berhasil ditambahkan!");
@@ -59,6 +64,8 @@ class WalletController extends Controller
             'account_number' => ['nullable', 'string', 'max:50'],
             'type' => ['required', 'in:cash_flow,saving,both,investment'],
             'is_active' => ['boolean'],
+            'icon' => ['nullable', 'string', 'max:8'],
+            'color' => ['nullable', 'string', 'in:primary,success,danger,warning,info'],
         ]);
 
         $wallet->update([
@@ -66,9 +73,27 @@ class WalletController extends Controller
             'account_number' => $request->account_number,
             'type' => $request->type,
             'is_active' => $request->boolean('is_active', true),
+            'icon' => $request->icon,
+            'color' => $request->color,
         ]);
 
         return back()->with('success', "Dompet {$wallet->display_name} berhasil diupdate!");
+    }
+
+    // ─────────────────────────────────────────────
+    // Aksi cepat: arsip / aktifkan dompet dari kartu dompet
+    // ─────────────────────────────────────────────
+    public function archive(Request $request, UserWallet $wallet): RedirectResponse
+    {
+        abort_if($wallet->user_id !== $request->user()->id, 403, 'Akses ditolak.');
+
+        $wallet->update(['is_active' => ! $wallet->is_active]);
+
+        $message = $wallet->is_active
+            ? "Dompet {$wallet->display_name} berhasil diaktifkan!"
+            : "Dompet {$wallet->display_name} berhasil diarsipkan!";
+
+        return back()->with('success', $message);
     }
 
     // ─────────────────────────────────────────────
@@ -157,5 +182,24 @@ class WalletController extends Controller
             'success',
             'Berhasil transfer Rp '.number_format($request->amount, 0, ',', '.')." dari {$fromWallet->display_name} ke {$toWallet->display_name}!"
         );
+    }
+
+    // ─────────────────────────────────────────────
+    // Hapus/batalkan transfer — reversal penuh saldo kedua dompet
+    // ─────────────────────────────────────────────
+    public function destroyTransfer(Request $request, WalletTransfer $walletTransfer): RedirectResponse
+    {
+        abort_if($walletTransfer->user_id !== $request->user()->id, 403, 'Akses ditolak.');
+
+        try {
+            DB::transaction(function () use ($walletTransfer) {
+                $this->walletService->reverseTransfer($walletTransfer);
+                $walletTransfer->delete();
+            });
+        } catch (InsufficientBalanceException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Transfer berhasil dibatalkan, saldo dikembalikan.');
     }
 }
