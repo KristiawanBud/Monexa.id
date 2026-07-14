@@ -119,6 +119,7 @@
                 :label="group.label"
                 :transactions="group.transactions"
                 @item-click="openEditTx"
+                @cancel-transfer="cancelTransfer"
               />
             </template>
           </div>
@@ -154,7 +155,13 @@
             :wallet="w"
             :balance-hidden="balanceHidden"
             @click="openEditWallet"
-          />
+          >
+            <template #actions>
+              <button type="button" class="wallet-action-btn" @click="archiveWallet(w)">
+                Arsipkan
+              </button>
+            </template>
+          </CardDompet>
         </div>
 
         <button class="add-wallet-btn" @click="showAddWallet = true">
@@ -275,6 +282,26 @@
                 <option value="cash_flow">Keluar-Masuk saja</option>
                 <option value="saving">Tabungan saja</option>
               </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ikon (opsional)</label>
+              <EmojiPicker v-model="walletForm.icon" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Warna (opsional)</label>
+              <div class="wallet-color-swatches" role="radiogroup" aria-label="Pilih warna dompet">
+                <button
+                  v-for="c in walletColors"
+                  :key="c"
+                  type="button"
+                  role="radio"
+                  :aria-checked="walletForm.color === c"
+                  :class="['color-swatch-btn', { active: walletForm.color === c }]"
+                  :style="`background:var(--${c})`"
+                  :aria-label="c"
+                  @click="walletForm.color = walletForm.color === c ? '' : c"
+                />
+              </div>
             </div>
             <button type="submit" class="btn-primary" :disabled="walletForm.processing">
               {{ walletForm.processing ? 'Menyimpan...' : 'Simpan Dompet' }}
@@ -636,8 +663,10 @@ const deleteTx = () => {
 }
 
 // ── Wallet Form ──
+const walletColors = ['primary', 'success', 'danger', 'warning', 'info']
 const walletForm = useForm({
   bank_id: '', display_name: '', initial_balance: '', type: 'both', is_active: true,
+  icon: '', color: '',
 })
 
 const setBankName = () => {
@@ -651,7 +680,13 @@ const openEditWallet = (w) => {
   walletForm.display_name = w.display_name
   walletForm.type = w.type
   walletForm.is_active = true
+  walletForm.icon = w.icon || ''
+  walletForm.color = w.color || ''
   showAddWallet.value = true
+}
+
+const archiveWallet = (w) => {
+  router.patch(route('wallets.archive', w.id), {}, { preserveScroll: true })
 }
 
 const submitWallet = () => {
@@ -701,6 +736,11 @@ const submitTransfer = () => {
       transferAmountDisplay.value = ''
     }
   })
+}
+
+const cancelTransfer = (t) => {
+  if (!confirm('Batalkan transfer ini? Saldo kedua dompet akan dikembalikan.')) return
+  router.delete(route('wallets.transfer.destroy', t.transfer_id), { preserveScroll: true })
 }
 
 // ── Bill Form ──
@@ -975,6 +1015,12 @@ onUnmounted(() => {
 
 .transfer-btn { width: 100%; padding: 12px; min-height: 44px; background: var(--primary-bg); color: var(--primary); border: none; border-radius: var(--radius-md); font-size: 13px; font-weight: 700; cursor: pointer; margin-bottom: 12px; }
 .danger-text { color: var(--danger) !important; border-color: var(--danger-bg) !important; }
+
+.wallet-action-btn { flex: 1; padding: 8px; min-height: 36px; background: var(--background); color: var(--text-secondary); border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; cursor: pointer; }
+
+.wallet-color-swatches { display: flex; gap: 10px; }
+.color-swatch-btn { width: 32px; height: 32px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; box-shadow: var(--shadow-sm); }
+.color-swatch-btn.active { border-color: var(--text-primary); }
 
 .add-wallet-btn { width: 100%; padding: 16px; min-height: 44px; background: none; border: 2px dashed var(--border); border-radius: var(--radius-lg); font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all .15s; }
 .add-wallet-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-bg); }

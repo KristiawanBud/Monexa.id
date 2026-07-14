@@ -1,15 +1,15 @@
 <template>
   <div class="card wallet-card" role="button" tabindex="0" @click="$emit('click', wallet)" @keydown.enter="$emit('click', wallet)">
     <div class="wallet-row">
-      <div class="wallet-logo" :style="`background:${wallet.bank_color}`">
+      <div class="wallet-logo" :style="logoStyle">
         <img
-          v-if="wallet.logo_url"
+          v-if="!wallet.icon && wallet.logo_url"
           :src="wallet.logo_url"
           :alt="wallet.display_name"
           loading="lazy"
           class="wallet-logo-img"
         />
-        <span v-else>{{ wallet.bank_initial }}</span>
+        <span v-else>{{ wallet.icon || wallet.bank_initial }}</span>
       </div>
       <div class="wallet-info">
         <div class="wallet-name">{{ wallet.display_name }}</div>
@@ -27,15 +27,21 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { formatRupiah } from '@/lib/format'
 
-defineProps({
+const props = defineProps({
   wallet: { type: Object, required: true },
   balanceHidden: { type: Boolean, default: false },
 })
 defineEmits(['click'])
 
 const typeLabel = (t) => ({ both: 'Multi Fungsi', cash_flow: 'Transaksi', saving: 'Tabungan' }[t] ?? t)
+
+const logoStyle = computed(() => {
+  const background = props.wallet.color ? `var(--${props.wallet.color})` : props.wallet.bank_color
+  return `background:${background}`
+})
 </script>
 
 <style scoped>

@@ -101,6 +101,26 @@
         </form>
       </div>
 
+      <!-- Tema -->
+      <div class="section-title" style="margin-top:18px;">Tampilan</div>
+      <div class="card">
+        <label class="form-label">Pilih tema</label>
+        <div class="theme-options" role="radiogroup" aria-label="Pilih tema">
+          <button
+            v-for="opt in themeOptions"
+            :key="opt.value"
+            type="button"
+            role="radio"
+            :aria-checked="currentTheme === opt.value"
+            :class="['theme-opt', { active: currentTheme === opt.value }]"
+            @click="setTheme(opt.value)"
+          >
+            <span class="theme-swatch" :style="`background:${opt.swatch}`"></span>
+            <span class="theme-opt-label">{{ opt.label }}</span>
+          </button>
+        </div>
+      </div>
+
       <!-- WA Bot info -->
       <div class="section-title" style="margin-top:18px;">WA Bot</div>
       <div v-if="bot_gateway" class="bot-card">
@@ -193,6 +213,7 @@ import { ref } from 'vue'
 import { useForm, Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import AppIcon from '@/Components/AppIcon.vue'
+import { useTheme } from '@/Composables/useTheme'
 
 const props = defineProps({
   user: Object,
@@ -202,6 +223,13 @@ const props = defineProps({
 })
 
 const showResetModal = ref(false)
+
+const { currentTheme, setTheme } = useTheme()
+const themeOptions = [
+  { value: 'blue', label: 'Blue', swatch: '#2563EB' },
+  { value: 'green', label: 'Green', swatch: '#16A34A' },
+  { value: 'dark', label: 'Dark', swatch: '#0F172A' },
+]
 
 const profileForm = useForm({
   name:                    props.user.name,
@@ -271,6 +299,14 @@ const planLabel = (plan) => ({ trial: '🎁 Trial', monthly: '✅ Monthly', year
 .form-label { font-size:12px; font-weight:600; color:var(--text-secondary); display:block; margin-bottom:6px; }
 .hint-text { font-size:11px; color:var(--text-faint); margin-top:5px; }
 .error-text { font-size:11px; color:var(--danger); margin-top:5px; font-weight:600; }
+
+.theme-options { display:flex; gap:10px; margin-top:8px; }
+.theme-opt { flex:1; display:flex; flex-direction:column; align-items:center; gap:8px; padding:12px 8px; min-height:44px; border-radius:var(--radius-md); border:1.5px solid var(--border); background:var(--surface); cursor:pointer; }
+.theme-opt.active { border-color:var(--primary); background:var(--primary-bg); }
+.theme-opt:focus-visible { outline:none; box-shadow:var(--shadow-focus); }
+.theme-swatch { width:28px; height:28px; border-radius:50%; box-shadow:var(--shadow-sm); border:1.5px solid var(--border); }
+.theme-opt-label { font-size:12px; font-weight:600; color:var(--text-secondary); }
+.theme-opt.active .theme-opt-label { color:var(--primary); }
 
 .toggle-list { margin:14px 0; }
 .toggle-row { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border); }

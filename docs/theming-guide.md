@@ -15,19 +15,28 @@ yang men-define ulang variable yang sama di bawah selector `[data-theme="<nama>"
   `darkMode: 'class'` Tailwind saat tema `dark` aktif).
 - Dipanggil sekali di `resources/js/app.js` (`initTheme()`) sebelum Inertia app mount — bukan
   per-halaman.
+- Preferensi tema dipersist per-user di kolom `user_profiles.theme`, di-share ke semua halaman
+  Inertia lewat prop `theme` (`HandleInertiaRequests`), dan diupdate lewat `PUT /account/theme`
+  (`account.theme`) — lihat toggle di halaman `resources/js/Pages/App/Account.vue`.
 
 Urutan prioritas penentuan tema aktif:
 1. Query param `?theme=` di URL
 2. `localStorage.monexa_theme`
-3. `import.meta.env.VITE_DEFAULT_THEME`
-4. Fallback `'blue'`
+3. Shared prop Inertia `usePage().props.theme` (preferensi tersimpan di database, kalau user
+   login dan sudah pernah memilih tema — dibaca dari payload awal `data-page` karena composable
+   ini jalan sebelum Inertia mount)
+4. `window.matchMedia('(prefers-color-scheme: dark)').matches` → `'dark'` kalau `true`
+5. `import.meta.env.VITE_DEFAULT_THEME`
+6. Fallback `'blue'`
 
 Nilai yang diterima hanya `blue`, `green`, `dark` — nilai lain otomatis fallback ke `blue`
 (whitelist ketat di `useTheme.js`, tidak pernah menulis input user langsung ke `dataset.theme`).
 
-**Tidak ada toggle tema di UI publik.** Mekanisme ini murni fondasi teknis untuk preview
-internal (`?theme=green`) dan pengembangan tema baru — belum ada persistensi preferensi tema
-per-user di database.
+**Toggle tema ada di halaman Account** (bagian "Tampilan", 3 pilihan `blue`/`green`/`dark`).
+`setTheme(name)` langsung update localStorage + DOM (optimistic, tanpa reload), lalu — kalau user
+sedang login — kirim `router.put(route('account.theme'), { theme: name })` untuk persist ke
+`user_profiles.theme`. Guest (belum login) hanya dapat localStorage, tidak memanggil endpoint
+yang butuh auth.
 
 ## Cara menambah tema baru
 
@@ -36,10 +45,17 @@ per-user di database.
 2. Isi **semua** key CSS variable yang sama — jangan sampai ada yang hilang, karena UI tidak
    punya fallback per-variable saat pindah tema (kontrak wajib):
    `--primary`, `--primary-light`, `--primary-dark`, `--secondary`, `--success`, `--danger`,
-   `--primary-bg`, `--secondary-bg`, `--success-bg`, `--danger-bg`, `--amber`, `--amber-bg`,
-   `--purple`, `--purple-bg`, `--ewallet`, `--ewallet-bg`, `--background`, `--surface`,
-   `--border`, `--text-primary`, `--text-secondary`, `--text-faint`,
+   `--warning`, `--info`,
+   `--primary-bg`, `--secondary-bg`, `--success-bg`, `--danger-bg`, `--warning-bg`, `--info-bg`,
+   `--amber`, `--amber-bg`, `--purple`, `--purple-bg`, `--ewallet`, `--ewallet-bg`,
+   `--background`, `--surface`, `--border`, `--text-primary`, `--text-secondary`, `--text-faint`,
    `--radius-sm/md/lg/xl`, `--shadow-sm/md/lg/card/fab/focus`.
+
+   `--warning`/`--info` adalah closed-set warna yang bisa dipilih user untuk kartu dompet
+   (`user_wallets.color`, lihat `resources/js/Components/Wallet/CardDompet.vue`) — set ini sengaja
+   dipisah dari `--amber`/`--purple`/`--ewallet` (dipakai token lain di UI) supaya nama token warna
+   dompet stabil (`primary`/`success`/`danger`/`warning`/`info`) walau warna aktualnya berubah
+   per tema.
 3. Import file baru di `resources/css/app.css` (dekat import tema lain, sebelum `@tailwind`).
 4. Tambahkan nama tema ke whitelist `VALID_THEMES` di `resources/js/Composables/useTheme.js`.
 5. Preview via `?theme=<nama>` di URL, cek 3 breakpoint (360px/768px/1440px) dan pastikan tidak

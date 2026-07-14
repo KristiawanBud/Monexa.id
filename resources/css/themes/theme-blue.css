@@ -13,11 +13,15 @@
   --secondary:     #10B981;
   --success:       #22C55E;
   --danger:        #EF4444;
+  --warning:       #F59E0B;
+  --info:          #0EA5E9;
 
   --primary-bg:    #EFF4FF;
   --secondary-bg:  #E7FAF3;
   --success-bg:    #E9FBEF;
   --danger-bg:     #FDECEC;
+  --warning-bg:    #FEF6E7;
+  --info-bg:       #E5F6FD;
   --amber:         #F59E0B;
   --amber-bg:      #FEF6E7;
   --purple:        #8B5CF6;

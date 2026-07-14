@@ -7,6 +7,7 @@
         :key="t.id"
         :transaction="t"
         @click="$emit('item-click', t)"
+        @cancel-transfer="$emit('cancel-transfer', t)"
       />
     </div>
   </div>
@@ -19,7 +20,7 @@ defineProps({
   label: { type: String, required: true },
   transactions: { type: Array, required: true },
 })
-defineEmits(['item-click'])
+defineEmits(['item-click', 'cancel-transfer'])
 </script>
 
 <style scoped>
