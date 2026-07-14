@@ -479,3 +479,244 @@ mengulang dari nol seluruh fondasi (migration, `WalletService::transferBetweenWa
 ### Kontrak
 Tidak ada endpoint/tabel/kolom baru di §8 — ini murni operasi git (merge branch), dieksekusi oleh
 Backend AI atau Database AI di awal sesi kerja mereka, sebelum menyentuh kode apapun untuk §1–§7.
+
+---
+
+## 9. REVISI 2026-07-14 (iterasi ke-3) — Konsolidasi §8 SELESAI, verifikasi ulang §1–§6 langsung di kode
+
+CEO mengirim ulang brief yang isinya sama persis dengan task ini (redesign UI Dompet, theming, wallet
+transfer, branch yang sama). PM iterasi ini **tidak berasumsi §8 sudah dikerjakan** — dicek ulang langsung
+lewat `git log`/`git branch` dan pembacaan file kode nyata (bukan cuma commit message) di working tree
+saat ini. Hasilnya: **§8 sudah selesai**, tapi verifikasi baris-per-baris terhadap §1, §2, §4 menemukan
+gap yang **berbeda** dari yang didiagnosis §1/§2/§4 di atas — sebagian sudah fixed di sisi backend, tapi
+ada gap baru di sisi **frontend** yang belum pernah ditulis jadi Todo eksplisit. §3, §5, §6, §7 di atas
+tetap valid apa adanya, tidak perlu dibaca ulang.
+
+### 9.0 Konfirmasi status §8 (konsolidasi branch)
+- `git log --oneline -5` di branch aktif (`feature/lanjutkan-redesign-ui-dompet-theming-wallet-transfer-lanjutkan-branch-yang-sama`)
+  menunjukkan HEAD `b5e90c3` = `merge: gabungkan progress dari branch feature/lanjutkan-redesign-ui-dompet-theming-wallet-transfer`.
+  Ini persis merge yang diminta §8. **Sudah selesai, jangan diulang, jangan merge lagi.**
+- Dikonfirmasi lewat isi kode nyata (bukan cuma pesan commit): `app/Services/WalletService.php` sudah
+  punya `transferBetweenWallets()` dan `reverseTransfer()`; migration `2026_07_14_000001_add_theme_to_user_profiles_table.php`
+  dan `2026_07_14_000002_add_icon_and_color_to_user_wallets_table.php` sudah ada; test suite
+  `tests/Feature/{AccountThemeTest,DompetTransactionHistoryTest,WalletArchiveTest,WalletTransferTest}.php`
+  sudah ada dan berisi test nyata (bukan `.gitkeep`).
+- **Todo turunan**: Backend/Frontend AI **tidak perlu** mengerjakan Todo konsolidasi §8 lagi. Langsung ke
+  §9.1–§9.4 di bawah (menggantikan sebagian Todo §1, §2, §4 — baca catatan "Koreksi" di tiap bagian).
+
+### 9.1 KOREKSI §1 — Backend sudah fix, tapi `CardDompet.vue` tidak pernah merender `icon`/`color`
+
+**Temuan (dicek langsung di kode, bukan diasumsikan)**: `TransactionController@index`
+(`app/Http/Controllers/App/TransactionController.php` baris 80-81) **sudah** mengirim `'icon' => $w->icon,
+'color' => $w->color,` di prop `wallets[]` — Todo §1 versi lama **sudah selesai**, jangan dikerjakan ulang.
+
+Tapi `resources/js/Components/Wallet/CardDompet.vue` (komponen yang benar-benar merender kartu dompet di
+`Dompet.vue`) **tidak pernah membaca** `wallet.icon`/`wallet.color` sama sekali — baris 4:
+`<div class="wallet-logo" :style="`background:${wallet.bank_color}`">` lalu `<img v-if="wallet.logo_url">`
+atau fallback `<span v-else>{{ wallet.bank_initial }}</span>`. Tidak ada cabang untuk `wallet.icon`
+(emoji custom) atau `wallet.color` (token warna custom) sama sekali. Akibat: user pilih icon+warna custom
+saat tambah dompet (kalau field itu ada di form — lihat §9.2, **field itu sendiri belum ada**), data
+tersimpan di DB, terkirim ke frontend, tapi kartu dompet tetap selalu tampil `bank_initial`/`bank_color`.
+Root cause **berbeda** dari diagnosis §1 lama (dulu dikira bug backend, ternyata backend sudah benar,
+gap-nya di komponen kartu dompet frontend).
+
+### Todo Teknis (menggantikan Todo §1 lama — Todo §1 lama sudah selesai, jangan dikerjakan ulang)
+- [ ] `CardDompet.vue`: ubah `.wallet-logo` supaya prioritas render: (1) `wallet.icon` kalau ada — render
+  sebagai emoji besar (`<span class="wallet-logo-emoji">{{ wallet.icon }}</span>`, font-size ~22px, mirip
+  pola `.emoji-current` di `EmojiPicker.vue`), background pakai token warna dari `wallet.color` (map ke CSS
+  var, lihat kontrak di bawah) — **bukan** style inline hex; (2) kalau `wallet.icon` kosong, fallback ke
+  logic lama (`logo_url` → `bank_initial`/`bank_color`, tidak berubah).
+- [ ] Style `.wallet-logo` background: ganti dari `:style="background:${wallet.bank_color}"` (inline hex
+  dari data bank) jadi kondisional — untuk kasus `wallet.color` (custom, salah satu dari 5 token warna
+  semantik `primary|success|danger|warning|info`), pakai `:style="wallet.color ? { background: \`var(--${wallet.color})\` } : { background: wallet.bank_color }"`.
+  Ini menyelaraskan dengan arahan CEO "hindari inline style/hardcode warna" untuk kasus yang punya token
+  (`wallet.color`), sementara `bank_color` (warna brand bank pihak ketiga, bukan token desain) tetap boleh
+  dinamis karena itu bukan bagian dari sistem tema — bukan pelanggaran token, itu data warna brand eksternal.
+
+### Kontrak API — TIDAK ADA perubahan endpoint (murni konsumsi field yang sudah dikirim)
+**Endpoint**: GET `/dompet` (`dompet.index`) — tidak berubah, `wallets[].icon`/`wallets[].color` sudah ada
+di response sejak commit `9baa811` (dibawa masuk lewat merge §8).
+**Database**: tidak ada perubahan.
+**Validasi**: tidak ada perubahan.
+
+---
+
+### 9.2 KOREKSI §1 (lanjutan) — BARU: form tambah/edit dompet tidak punya field icon/color sama sekali
+
+**Temuan**: `StoreWalletRequest`/`UpdateWalletRequest` sudah menerima `icon` (`nullable|max:10`) dan
+`color` (`nullable|in:primary,success,danger,warning,info`) — backend siap sepenuhnya. Tapi modal
+"Tambah/Edit Dompet" di `Dompet.vue` (baris 250-287) **tidak punya field UI apapun** untuk `icon`/`color` —
+`walletForm = useForm({...})` (baris 639) tidak menyertakan key `icon`/`color` sama sekali. User **tidak
+bisa** memilih icon/warna custom dari UI manapun saat ini — gap ini tidak pernah disebut eksplisit di §1
+lama (§1 lama fokus ke "data tersimpan tapi tidak tampil", padahal kenyataannya user bahkan belum bisa
+mengisi data itu dari awal).
+
+### Todo Teknis (BARU, murni frontend)
+- [ ] `walletForm` (`Dompet.vue`): tambah key `icon: ''` dan `color: ''` (atau `null`) ke `useForm({...})`,
+  sertakan di payload `submitWallet()` (POST `wallets.store`/PUT `wallets.update`, endpoint tidak berubah).
+- [ ] Modal Tambah/Edit Dompet: tambah 2 field baru di form (di bawah field "Fungsi", sebelum tombol
+  submit): (1) `<EmojiPicker v-model="walletForm.icon" />` (reuse komponen yang sudah ada, dipakai persis
+  sama seperti di form Tagihan baris 344, tidak perlu komponen baru); (2) selector warna — 5 swatch bulat
+  (`primary`/`success`/`danger`/`warning`/`info`), tiap swatch pakai `background: var(--{token})`,
+  `aria-label` nama warna dalam Bahasa Indonesia (mis. "Biru", "Hijau", "Merah", "Kuning", "Cyan" — sesuaikan
+  ke palet token aktual di `theme-blue.css`), state terpilih pakai `border`/`box-shadow: var(--shadow-focus)`,
+  `role="radiogroup"`/`aria-checked` per swatch (pola aksesibilitas yang sama seperti `themeOptions` di §9.3).
+  Saat edit dompet existing, pre-fill `walletForm.icon`/`walletForm.color` dari `editingWallet.icon`/`.color`.
+- [ ] Saat `editingWallet` di-set (fungsi buka modal edit, cari di `<script setup>` sekitar variabel
+  `editingWallet`), pastikan `walletForm.icon`/`walletForm.color` di-assign dari data wallet yang diklik
+  (`openEditWallet` handler), bukan cuma field yang sudah ada (`display_name`, `type`, dst.).
+
+### Kontrak API — TIDAK ADA endpoint baru (field sudah diterima backend, cuma belum dikirim dari form)
+**Endpoint**: POST `/dompet/wallets` (`wallets.store`), PUT `/dompet/wallets/{wallet}` (`wallets.update`)
+— tidak berubah.
+**Request** (field `icon`/`color` sudah ada di validasi, restated untuk kejelasan Frontend AI):
+```
+{
+  ...existing (bank_id?, display_name, account_number?, initial_balance?, type, is_saham?)...,
+  icon?: string,   // max 10 char, emoji tunggal — sudah divalidasi backend, form belum mengirimnya
+  color?: 'primary' | 'success' | 'danger' | 'warning' | 'info'   // sudah divalidasi backend, form belum mengirimnya
+}
+```
+**Database**: tidak ada kolom baru — `user_wallets.icon`/`.color` sudah ada.
+**Validasi**: tidak berubah (`StoreWalletRequest`/`UpdateWalletRequest` sudah benar).
+
+---
+
+### 9.3 KOREKSI §4 — Bukan "tambah 1 opsi ke `themeOptions`", tapi bangun UI pemilih tema dari nol
+
+**Temuan (koreksi signifikan atas asumsi §4 lama)**: §4 lama menulis Todo "`Account.vue`: tambah 1 opsi ke
+`themeOptions`" — asumsi ini **salah**. Dicek langsung: `Account.vue` **tidak punya `themeOptions` sama
+sekali**, dan tidak ada elemen UI apapun (`grep` untuk `setTheme`/`useTheme`/`account.theme`/"Tema" di
+semua file `resources/js/Pages/App/*.vue` dan `resources/js/Layouts/*.vue` kosong total). Fakta di lapangan:
+- Backend **sudah lengkap**: route `PUT /account/theme` (`account.theme`) →
+  `AccountController::updateTheme()` → `UserProfile::updateOrCreate(['theme' => $request->theme])`.
+  `UpdateThemeRequest` **sudah** whitelist `Rule::in(['blue', 'green', 'dark', 'system'])` (4 nilai, sudah
+  termasuk `system` — bukan cuma 3 seperti asumsi §4 lama).
+  `HandleInertiaRequests::share()` (baris 32) **sudah** mengirim shared prop
+  `'theme' => $request->user()?->profile?->theme` ke setiap halaman Inertia.
+- Frontend **belum ada sama sekali**: tidak ada tombol/radio/dropdown di halaman manapun yang memanggil
+  `useTheme().setTheme()` atau submit ke route `account.theme`. `useTheme.js` (`resources/js/Composables/useTheme.js`)
+  cuma dipanggil sekali (`initTheme()` di `resources/js/app.js` baris 9) dan **resolusinya sama sekali
+  tidak membaca** shared prop Inertia `theme` dari server (baca urutan cuma: `?theme=` URL param →
+  `localStorage.monexa_theme` → `import.meta.env.VITE_DEFAULT_THEME` → default `'blue'` — prop server
+  `theme` yang sudah di-share `HandleInertiaRequests` **tidak pernah dipakai** di client). `VALID_THEMES`
+  masih `['blue', 'green', 'dark']`, belum ada `'system'`.
+
+Konsekuensi praktis: preferensi tema per-user yang tersimpan di DB (`user_profiles.theme`) **tidak pernah
+bisa diisi** (tidak ada UI submit) dan **tidak pernah dibaca balik** oleh client di sesi/device baru (cuma
+`localStorage` device itu sendiri yang dipakai) — kolom `theme` di DB saat ini murni dekoratif, cuma dipakai
+`app.blade.php` untuk render awal `data-theme` di server (§5, itu pun nilainya akan selalu `null`/default
+karena tidak pernah ada yang menulis ke sana).
+
+### Todo Teknis (menggantikan seluruh Todo §4 lama — lebih besar dari yang tertulis di sana)
+- [ ] `useTheme.js`: tambah `'system'` ke `VALID_THEMES` (4 nilai: `blue`, `green`, `dark`, `system`).
+- [ ] `useTheme.js`: fungsi baru `resolveSystemTheme()` → `'dark'` kalau
+  `matchMedia('(prefers-color-scheme: dark)').matches`, else `'blue'`. `applyTheme(name)`: kalau
+  `name === 'system'`, set `dataset.theme` ke hasil `resolveSystemTheme()` (bukan literal `'system'`),
+  tapi `currentTheme.value`/nilai yang disimpan tetap `'system'` supaya UI picker tetap ter-highlight benar.
+- [ ] `useTheme.js`: tambah listener `matchMedia('(prefers-color-scheme: dark)').addEventListener('change', ...)`
+  yang re-apply tema tanpa reload **hanya kalau** preferensi aktif adalah `'system'`; lepas listener kalau
+  user pindah ke tema eksplisit lain.
+- [ ] `useTheme.js` `resolveInitialTheme()`: tambah 1 prioritas baru **di atas** `localStorage` — baca
+  shared prop Inertia `theme` (`usePage().props.theme`) kalau user login dan nilainya valid (salah satu
+  dari `VALID_THEMES`). Urutan prioritas baru: `?theme=` URL param (override manual/debug) → **prop server
+  `theme` (preferensi tersimpan per-user, BARU)** → `localStorage.monexa_theme` (fallback guest/belum
+  login) → `import.meta.env.VITE_DEFAULT_THEME` → default `'blue'`. Ini **wajib** supaya tema tersimpan di
+  DB benar-benar berefek lintas device/browser, bukan cuma `localStorage`.
+- [ ] `useTheme.js`: `setTheme(name)` — setelah `applyTheme` + simpan `localStorage` (behaviour lama tetap
+  ada, untuk guest/fallback cepat), **tambah** pemanggilan Inertia `router.put(route('account.theme'), { theme: name }, { preserveScroll: true, preserveState: true })` kalau user sedang login (cek lewat
+  `usePage().props.auth?.user`), supaya preferensi persist ke server. Kalau gagal (network error), tetap
+  biarkan `localStorage`/state client jalan (server persist adalah best-effort, tidak boleh blocking UX
+  ganti tema).
+- [ ] **BARU** — bangun UI pemilih tema di `Account.vue` (belum ada sama sekali, bukan cuma nambah 1
+  opsi): section baru "Tampilan" dengan `role="radiogroup"` `aria-label="Pilih tema aplikasi"`, 4 opsi
+  (`blue` label "Biru", `green` label "Hijau", `dark` label "Gelap", `system` label "Ikuti Sistem"), tiap
+  opsi tombol dengan swatch preview warna (`system` pakai gradient split biru/gelap sebagai indikator),
+  `role="radio"` + `aria-checked="{{ currentTheme === opt.value }}"` per opsi, `@click="setTheme(opt.value)"`
+  dari composable `useTheme()` (baris `const { currentTheme, setTheme } = useTheme()` di `<script setup>`).
+  Styling pakai token existing (`var(--surface)`, `var(--border)`, `var(--radius-md)`, `var(--shadow-focus)`
+  untuk focus-visible) — konsisten dengan pola komponen lain di file yang sama, tidak bikin class CSS baru
+  yang tidak pakai variable tema.
+- [ ] `app.blade.php` §5 (sudah benar secara kode, tidak perlu diubah) otomatis mulai berfungsi penuh
+  begitu Todo di atas selesai — karena baru saat itu `user_profiles.theme` benar-benar terisi nilai non-null
+  dari alur nyata.
+
+### Kontrak API — extend `PUT /account/theme` (endpoint sama; whitelist backend SUDAH `system`, tidak perlu diubah)
+**Endpoint**: PUT `/account/theme` (`account.theme`) — **tidak ada perubahan backend**, restated untuk
+kejelasan Frontend AI karena ini pertama kalinya endpoint ini benar-benar dipanggil dari UI:
+**Request**: `{ theme: 'blue' | 'green' | 'dark' | 'system' }` — validasi sudah benar di `UpdateThemeRequest`.
+**Response**: redirect `back()` (pola Inertia existing).
+**Database**: tidak ada kolom baru, `user_profiles.theme` sudah cukup.
+**Validasi**: tidak berubah, `Rule::in(['blue','green','dark','system'])` sudah benar di kode saat ini.
+**Shared prop** (dipakai baru oleh Todo di atas, sudah ada di backend, tidak perlu diubah):
+`HandleInertiaRequests::share()` → `'theme' => $request->user()?->profile?->theme` — field ini tersedia di
+`usePage().props.theme` pada semua halaman Inertia untuk user yang login.
+
+---
+
+### 9.4 KOREKSI §2 — Backend sudah fix, tapi TIDAK ADA konsumsi frontend sama sekali (bukan cuma "UI toggle")
+
+**Temuan**: `TransactionController@index` **sudah** mengimplementasikan persis seperti kontrak §2 lama:
+param `show_archived` (baris 88, `$request->boolean('show_archived')`), query dompet `is_active=false`,
+prop `archived_wallets` (baris 125) dengan shape yang sama seperti `wallets[]`. Todo backend §2 **sudah
+selesai**, jangan dikerjakan ulang.
+
+Tapi `Dompet.vue` **tidak menyentuh prop `archived_wallets` sama sekali** (`grep` untuk `archived_wallets`,
+`show_archived`, "Diarsipkan", "Aktifkan", "Arsipkan" di file itu — nol hasil). Tidak ada toggle "Tampilkan
+yang diarsipkan", tidak ada rendering wallet arsip, dan **tidak ada tombol arsip/aktifkan di kartu dompet
+manapun** — `CardDompet.vue` punya slot `actions` (baris 23-25, `<slot name="actions" v-if="$slots.actions">`)
+tapi `Dompet.vue` memanggil `<CardDompet>` (baris 151-157) **tanpa** mengisi slot itu sama sekali — tidak
+ada cara apapun dari UI untuk mengarsipkan dompet, apalagi melihat yang sudah diarsip. Ini gap yang jauh
+lebih besar dari yang ditulis §2 lama (§2 lama cuma bilang "label tombol statis 'Arsipkan'" — kenyataannya
+tombol arsip **tidak ada sama sekali** di UI).
+
+### Todo Teknis (menggantikan Todo frontend §2 lama — lebih besar dari yang tertulis di sana)
+- [ ] `Dompet.vue` tab "Dompet": tambah toggle checkbox/switch "Tampilkan yang diarsipkan" di atas
+  `.wallet-grid` (baris ~150), `v-model` ke `ref` lokal baru `showArchived`, `@change` trigger
+  `router.reload({ data: { show_archived: showArchived ? 1 : undefined }, only: ['archived_wallets'], preserveScroll: true })`.
+- [ ] Render `archived_wallets` (props sudah dikirim backend) di bawah grid dompet aktif, `v-if="showArchived && archived_wallets.length"`,
+  pakai `<CardDompet>` yang sama dengan badge kecil "Diarsipkan" (mis. `<span class="badge-archived">Diarsipkan</span>`
+  di pojok kartu, pakai token `var(--text-faint)`/`var(--border)`, bukan warna baru).
+- [ ] `CardDompet.vue`: isi slot `actions` dari `Dompet.vue` untuk **setiap** kartu (aktif maupun arsip) —
+  tombol aksi cepat: "Edit" (`@click="openEditWallet(w)"`, sudah ada handler-nya via `@click` di kartu,
+  pindahkan/duplikasi ke tombol eksplisit di slot actions supaya tidak cuma bisa diakses lewat klik seluruh
+  kartu), dan tombol arsip/aktifkan dengan **label dinamis**: `{{ w.is_active ? '📦 Arsipkan' : '✅ Aktifkan' }}`,
+  `@click="toggleArchive(w)"` (fungsi baru, panggil `router.patch(route('wallets.archive', w.id), {}, { preserveScroll: true })`,
+  endpoint sudah ada dan sudah 2 arah/toggle, tidak perlu perubahan backend).
+- [ ] Pastikan wallet arsip **tidak muncul** di dropdown pemilihan dompet manapun (form transaksi, form
+  transfer, form bayar tagihan) — ini sudah otomatis benar karena dropdown itu semua pakai props `wallets`
+  (bukan `archived_wallets`), backend sudah memisahkan keduanya (§2 lama), tidak perlu perubahan tambahan,
+  cukup pastikan tidak ada regresi saat menambah rendering `archived_wallets` (jangan gabung ke array
+  `wallets` di client manapun).
+
+### Kontrak API — TIDAK ADA perubahan endpoint (murni konsumsi prop yang sudah dikirim + endpoint archive yang sudah ada)
+**Endpoint**: GET `/dompet?show_archived=1` (`dompet.index`, tidak berubah), PATCH
+`/dompet/wallets/{wallet}/archive` (`wallets.archive`, tidak berubah, sudah toggle 2 arah).
+**Response**: `archived_wallets[]` — shape sudah didefinisikan lengkap di §2 lama, tidak berubah.
+**Database**: tidak ada perubahan.
+**Validasi**: tidak ada perubahan.
+
+---
+
+### 9.5 Ringkasan prioritas kerja untuk iterasi ini (urutan disarankan)
+1. §9.3 (UI pemilih tema) — paling berdampak ke acceptance CEO "theming berfungsi... switching tema
+   langsung tercermin", dan saat ini **benar-benar tidak ada** cara user mengganti tema dari UI sama sekali.
+2. §9.4 (konsumsi `archived_wallets` + tombol arsip di kartu) — tanpa ini, fitur arsip yang sudah dibangun
+   backend sejak iterasi sebelumnya sama sekali tidak bisa diakses user.
+3. §9.1 + §9.2 (render icon/color di kartu + field picker di form tambah/edit dompet) — pasangan gap yang
+   saling melengkapi, kerjakan bersamaan supaya bisa diverifikasi end-to-end dalam 1 smoke test manual
+   (buat dompet dengan icon+warna custom → langsung tampil di kartu).
+4. §3 lama (validasi inline + konfirmasi 2-tahap form transfer) — dikonfirmasi ulang **masih** sepenuhnya
+   belum dikerjakan (tidak ada `showTransferConfirm`/`transferErrors`/`isTransferFormValid` di `Dompet.vue`),
+   Todo & kontrak di §3 lama tetap berlaku apa adanya, kerjakan setelah 1–3 di atas.
+5. §7.1 (jalankan ulang `phpstan`/`pint`/`php artisan test`) setelah semua di atas selesai, extend §7.1
+   dengan smoke-test manual tambahan: ganti tema dari `Account.vue` lalu **reload halaman** → tema tetap
+   sama (baru bisa diverifikasi setelah §9.3 selesai, sebelumnya mustahil di-test karena UI-nya belum ada).
+
+### Kriteria Selesai tambahan (melengkapi bagian "Kriteria Selesai (acceptance)" di atas)
+- [ ] User bisa mengganti tema dari halaman Akun (4 opsi: Biru/Hijau/Gelap/Ikuti Sistem), tersimpan ke DB,
+  dan termuat kembali dengan benar di reload/device lain (bukan cuma `localStorage`) (§9.3).
+- [ ] Dompet dengan icon+warna custom tampil sesuai di kartu, bisa diisi dari form tambah/edit dompet
+  (§9.1, §9.2).
+- [ ] Dompet arsip bisa dilihat & diaktifkan lagi dari UI nyata (toggle + tombol di kartu, bukan cuma
+  tersedia di response API) (§9.4).
