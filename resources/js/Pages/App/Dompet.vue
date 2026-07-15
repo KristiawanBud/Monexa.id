@@ -759,7 +759,7 @@ const openEditWallet = (w) => {
   editingWallet.value = w
   walletForm.display_name = w.display_name
   walletForm.type = w.type
-  walletForm.is_active = true
+  walletForm.is_active = w.is_active !== false
   walletForm.icon = w.icon ?? ''
   walletForm.color = w.color ?? ''
   showAddWallet.value = true
