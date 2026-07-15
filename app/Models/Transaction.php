@@ -26,6 +26,9 @@ class Transaction extends Model
     }
 
     // ── Relations ──
+    /**
+     * @return BelongsTo<UserWallet, $this>
+     */
     public function wallet(): BelongsTo
     {
         return $this->belongsTo(UserWallet::class);

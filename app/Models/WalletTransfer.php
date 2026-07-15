@@ -28,11 +28,17 @@ class WalletTransfer extends Model
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * @return BelongsTo<UserWallet, $this>
+     */
     public function fromWallet(): BelongsTo
     {
         return $this->belongsTo(UserWallet::class, 'from_wallet_id');
     }
 
+    /**
+     * @return BelongsTo<UserWallet, $this>
+     */
     public function toWallet(): BelongsTo
     {
         return $this->belongsTo(UserWallet::class, 'to_wallet_id');

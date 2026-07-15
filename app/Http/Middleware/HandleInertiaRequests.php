@@ -20,21 +20,24 @@ class HandleInertiaRequests extends Middleware
 
     public function share(Request $request): array
     {
+        /** @var \App\Models\User|null $user */
+        $user = $request->user();
+
         return array_merge(parent::share($request), [
             'auth' => [
-                'user' => $request->user()?->only('id', 'name', 'email', 'role'),
-                'subscription' => $request->user()?->subscription?->only('plan', 'status', 'trial_ends_at'),
+                'user' => $user?->only('id', 'name', 'email', 'role'),
+                'subscription' => $user?->subscription?->only('plan', 'status', 'trial_ends_at'),
             ],
             'branding' => [
-                'app_name' => $request->user()?->profile?->app_name ?? config('app.name'),
-                'app_logo' => $request->user()?->profile?->app_logo_url,
+                'app_name' => $user?->profile?->app_name ?? config('app.name'),
+                'app_logo' => $user?->profile?->app_logo_url,
             ],
-            'theme' => $request->user()?->profile?->theme,
+            'theme' => $user?->profile?->theme,
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),
             ],
-            'unread_notifications' => $request->user()
+            'unread_notifications' => $user
                 ?->appNotifications()->where('is_read', false)->count() ?? 0,
             'icons' => Cache::remember('app_icons_map', 300, function () {
                 return collect(IconController::SLOTS)->keys()->mapWithKeys(function ($slug) {
