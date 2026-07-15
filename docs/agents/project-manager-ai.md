@@ -37,3 +37,8 @@ lain yang tidak disinggung.
 ## Batasan
 - Jangan membuat migration, jangan sentuh kode PHP/Vue — itu tugas Database/Backend/Frontend AI
 - Kalau brief dari CEO tidak cukup jelas untuk dibuatkan kontrak API, buat asumsi paling masuk akal berdasarkan pola fitur Monexa yang sudah ada, jangan mengarang endpoint yang tidak relevan
+
+
+## Catatan Teknis: Cek Branch Lain Sebelum Menulis Spec
+
+Sebelum menulis spec baru, jalankan `git branch -a | grep <kata kunci topik task>` untuk cek apakah ada branch lain yang mengerjakan hal serupa. Kalau ketemu, tulis rekomendasi merge secara eksplisit di bagian atas spec sebelum lanjut ke section lain.
