@@ -720,3 +720,327 @@ tombol arsip **tidak ada sama sekali** di UI).
   (§9.1, §9.2).
 - [ ] Dompet arsip bisa dilihat & diaktifkan lagi dari UI nyata (toggle + tombol di kartu, bukan cuma
   tersedia di response API) (§9.4).
+
+---
+
+## 10. REVISI 2026-07-15 (iterasi ke-4) — Brief CEO lebih detail: fee, idempotensi, audit/telemetri,
+    theming komponen dasar, i18n, 3 PR terpisah
+
+CEO mengirim ulang brief untuk task yang sama, kali ini jauh lebih rinci (fee/biaya transfer, idempotensi
+request key, audit log minimal, event telemetri, dokumentasi token tema, testing policy/idempotensi, i18n,
+deliverable 3 PR terpisah). PM iterasi ini **tidak berasumsi §1–§9 sudah beres** — diverifikasi ulang
+langsung ke kode & git log sebelum menulis bagian baru ini.
+
+### 10.0 Verifikasi status §1–§9 (dicek langsung, bukan asumsi)
+
+`git log --oneline -5` di branch aktif menunjukkan HEAD `74d6bdc` ("fix: add generic type annotations for
+Model relations to satisfy PHPStan") di atas `b110180`/`ad19b2a` ("frontend") dan `e792ba8` ("database
+migration"), di atas `b5e90c3` (merge konsolidasi §8). Dicek langsung isi kode (bukan cuma pesan commit):
+
+- **Selesai, jangan dikerjakan ulang**: `CardDompet.vue` sudah merender `wallet.icon`/`wallet.color` dengan
+  prioritas benar (§9.1); form tambah/edit dompet di `Dompet.vue` sudah punya field icon (EmojiPicker) +
+  color swatch (§9.2); `Account.vue` sudah punya UI pemilih tema 4 opsi (`blue`/`green`/`dark`/`system`)
+  dengan `role="radiogroup"`, dan `useTheme.js` sudah membaca shared prop `theme` dari server + listener
+  OS untuk `system` (§9.3); `Dompet.vue` sudah mengonsumsi `archived_wallets` dengan toggle "Tampilkan yang
+  diarsipkan" + tombol Arsipkan/Aktifkan dinamis di slot `actions` `CardDompet.vue` (§9.4); form transfer
+  di `Dompet.vue` sudah punya `showTransferConfirm`, `transferErrors`, `isTransferFormValid`, langkah
+  ringkasan konfirmasi 2-tahap, dan atribut ARIA (`aria-invalid`/`aria-describedby`/`role="alert"`) (§3).
+  `WalletTransfer::fromWallet()`/`toWallet()` sudah bertipe generik `BelongsTo<UserWallet, $this>` — item
+  PHPStan yang disebut CEO di catatan brief ini sudah tuntas di commit `74d6bdc`.
+- **Genuinely belum ada** (dicek via `grep`/`find`, bukan diasumsikan) — ini yang §10 di bawah tutup:
+  kolom `fee`/`request_id` di `wallet_transfers` tidak ada (`database/migrations/2025_01_01_000011_create_wallet_transfers_table.php`
+  cuma punya `amount`, `note`, `transferred_at`); `TransferWalletRequest` tidak punya rule `fee`/`request_id`;
+  `WalletService::transferBetweenWallets()` (app/Services/WalletService.php baris 96-130) tidak punya
+  parameter `fee`; tidak ada satupun direktori `app/Events`/`app/Listeners`, tidak ada `EventServiceProvider`
+  (Laravel 13 di app ini pakai auto-discovery event, jadi listener baru otomatis terdaftar cukup dengan
+  method `handle()` bertipe-hint event, tanpa perlu registrasi manual); tidak ada `lang/`/`resources/lang`
+  sama sekali (i18n backend maupun `vue-i18n` frontend, nol infra); tidak ada `Button.vue`/`Input.vue`/
+  `Select.vue`/`Checkbox.vue`/`Radio.vue`/`Modal.vue`/`Drawer.vue`/`Tabs.vue`/`Alert.vue`/`Toast.vue` di
+  `resources/js/Components` — semua halaman pakai elemen HTML native + class CSS ad-hoc per file, tidak ada
+  library komponen dasar bersama sama sekali.
+
+### 10.1 BARU — Fee/biaya transfer + idempotensi (`request_id`) di `wallet_transfer`
+
+**Keputusan default (sesuai Open Question CEO, dipakai karena tidak ada respons owner lain)**: fee dipotong
+dari dompet **sumber**, di luar `amount` yang diterima dompet tujuan (dompet tujuan selalu menerima persis
+`amount`, dompet sumber berkurang `amount + fee`). Fee bersifat opsional (default 0) — merepresentasikan
+biaya admin transfer bank riil yang ingin dicatat user, **bukan** komisi platform (Monexa tidak fungsi
+sebagai pihak ketiga penerima fee), sehingga fee dicatat sebagai debit tunggal tanpa pasangan kredit di
+dompet manapun (uang "keluar sistem", sama pola dengan pengeluaran/expense biasa).
+
+**Database** (migration baru — dibutuhkan nyata, bukan sekadar nice-to-have, karena fee & idempotency key
+tidak bisa direpresentasikan di kolom yang sudah ada):
+```
+Migration: 2026_07_15_000001_add_fee_and_request_id_to_wallet_transfers_table.php
+Tabel: wallet_transfers
+Kolom baru:
+  fee         DECIMAL(15,2) NOT NULL DEFAULT 0
+  request_id  VARCHAR(64)   NULL
+Index baru: UNIQUE (user_id, request_id)  -- composite, bukan unique global, karena request_id
+            digenerate client per sesi form (UUID v4), hanya perlu unik per user untuk mencegah
+            duplikasi submit dari user yang sama; NULL diperbolehkan (MySQL: multiple NULL boleh
+            di unique index) untuk baris lama pre-migration.
+```
+Tidak perlu kolom `rate` (lihat §10.4 — transfer selalu 1 mata uang per user, kurs tidak pernah relevan).
+
+**`app/Services/WalletService.php` — `transferBetweenWallets()` (ubah signature, baris ~96)**:
+```
+transferBetweenWallets(UserWallet $fromWallet, UserWallet $toWallet, float $amount, string $transferId, float $fee = 0): void
+```
+- Cek saldo: `$fromWallet->balance >= $amount + $fee` (sebelumnya cuma `>= $amount`), pesan
+  `InsufficientBalanceException` sebutkan breakdown ("...butuh Rp {amount} + biaya Rp {fee} = Rp {total}").
+- Insert 2 baris `wallet_balance_logs` yang sudah ada (`reference_type='wallet_transfer'`) tidak berubah.
+- **Baru**: kalau `$fee > 0`, insert 1 baris tambahan: `wallet_id=$fromWallet->id, type='debit', amount=$fee,
+  balance_before=(saldo setelah baris debit amount di atas), balance_after=balance_before-$fee,
+  reference_type='wallet_transfer_fee', reference_id=$transferId, created_at=now()`.
+- `$fromWallet->decrement('balance', $amount + $fee)` (gabungkan jadi 1 statement, bukan 2 decrement
+  terpisah, supaya hanya 1 query update per wallet — jaga pola atomic existing).
+- `reverseTransfer()` (baris ~152): kalau transfer yang dibatalkan punya `fee > 0`, kembalikan juga fee ke
+  `fromWallet` (baris balance-log tambahan `reference_type='wallet_transfer_reversal'`, amount=fee) — supaya
+  simetris dengan `transferBetweenWallets`. **Tidak** perlu menyentuh `toWallet` untuk fee (fee tidak pernah
+  masuk ke `toWallet`).
+
+**`app/Http/Controllers/App/WalletController.php::transfer()` (baris 118-160) — tambah idempotensi**:
+Sebelum blok `DB::transaction(...)` (baris 135): cek dulu
+`WalletTransfer::where('user_id', $user->id)->where('request_id', $request->request_id)->first()`. Kalau
+ketemu (retry/double-submit dari request_id yang sama): **jangan** eksekusi ulang apapun (tidak insert
+balance log baru, tidak ubah saldo) — langsung `return back()->with('success', ...)` dengan pesan sukses
+yang sama seperti transfer aslinya (pakai data `$existing->amount`/`fromWallet`/`toWallet` dari record lama).
+Kalau tidak ketemu, lanjut proses seperti biasa, sertakan `'fee' => $request->fee ?? 0` dan
+`'request_id' => $request->request_id` saat `WalletTransfer::create()` (baris ~139), dan pass `$request->fee
+?? 0` sebagai argumen ke-5 `transferBetweenWallets()` (baris ~148).
+
+**Kontrak API — extend `POST /dompet/transfer` (`wallets.transfer`, endpoint sama, field baru)**
+
+**Request**:
+```
+{
+  from_wallet_id: string,     // tidak berubah
+  to_wallet_id: string,       // tidak berubah
+  amount: number,             // tidak berubah
+  fee?: number,                // BARU, default 0 kalau tidak dikirim
+  note: string | null,        // tidak berubah
+  transferred_at: string,     // tidak berubah
+  request_id: string          // BARU, wajib — UUID v4 digenerate client (crypto.randomUUID()) sekali saat
+                               // modal transfer dibuka, dikirim apa adanya tiap retry submit yang sama
+                               // (regenerate hanya kalau modal ditutup lalu dibuka lagi / transfer baru)
+}
+```
+
+**Response**: tidak berubah (redirect `back()` + flash `success`/`error`, pola Inertia existing). Untuk
+request_id yang sudah pernah sukses: response identik dengan response sukses aslinya (idempotent replay),
+**bukan** error — user tidak boleh melihat error kalau cuma retry jaringan pada transfer yang sebenarnya
+sudah berhasil.
+
+**Database**: migration §10.1 di atas (`fee`, `request_id` di `wallet_transfers`), plus baris
+`wallet_balance_logs` baru `reference_type='wallet_transfer_fee'` (hanya kalau `fee > 0`).
+
+**Validasi** (`TransferWalletRequest`, tambah rule):
+```
+fee: ['nullable', 'numeric', 'min:0'],
+request_id: ['required', 'string', 'max:64'],
+```
+Validasi saldo cukup (`amount + fee <= fromWallet.balance`) tetap di level service (`InsufficientBalanceException`),
+bukan di `FormRequest` (butuh akses model wallet, pola existing sudah begini untuk cek saldo `amount` saja).
+
+**Frontend (`Dompet.vue`) — field & ringkasan baru, endpoint sama**:
+- Tambah input `fee` opsional (default kosong = 0) di form transfer, di bawah field `amount`.
+- Generate `request_id` (crypto.randomUUID()) saat modal transfer dibuka (`openTransferModal()`/fungsi
+  sejenis), simpan di `transferForm.request_id`, **jangan** regenerate saat validasi gagal/kembali dari
+  langkah konfirmasi (harus tetap sama across retries dalam 1 sesi modal, itu esensi idempotensi) — hanya
+  regenerate kalau modal ditutup penuh lalu dibuka lagi untuk transfer baru.
+- Langkah ringkasan konfirmasi (§3, sudah ada) tambah baris: "Biaya admin: Rp {fee}" (kalau `fee > 0`) dan
+  "Total dipotong dari {from_wallet}: Rp {amount+fee}".
+- Validasi client `isTransferFormValid`: tambah `fee >= 0` (kalau diisi) ke aturan yang sudah ada.
+
+### 10.2 BARU — Telemetri event `wallet_transfer_initiated` / `_succeeded` / `_failed`
+
+Tidak ada pola event/listener sama sekali di app ini sebelumnya — ini pengenalan pola baru, dijaga seminimal
+mungkin (dispatch sinkron, listener nge-log lewat `Log` facade, tidak ada queue/broadcast) supaya tidak
+menambah kompleksitas infra di luar yang diminta CEO ("event dengan properti dasar").
+
+**Events baru** (`app/Events/`, plain `Dispatchable` classes, tidak perlu `ShouldQueue`):
+```
+WalletTransferInitiated(string $userId, string $fromWalletId, string $toWalletId, float $amount, float $fee, string $requestId)
+WalletTransferSucceeded(string $userId, string $fromWalletId, string $toWalletId, float $amount, float $fee, string $requestId, string $walletTransferId, int $durationMs)
+WalletTransferFailed(string $userId, string $fromWalletId, string $toWalletId, float $amount, float $fee, string $requestId, string $reason, int $durationMs)
+```
+
+**Listener baru** (`app/Listeners/LogWalletTransferTelemetry.php`) — 3 method `handleInitiated()`/
+`handleSucceeded()`/`handleFailed()` (atau 1 class dengan `handle()` overload per tipe event via union — pola
+sederhana: 1 listener class, 3 method publik, tiap method type-hint event yang berbeda, Laravel auto-discovery
+mendaftarkan tiap method sebagai listener terpisah lewat naming `handle{EventClass}` **atau** cukup 3 listener
+class terpisah kalau auto-discovery App ini butuh 1-method-per-class — Backend AI cek konvensi
+auto-discovery Laravel 13 yang dipakai, ambil yang lebih simpel). Isi tiap method: `Log::info('wallet_transfer_initiated', [...properti event...])` (nama event jadi log message literal, properti jadi context array) — dipakai channel log default (`config('logging.default')`), tidak perlu channel baru.
+
+**Dispatch points — `WalletController::transfer()`**:
+- `$start = microtime(true);` di awal method, sebelum idempotency check.
+- Setelah validasi lolos & idempotency check **tidak** menemukan duplikat (baru akan eksekusi transfer
+  baru): `event(new WalletTransferInitiated(...))`.
+- Setelah `DB::transaction` sukses: `event(new WalletTransferSucceeded(..., durationMs: (int) ((microtime(true) - $start) * 1000)))`.
+- Kalau `InsufficientBalanceException` tertangkap (bungkus `DB::transaction` dengan try/catch, existing
+  belum ada try/catch di sini — tambahkan): `event(new WalletTransferFailed(..., reason: $e->getMessage(), durationMs: ...))`
+  sebelum `return back()->with('error', ...)` seperti pola `destroyTransfer()` (baris ~168-172) yang sudah
+  ada.
+
+**Kontrak**: tidak ada endpoint/tabel baru untuk telemetri ini sendiri — event murni untuk observability
+(log terstruktur), tidak mengubah response HTTP maupun skema DB.
+
+### 10.3 Audit/log minimal — sudah tercakup, tidak perlu tabel audit terpisah
+
+Field yang diminta CEO (`user_id, wallet_source_id, wallet_target_id, amount, fee, rate, timestamp,
+request_id`) sudah tercakup penuh oleh kombinasi: baris `wallet_transfers` (§10.1, kolom `user_id`,
+`from_wallet_id`, `to_wallet_id`, `amount`, `fee`, `request_id`, `transferred_at`/`created_at`) + event log
+terstruktur (§10.2). **Tidak perlu tabel `wallet_transfer_audit_logs` baru** — itu duplikasi data yang sudah
+ada di 2 tempat itu, menambah kompleksitas tanpa manfaat baru. `rate` sengaja tidak ada kolomnya (lihat
+§10.4 — transfer selalu 1 mata uang, kurs tidak pernah relevan secara struktural, kolom yang selalu `null`
+adalah dead weight).
+
+### 10.4 Multi-mata uang — keputusan §6 lama tetap berlaku, tidak ada perubahan
+
+Restated dari §6 (masih valid, diverifikasi ulang §10.0 tidak ada kolom `currency` baru di `user_wallets`
+sejak spec itu ditulis): mata uang adalah atribut per-user (`user_profiles.currency`), bukan per-dompet,
+jadi `wallet_transfer` **tidak pernah** lintas mata uang secara struktural. Jawaban Open Question CEO
+("apakah transfer lintas mata uang diperbolehkan?"): **tidak applicable** — bukan soal "diblokir dengan
+pesan", tapi skenario itu tidak bisa terjadi sama sekali di model data saat ini (kedua wallet selalu milik
+user yang sama, otomatis 1 currency). Tidak ada Todo teknis baru di sini.
+
+### 10.5 I18n — keputusan cakupan (baca dulu sebelum implementasi, jangan retrofit seluruh app)
+
+**Temuan**: nol infra i18n di seluruh codebase (tidak ada `lang/`, tidak ada `vue-i18n` di `package.json`,
+semua string Indonesia hardcoded literal di Blade/Vue/PHP). Brief CEO minta "seluruh string UI masuk ke
+berkas lokalisasi" — kalau ditafsirkan literal (retrofit semua string di seluruh app, termasuk yang sudah
+ada jauh di luar scope Dompet/Theming/Transfer), itu refactor besar berisiko tinggi (ratusan string,
+puluhan file) yang **bukan** bagian dari task redesign ini dan berisiko regresi luas. Mengikuti pola
+keputusan yang sudah dipakai PM sebelumnya untuk keputusan cakupan serupa (§7.2, soal test runner JS), PM
+membuat keputusan cakupan berikut:
+
+- [ ] **Cakupan iterasi ini**: hanya string **baru** yang ditambahkan oleh §10.1 (pesan error saldo tidak
+  cukup dengan breakdown fee, pesan validasi `fee`/`request_id`) dipindah ke berkas lokalisasi Laravel baru
+  `lang/id/wallet.php` (array asosiatif, mis. `'insufficient_balance_with_fee' => 'Saldo :wallet tidak
+  cukup...'`), dipanggil via helper `__('wallet.insufficient_balance_with_fee', ['wallet' => ..., ...])` di
+  `WalletService`/`WalletController`. Ini pola native Laravel (bukan infra baru), tidak butuh dependency
+  tambahan.
+- [ ] String Vue yang sudah ada (label tombol, header, dst.) **tidak** dipindah ke i18n di iterasi ini —
+  tetap literal Indonesia seperti sekarang, konsisten dengan seluruh halaman lain yang belum disentuh.
+  Menambah `vue-i18n` sebagai dependency baru untuk retrofit penuh frontend adalah **keputusan infra
+  terpisah** yang butuh approval eksplisit CEO (sama seperti keputusan §7.2 soal Vitest) — **jangan**
+  ditambahkan diam-diam di PR ini.
+- [ ] Kalau CEO insist retrofit penuh, itu jadi task/PR terpisah di luar 3 PR deliverable §10.8 di bawah.
+
+### 10.6 BARU — Theming: komponen dasar (Button, Input, Select, Checkbox/Radio, Modal/Drawer, Tabs, Alert, Toast)
+
+**Temuan**: dicek `resources/js/Components/` — **tidak ada satupun** komponen generik ini. Yang ada cuma
+komponen spesifik-Wallet (`CardDompet.vue`, `FilterDrawer.vue`, dst.) dan tiap halaman menulis `<button>`/
+`<input>`/`<select>` native + class CSS ad-hoc masing-masing (mis. form transfer di `Dompet.vue` pakai
+`<select>` native langsung, bukan komponen `Select` bersama). Flash message (`flash.success`/`flash.error`
+dari `HandleInertiaRequests`) dirender ad-hoc di `AppLayout.vue`, bukan lewat komponen `Toast`/`Alert`
+reusable. Ini gap paling besar dari brief CEO bagian "Theming" (poin 2) — **belum ada satupun** dari 8
+komponen dasar yang diminta, ini kerja greenfield penuh, bukan penyelarasan komponen existing.
+
+### Todo Teknis (BARU, murni frontend — komponen baru + 1 audit token CSS)
+- [ ] Audit `resources/css/themes/theme-{blue,green,dark}.css` — pastikan ada token state untuk: hover
+  (mis. `--surface-hover`, `--primary-hover`), active/pressed, focus (`--shadow-focus` sudah ada, dipakai
+  ulang), disabled (`--disabled-bg`, `--disabled-text`, atau opacity token `--disabled-opacity: .5`), border
+  default vs. error (`--border`, `--danger` sudah ada). Kalau token yang dibutuhkan komponen baru di bawah
+  belum ada di salah satu dari 3 file tema, tambahkan **di ketiganya** sekaligus (konsisten lintas tema),
+  ikuti pola penamaan yang sudah ada. **Jangan** hardcode warna di komponen manapun di bawah ini — semua
+  warna wajib lewat `var(--token)`.
+- [ ] `Button.vue` (baru): props `variant: 'primary'|'secondary'|'danger'|'ghost'` (default `'primary'`),
+  `size: 'sm'|'md'|'lg'` (default `'md'`), `disabled: boolean`, `loading: boolean` (tampil spinner inline,
+  tetap `disabled` secara fungsional saat loading), slot default = label, `type` prop diteruskan ke
+  `<button type>` (default `'button'`). Emit `click` (native, tidak fire kalau disabled/loading). State
+  hover/active/focus-visible/disabled pakai token dari poin di atas.
+- [ ] `Input.vue` (baru): props `modelValue`, `label?`, `type` (default `'text'`), `error?: string | null`,
+  `disabled: boolean`, `placeholder?`, `id?` (auto-generate kalau tidak dikirim, untuk `<label for>`).
+  Pola aksesibilitas **reuse** dari form transfer §3 (`aria-invalid="!!error"`, `aria-describedby` menunjuk
+  `id`-error kalau `error` truthy, `<span class="field-error" :id="...">{{ error }}</span>`).
+- [ ] `Select.vue` (baru): props `modelValue`, `options: Array<{value, label}>`, `label?`, `error?`,
+  `disabled`. Pola ARIA sama seperti `Input.vue`.
+- [ ] `Checkbox.vue` / `Radio.vue` (baru, 2 komponen kecil terpisah): props `modelValue`, `label`,
+  `disabled`. `Radio` dipakai berpasangan (bukan grouping sendiri) — pola `role="radiogroup"` di parent
+  (persis seperti `themeOptions` di `Account.vue` §9.3) tetap ditulis oleh consumer, `Radio.vue` cuma
+  render 1 opsi.
+- [ ] `Modal.vue` (baru): props `show: boolean`, `title?`. Slot default = body, slot `footer`. Emit
+  `close`. Wajib: focus trap sederhana (focus ke modal saat dibuka, kembalikan fokus ke trigger saat
+  ditutup), `Escape` key → emit `close`, `role="dialog"` `aria-modal="true"` `aria-labelledby` menunjuk
+  judul. Modal transfer di `Dompet.vue` (§3) **boleh** dimigrasikan untuk pakai komponen ini di PR yang
+  sama atau PR terpisah — tidak wajib di iterasi ini kalau berisiko regresi, tapi didorong sebagai referensi
+  pola untuk modal-modal baru ke depan.
+- [ ] `Drawer.vue` (baru, generalisasi dari `FilterDrawer.vue` yang sudah ada) — props/slot mirip `Modal.vue`
+  tapi slide-in dari sisi (kanan/bawah tergantung breakpoint, ikuti pola visual `FilterDrawer.vue` existing).
+- [ ] `Tabs.vue` (baru): props `modelValue` (key tab aktif), `tabs: Array<{key, label}>`. Emit
+  `update:modelValue`. `role="tablist"`/`role="tab"`/`aria-selected` per tab, navigasi panah kiri/kanan
+  keyboard antar tab (persyaratan aksesibilitas brief CEO). Tab Dompet/Transaksi/Tagihan di `Dompet.vue`
+  **boleh** dimigrasikan ke komponen ini (rekomendasi, tidak wajib kalau berisiko regresi luas mengingat
+  kompleksitas state yang sudah ada di file itu).
+- [ ] `Alert.vue` (baru): props `variant: 'success'|'danger'|'warning'|'info'`, `dismissible: boolean`
+  (default `false`). Slot default = pesan. `role="alert"` kalau `variant` `danger`/`warning` (butuh
+  announce), `role="status"` untuk `success`/`info` (tidak interupsi screen reader untuk info non-kritis).
+- [ ] `Toast.vue` + composable `useToast()` (baru) — `useToast().push({ variant, message, duration? })`
+  menambah entry ke queue reaktif (module-level `ref([])`, singleton), `ToastContainer.vue` (1 instance,
+  mount sekali di `AppLayout.vue`) merender queue sebagai stack toast auto-dismiss. **Migrasikan** flash
+  message existing (`flash.success`/`flash.error` dari `HandleInertiaRequests`) di `AppLayout.vue` supaya
+  lewat `useToast()` juga (ganti render ad-hoc yang sudah ada) — ini satu-satunya migrasi wajib dari 8
+  komponen di atas (existing behaviour flash message harus tetap identik secara fungsional, cuma pindah
+  mekanisme rendering).
+- [ ] `docs/theming-guide.md` (sudah ada) — tambah 1 bagian baru: daftar 8 komponen dasar di atas, token
+  state yang dipakai tiap komponen, dan contoh override per-brand (kalau ada kebutuhan produk lain pakai
+  desain sistem yang sama dengan token berbeda — cukup dokumentasikan pola `[data-theme='x']` yang sudah
+  ada, jangan bikin mekanisme override baru).
+
+### Kontrak
+Tidak ada endpoint/tabel/kolom baru untuk §10.6 — murni komponen Vue baru + kemungkinan tambahan token CSS
+custom-property (bukan skema DB).
+
+### 10.7 Testing tambahan (melengkapi §7.1, bukan menggantikan)
+
+- [ ] Feature test **fee**: transfer dengan `fee > 0` → dompet sumber berkurang `amount+fee`, dompet
+  tujuan bertambah `amount` persis (tidak kena fee); saldo sumber cukup untuk `amount` tapi tidak cukup
+  untuk `amount+fee` → ditolak dengan pesan error yang menyebut breakdown; reversal transfer ber-fee
+  mengembalikan `amount+fee` penuh ke sumber.
+- [ ] Feature test **idempotensi**: 2x `POST /dompet/transfer` dengan `request_id` sama & payload sama →
+  cuma 1 baris `wallet_transfers`, saldo cuma berubah 1x (bukan 2x), response ke-2 tetap sukses (bukan
+  error) dengan pesan yang sama. `request_id` beda dengan payload sama → 2 baris terpisah (bukan dianggap
+  duplikat, sesuai desain: idempotency key eksplisit, bukan dedup by content).
+- [ ] Feature test **otorisasi** (menutup permintaan CEO "Policy/Authorization" — app ini tidak punya
+  Policy class formal, pola existing pakai `abort_if` ad-hoc §10.0, jadi test ini memverifikasi pola itu
+  tetap benar, **bukan** memperkenalkan Laravel Policy baru yang di luar pola existing): user tidak bisa
+  transfer pakai `from_wallet_id`/`to_wallet_id` milik user lain (403), tidak bisa reversal transfer milik
+  user lain (403) — kemungkinan sudah ada sebagian di `WalletTransferTest.php`, extend kalau belum lengkap
+  untuk kombinasi `from` milik orang lain vs. `to` milik orang lain (2 skenario terpisah).
+- [ ] Unit test `WalletService`: `transferBetweenWallets()` dengan fee menghasilkan 3 baris
+  `wallet_balance_logs` (2 pasangan debit/credit `amount` + 1 debit `fee` tanpa pasangan), total debit =
+  total credit + fee (persamaan neraca eksplisit di assertion).
+- [ ] Test event: `Event::fake()` assert `WalletTransferInitiated`/`Succeeded` dipatch pas 1x per transfer
+  sukses, `WalletTransferFailed` dipatch saat saldo tidak cukup (bukan `Succeeded`).
+
+### 10.8 Deliverables — 3 PR terpisah (rekomendasi pemecahan, sesuai brief CEO)
+
+Kerja §1–§9 sudah menyatu di riwayat commit branch ini (tidak dipecah retroaktif — itu akan menulis ulang
+history yang mungkin sudah didorong ke remote, di luar scope PM). Rekomendasi pemecahan untuk kerja **baru**
+mulai §10 ini, disusun supaya tiap PR bisa direview & di-merge independen:
+
+1. **PR 1 — Theming & komponen dasar**: §10.6 penuh (8 komponen + audit token state) + migrasi `Toast`
+   untuk flash message. Tidak bergantung pada PR 2/3, bisa dikerjakan & di-merge duluan.
+2. **PR 2 — Redesign UI Dompet**: sudah mayoritas selesai di §1–§9 (landed di branch ini) — PR ini isinya
+   dokumentasi/cleanup kalau ada, atau dilewati kalau §1–§9 sudah masuk PR existing untuk branch ini
+   (cek PR existing sebelum buka PR baru, sesuai §7.4 lama: "jangan buat PR baru").
+3. **PR 3 — Alur wallet_transfer & logic**: §10.1–§10.3 + §10.7 (fee, idempotensi, event telemetri, test).
+   Bergantung pada migration §10.1 — pastikan migration itu jalan duluan sebelum PR ini di-deploy.
+
+Urutan merge disarankan: PR 1 dulu (komponen dasar dipakai PR 3 untuk form fee/error state), lalu PR 3.
+PR 2 hanya perlu dibuka kalau memang belum ada PR aktif untuk branch ini di GitHub.
+
+### Kriteria Selesai tambahan (melengkapi bagian sebelumnya)
+- [ ] Transfer dengan fee tercatat akurat (sumber berkurang `amount+fee`, tujuan bertambah `amount` persis),
+  dan reversal mengembalikan keduanya (§10.1).
+- [ ] Retry/double-submit transfer dengan `request_id` sama tidak pernah menggandakan pemindahan saldo
+  (§10.1, §10.7).
+- [ ] Event `wallet_transfer_initiated`/`_succeeded`/`_failed` ter-log dengan properti dasar yang diminta
+  CEO (§10.2).
+- [ ] 8 komponen dasar (Button/Input/Select/Checkbox/Radio/Modal/Drawer/Tabs/Alert/Toast) tersedia, pakai
+  token tema (bukan hardcode warna), state hover/active/focus/disabled konsisten di 3 tema (§10.6).
+- [ ] Cakupan i18n didokumentasikan eksplisit di PR (string baru masuk `lang/id/wallet.php`, retrofit
+  penuh frontend dicatat sebagai keputusan terpisah butuh approval, bukan silently skipped) (§10.5).
+- [ ] `phpstan`/`pint`/`php artisan test` tetap hijau termasuk test baru §10.7.
