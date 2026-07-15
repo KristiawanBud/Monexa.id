@@ -375,6 +375,13 @@
                 <span v-if="transferErrors.amount" id="transfer-amount-error" class="field-error">{{ transferErrors.amount }}</span>
               </div>
               <div class="form-group">
+                <label class="form-label" for="transfer-fee">Biaya Admin (opsional)</label>
+                <input id="transfer-fee" v-model="transferFeeDisplay" @input="onTransferFeeInput" type="text" inputmode="numeric"
+                  class="form-input-cc amount-input" placeholder="0"
+                  :aria-invalid="!!transferErrors.fee" aria-describedby="transfer-fee-error" />
+                <span v-if="transferErrors.fee" id="transfer-fee-error" class="field-error">{{ transferErrors.fee }}</span>
+              </div>
+              <div class="form-group">
                 <label class="form-label">Catatan (opsional)</label>
                 <input v-model="transferForm.note" type="text" class="form-input-cc" placeholder="Contoh: Pindah ke tabungan" />
               </div>
@@ -397,6 +404,8 @@
               <div class="ts-row"><span>Dompet Sumber</span><strong>{{ transferFromWallet?.display_name }}</strong></div>
               <div class="ts-row"><span>Dompet Tujuan</span><strong>{{ transferToWallet?.display_name }}</strong></div>
               <div class="ts-row"><span>Jumlah</span><strong>{{ formatRupiah(Number(transferForm.amount || 0)) }}</strong></div>
+              <div v-if="Number(transferForm.fee) > 0" class="ts-row"><span>Biaya admin</span><strong>{{ formatRupiah(Number(transferForm.fee)) }}</strong></div>
+              <div v-if="Number(transferForm.fee) > 0" class="ts-row"><span>Total dipotong dari {{ transferFromWallet?.display_name }}</span><strong>{{ formatRupiah(transferTotalDeducted) }}</strong></div>
               <div class="ts-row"><span>Tanggal</span><strong>{{ formatTransferDate(transferForm.transferred_at) }}</strong></div>
             </div>
             <div class="confirm-actions">
@@ -790,10 +799,12 @@ const showTransfer = ref(false)
 const showTransferConfirm = ref(false)
 const transferErrors = reactive({})
 const transferForm = useForm({
-  from_wallet_id: '', to_wallet_id: '', amount: '', note: '',
+  from_wallet_id: '', to_wallet_id: '', amount: '', fee: '', note: '',
   transferred_at: new Date().toISOString().split('T')[0],
+  request_id: '',
 })
 const transferAmountDisplay = ref('')
+const transferFeeDisplay = ref('')
 
 const hasTransferErrors = computed(() => Object.keys(transferErrors).length > 0)
 
@@ -802,6 +813,7 @@ const isTransferFormValid = computed(() =>
   !!transferForm.to_wallet_id &&
   transferForm.from_wallet_id !== transferForm.to_wallet_id &&
   Number(transferForm.amount) > 0 &&
+  (transferForm.fee === '' || Number(transferForm.fee) >= 0) &&
   !!transferForm.transferred_at
 )
 
@@ -827,6 +839,7 @@ function validateTransferForm() {
     errors.to_wallet_id = 'Dompet tujuan harus berbeda dari dompet asal.'
   }
   if (!(Number(transferForm.amount) > 0)) errors.amount = 'Jumlah transfer harus lebih dari 0.'
+  if (transferForm.fee !== '' && !(Number(transferForm.fee) >= 0)) errors.fee = 'Biaya admin tidak boleh negatif.'
   if (!transferForm.transferred_at) errors.transferred_at = 'Tanggal wajib diisi.'
   clearTransferErrors()
   Object.assign(transferErrors, errors)
@@ -839,10 +852,21 @@ const onTransferAmountInput = (e) => {
   transferAmountDisplay.value = raw ? Number(raw).toLocaleString('id-ID') : ''
 }
 
+const onTransferFeeInput = (e) => {
+  const raw = e.target.value.replace(/\D/g, '')
+  transferForm.fee = raw
+  transferFeeDisplay.value = raw ? Number(raw).toLocaleString('id-ID') : ''
+}
+
+const transferTotalDeducted = computed(() => Number(transferForm.amount || 0) + Number(transferForm.fee || 0))
+
 const openTransfer = () => {
   showTransfer.value = true
   showTransferConfirm.value = false
   clearTransferErrors()
+  // request_id dibangkitkan sekali per sesi modal — dikirim apa adanya di tiap retry submit
+  // supaya backend bisa dedup transfer ganda (idempotensi), bukan di-generate ulang tiap klik submit.
+  transferForm.request_id = crypto.randomUUID()
   trackEvent('dompet_quick_action', { action: 'transfer' })
 }
 
@@ -867,6 +891,7 @@ function confirmTransfer() {
       closeTransfer()
       transferForm.reset()
       transferAmountDisplay.value = ''
+      transferFeeDisplay.value = ''
       clearTransferErrors()
     }
   })

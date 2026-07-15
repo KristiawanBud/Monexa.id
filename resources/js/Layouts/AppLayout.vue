@@ -1,12 +1,7 @@
 <template>
   <div class="app-shell">
 
-    <Transition name="flash">
-      <div v-if="flash.success" class="flash-toast">✅ {{ flash.success }}</div>
-    </Transition>
-    <Transition name="flash">
-      <div v-if="flash.error" class="flash-toast error">❌ {{ flash.error }}</div>
-    </Transition>
+    <ToastContainer />
 
     <!-- Desktop Sidebar Nav (≥1025px) -->
     <aside class="desktop-sidebar" aria-label="Navigasi utama">
@@ -129,15 +124,24 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { Link, usePage, router } from '@inertiajs/vue3'
 import CuanAI from '@/Components/CuanAI.vue'
 import AppIcon from '@/Components/AppIcon.vue'
+import ToastContainer from '@/Components/UI/ToastContainer.vue'
+import { useToast } from '@/Composables/useToast'
 
 const page = usePage()
 const showQuickAdd = ref(false)
+const { push: pushToast } = useToast()
 
 const flash = computed(() => page.props.flash ?? {})
+
+watch(flash, (f) => {
+  if (f.success) pushToast({ variant: 'success', message: f.success })
+  if (f.error) pushToast({ variant: 'danger', message: f.error })
+}, { immediate: true })
+
 const unreadCount = computed(() => page.props.unread_notifications ?? 0)
 const isActive = (component) => page.component === component
 
@@ -321,14 +325,6 @@ const goTo = (action) => {
 /* ── FAB Center ── */
 .bn-center { flex: 1; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
 .fab-plus { color: white; font-size: 26px; font-weight: 300; line-height: 1; margin-top: -1px; }
-
-/* ── Flash Toast ── */
-.flash-toast {
-  position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
-  z-index: 9999; pointer-events: none;
-}
-.flash-enter-active, .flash-leave-active { transition: all .3s ease; }
-.flash-enter-from, .flash-leave-to { opacity: 0; transform: translateX(-50%) translateY(-12px); }
 
 /* ── Quick Add Sheet ── */
 .qa-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 400; backdrop-filter: blur(4px); }

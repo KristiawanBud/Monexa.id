@@ -50,4 +50,12 @@
   --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.04), 0 8px 20px rgba(22, 163, 74, 0.08);
   --shadow-fab: 0 8px 20px rgba(22, 163, 74, 0.35);
   --shadow-focus: 0 0 0 4px rgba(22, 163, 74, 0.14);
+
+  /* ── State: hover/active/disabled (dipakai Components/UI/*) ── */
+  --primary-hover: var(--primary-dark);
+  --danger-hover:  #DC2626;
+  --surface-hover: #EFFAF3;
+  --disabled-bg:   #DCF3E3;
+  --disabled-text: var(--text-faint);
+  --disabled-opacity: .5;
 }

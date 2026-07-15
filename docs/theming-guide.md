@@ -129,3 +129,51 @@ memecah kontrak "key identik di 3 tema" dan menyulitkan tema berikutnya.
 | Tag/Label Transaksi | `FEATURE_TX_TAGS` | `false` | Fase 2, opsional — belum diimplementasikan di redesign UI Dompet ini (lihat kontrak B.6 di spec). Backend AI perlu men-share `config('features.transaction_tags')` via `HandleInertiaRequests` sebelum frontend bisa `v-if` render UI tag. |
 
 Belum ada feature flag lain yang aktif di halaman Dompet saat ini.
+
+## Komponen dasar (`resources/js/Components/UI/`)
+
+8 komponen generik yang bisa dipakai di halaman/fitur manapun, semua warna lewat CSS variable
+(tidak ada hex hardcode) sehingga otomatis konsisten di ketiga tema (`blue`/`green`/`dark`):
+
+| Komponen | Props utama | Token state yang dipakai |
+|---|---|---|
+| `Button.vue` | `variant` (`primary`\|`secondary`\|`danger`\|`ghost`), `size`, `disabled`, `loading` | `--primary`/`--primary-hover`, `--danger`/`--danger-hover`, `--surface-hover`, `--disabled-opacity`, `--shadow-focus` |
+| `Input.vue` | `modelValue`, `label`, `type`, `error`, `disabled` | `--border`, `--primary`/`--primary-light`, `--danger`, `--disabled-bg`/`--disabled-text`, `--shadow-focus` |
+| `Select.vue` | `modelValue`, `options`, `label`, `error`, `disabled` | sama seperti `Input.vue` |
+| `Checkbox.vue` / `Radio.vue` | `modelValue`/`checked`, `label`, `disabled` | `--primary`, `--border`, `--shadow-focus`, `--disabled-opacity` |
+| `Modal.vue` | `show`, `title` (+ slot `footer`) | `--surface`, `--shadow-lg`, `--radius-lg` |
+| `Drawer.vue` | `show`, `title`, `side` (+ slot `footer`) | sama seperti `Modal.vue`, generalisasi dari `Wallet/FilterDrawer.vue` |
+| `Tabs.vue` | `modelValue`, `tabs: [{key,label}]` | `--background`, `--surface`, `--primary`, `--shadow-focus` |
+| `Alert.vue` | `variant` (`success`\|`danger`\|`warning`\|`info`), `dismissible` | `--success-bg`/`--danger-bg`/`--amber-bg`/`--primary-bg` |
+| `Toast.vue` + `useToast()` + `ToastContainer.vue` | `useToast().push({ variant, message, duration? })` | `--success`/`--danger`/`--warning`/`--info` |
+
+Token state baru yang ditambahkan di `app.css` (`:root`) dan ketiga `themes/theme-*.css` untuk
+mendukung komponen di atas (sebelumnya belum ada token hover/disabled eksplisit):
+
+```
+--primary-hover   /* hover tombol primary — alias var(--primary-dark) */
+--danger-hover    /* hover tombol/aksi danger */
+--surface-hover   /* hover baris/tab/tombol secondary di atas var(--surface) */
+--disabled-bg     /* background input/tombol disabled */
+--disabled-text   /* teks input/tombol disabled */
+--disabled-opacity /* opacity fallback untuk elemen disabled tanpa bg khusus (.5) */
+```
+
+`AppLayout.vue` sudah dimigrasikan untuk merender flash message (`flash.success`/`flash.error`
+dari `HandleInertiaRequests`) lewat `useToast()` + `<ToastContainer />` (dipasang sekali di root
+layout) — perilaku dari sisi user identik (pill toast di atas layar), cuma mekanisme render yang
+pindah dari `<Transition>` ad-hoc ke queue reaktif yang bisa dipakai komponen manapun.
+
+### Migrasi opsional (tidak wajib, didorong sebagai referensi ke depan)
+
+Modal transfer & tab Dompet/Transaksi/Tagihan di `Dompet.vue` **belum** dimigrasikan ke
+`Modal.vue`/`Tabs.vue` di iterasi ini (risiko regresi pada state kompleks yang sudah ada
+dianggap tidak sepadan dengan manfaatnya untuk task ini) — komponen baru ini dipakai dulu untuk
+fitur/halaman baru ke depan, migrasi halaman existing adalah keputusan terpisah per halaman.
+
+### Override per-brand
+
+Kalau ke depan ada kebutuhan produk lain pakai desain sistem yang sama dengan token warna
+berbeda, ikuti pola `[data-theme='nama-brand']` yang sudah ada di `resources/css/themes/` (lihat
+"Cara menambah tema baru" di atas) — komponen `UI/*` di atas otomatis ikut berubah karena semua
+warnanya lewat `var(--token)`, tidak perlu mekanisme override baru.
