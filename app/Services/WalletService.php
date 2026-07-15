@@ -96,18 +96,24 @@ class WalletService
         UserWallet $fromWallet,
         UserWallet $toWallet,
         float $amount,
-        string $transferId
+        string $transferId,
+        float $fee = 0
     ): void {
         $fromBefore = (float) $fromWallet->balance;
         $toBefore = (float) $toWallet->balance;
+        $total = $amount + $fee;
 
-        if ($fromBefore < $amount) {
-            throw new InsufficientBalanceException(
-                "Saldo {$fromWallet->display_name} tidak cukup untuk transfer ini."
-            );
+        if ($fromBefore < $total) {
+            throw new InsufficientBalanceException(__('wallet.insufficient_balance_with_fee', [
+                'wallet' => $fromWallet->display_name,
+                'balance' => number_format($fromBefore, 0, ',', '.'),
+                'amount' => number_format($amount, 0, ',', '.'),
+                'fee' => number_format($fee, 0, ',', '.'),
+                'total' => number_format($total, 0, ',', '.'),
+            ]));
         }
 
-        DB::table('wallet_balance_logs')->insert([
+        $logs = [
             [
                 'wallet_id' => $fromWallet->id,
                 'type' => 'debit',
@@ -128,9 +134,26 @@ class WalletService
                 'reference_id' => $transferId,
                 'created_at' => now(),
             ],
-        ]);
+        ];
 
-        $fromWallet->decrement('balance', $amount);
+        if ($fee > 0) {
+            $balanceAfterAmount = $fromBefore - $amount;
+
+            $logs[] = [
+                'wallet_id' => $fromWallet->id,
+                'type' => 'debit',
+                'amount' => $fee,
+                'balance_before' => $balanceAfterAmount,
+                'balance_after' => $balanceAfterAmount - $fee,
+                'reference_type' => 'wallet_transfer_fee',
+                'reference_id' => $transferId,
+                'created_at' => now(),
+            ];
+        }
+
+        DB::table('wallet_balance_logs')->insert($logs);
+
+        $fromWallet->decrement('balance', $total);
         $toWallet->increment('balance', $amount);
     }
 
@@ -143,17 +166,18 @@ class WalletService
         $fromWallet = $transfer->fromWallet;
         $toWallet = $transfer->toWallet;
         $amount = (float) $transfer->amount;
+        $fee = (float) $transfer->fee;
 
         $fromBefore = (float) $fromWallet->balance;
         $toBefore = (float) $toWallet->balance;
 
         if ($toBefore < $amount) {
-            throw new InsufficientBalanceException(
-                "Saldo {$toWallet->display_name} tidak cukup untuk membatalkan transfer ini."
-            );
+            throw new InsufficientBalanceException(__('wallet.insufficient_balance_for_reversal', [
+                'wallet' => $toWallet->display_name,
+            ]));
         }
 
-        DB::table('wallet_balance_logs')->insert([
+        $logs = [
             [
                 'wallet_id' => $fromWallet->id,
                 'type' => 'credit',
@@ -174,9 +198,26 @@ class WalletService
                 'reference_id' => $transfer->id,
                 'created_at' => now(),
             ],
-        ]);
+        ];
 
-        $fromWallet->increment('balance', $amount);
+        if ($fee > 0) {
+            $balanceAfterAmountRefund = $fromBefore + $amount;
+
+            $logs[] = [
+                'wallet_id' => $fromWallet->id,
+                'type' => 'credit',
+                'amount' => $fee,
+                'balance_before' => $balanceAfterAmountRefund,
+                'balance_after' => $balanceAfterAmountRefund + $fee,
+                'reference_type' => 'wallet_transfer_reversal',
+                'reference_id' => $transfer->id,
+                'created_at' => now(),
+            ];
+        }
+
+        DB::table('wallet_balance_logs')->insert($logs);
+
+        $fromWallet->increment('balance', $amount + $fee);
         $toWallet->decrement('balance', $amount);
 
         $transfer->delete();

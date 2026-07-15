@@ -12,13 +12,14 @@ class WalletTransfer extends Model
 
     protected $fillable = [
         'user_id', 'from_wallet_id', 'to_wallet_id',
-        'amount', 'note', 'transferred_at',
+        'amount', 'fee', 'note', 'transferred_at', 'request_id',
     ];
 
     protected function casts(): array
     {
         return [
             'amount' => 'decimal:2',
+            'fee' => 'decimal:2',
             'transferred_at' => 'datetime',
         ];
     }

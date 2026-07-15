@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\App;
 
+use App\Events\WalletTransferFailed;
+use App\Events\WalletTransferInitiated;
+use App\Events\WalletTransferSucceeded;
 use App\Exceptions\InsufficientBalanceException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\App\StoreWalletRequest;
@@ -117,6 +120,7 @@ class WalletController extends Controller
     // ─────────────────────────────────────────────
     public function transfer(TransferWalletRequest $request): RedirectResponse
     {
+        $start = microtime(true);
         $user = $request->user();
 
         $fromWallet = UserWallet::findOrFail($request->from_wallet_id);
@@ -125,33 +129,79 @@ class WalletController extends Controller
         abort_if($fromWallet->user_id !== $user->id, 403);
         abort_if($toWallet->user_id !== $user->id, 403);
 
-        if ((float) $fromWallet->balance < (float) $request->amount) {
+        $fee = (float) ($request->fee ?? 0);
+
+        $existing = WalletTransfer::where('user_id', $user->id)
+            ->where('request_id', $request->request_id)
+            ->first();
+
+        if ($existing) {
             return back()->with(
-                'error',
-                "Saldo {$fromWallet->display_name} tidak cukup. Saldo saat ini: Rp ".number_format($fromWallet->balance, 0, ',', '.')
+                'success',
+                'Berhasil transfer Rp '.number_format($existing->amount, 0, ',', '.')." dari {$existing->fromWallet->display_name} ke {$existing->toWallet->display_name}!"
             );
         }
 
-        DB::transaction(function () use ($request, $user, $fromWallet, $toWallet) {
-            $transferId = (string) Str::ulid();
+        event(new WalletTransferInitiated(
+            $user->id,
+            $fromWallet->id,
+            $toWallet->id,
+            (float) $request->amount,
+            $fee,
+            $request->request_id
+        ));
 
-            WalletTransfer::create([
-                'id' => $transferId,
-                'user_id' => $user->id,
-                'from_wallet_id' => $fromWallet->id,
-                'to_wallet_id' => $toWallet->id,
-                'amount' => $request->amount,
-                'note' => $request->note,
-                'transferred_at' => $request->transferred_at,
-            ]);
+        try {
+            $walletTransfer = DB::transaction(function () use ($request, $user, $fromWallet, $toWallet, $fee) {
+                $transferId = (string) Str::ulid();
 
-            $this->walletService->transferBetweenWallets(
-                $fromWallet,
-                $toWallet,
+                $transfer = WalletTransfer::create([
+                    'id' => $transferId,
+                    'user_id' => $user->id,
+                    'from_wallet_id' => $fromWallet->id,
+                    'to_wallet_id' => $toWallet->id,
+                    'amount' => $request->amount,
+                    'fee' => $fee,
+                    'note' => $request->note,
+                    'transferred_at' => $request->transferred_at,
+                    'request_id' => $request->request_id,
+                ]);
+
+                $this->walletService->transferBetweenWallets(
+                    $fromWallet,
+                    $toWallet,
+                    (float) $request->amount,
+                    $transferId,
+                    $fee
+                );
+
+                return $transfer;
+            });
+        } catch (InsufficientBalanceException $e) {
+            event(new WalletTransferFailed(
+                $user->id,
+                $fromWallet->id,
+                $toWallet->id,
                 (float) $request->amount,
-                $transferId
-            );
-        });
+                $fee,
+                $request->request_id,
+                $e->getMessage(),
+                (int) ((microtime(true) - $start) * 1000)
+            ));
+
+            return back()->with('error', $e->getMessage());
+        }
+
+        event(new WalletTransferSucceeded(
+            $user->id,
+            $fromWallet->id,
+            $toWallet->id,
+            (float) $request->amount,
+            $fee,
+            $request->request_id,
+            $walletTransfer->id,
+            (int) ((microtime(true) - $start) * 1000)
+        ));
 
         return back()->with(
             'success',
