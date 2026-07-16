@@ -2,29 +2,43 @@
   <button type="button" class="tx-item" @click="$emit('click', transaction)">
     <div
       class="tx-icon"
-      :style="`background:${transaction.type === 'income' ? 'var(--success-bg)' : 'var(--danger-bg)'}`"
+      aria-hidden="true"
+      :style="`background:${iconBg}`"
     >
-      {{ transaction.category_emoji || (transaction.type === 'income' ? '💵' : '🛍️') }}
+      {{ icon }}
     </div>
     <div class="tx-info">
-      <div class="tx-name">{{ transaction.note || transaction.category || 'Transaksi' }}</div>
+      <div class="tx-name">{{ transaction.note || transaction.category || (isTransfer ? 'Transfer' : 'Transaksi') }}</div>
       <div class="tx-cat">
         {{ [transaction.category, transaction.wallet, transaction.transacted_at_time].filter(Boolean).join(' · ') }}
       </div>
     </div>
-    <div :class="['tx-amt', transaction.type === 'income' ? 'up' : 'down']">
-      {{ transaction.type === 'income' ? '+' : '−' }}{{ formatShort(transaction.amount) }}
+    <div :class="['tx-amt', isTransfer ? 'neutral' : (transaction.type === 'income' ? 'up' : 'down')]">
+      {{ isTransfer ? '' : (transaction.type === 'income' ? '+' : '−') }}{{ formatShort(transaction.amount) }}
     </div>
   </button>
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { formatShort } from '@/lib/format'
 
-defineProps({
+const props = defineProps({
   transaction: { type: Object, required: true },
 })
 defineEmits(['click'])
+
+const isTransfer = computed(() => props.transaction.type === 'transfer')
+
+const icon = computed(() => {
+  if (isTransfer.value) return '🔄'
+  return props.transaction.category_emoji || (props.transaction.type === 'income' ? '💵' : '🛍️')
+})
+
+const iconBg = computed(() => {
+  if (isTransfer.value) return 'var(--background)'
+  return props.transaction.type === 'income' ? 'var(--success-bg)' : 'var(--danger-bg)'
+})
 </script>
 
 <style scoped>
@@ -55,4 +69,5 @@ defineEmits(['click'])
 .tx-amt { font-size: 13px; font-weight: 700; flex-shrink: 0; }
 .tx-amt.up { color: var(--success); }
 .tx-amt.down { color: var(--danger); }
+.tx-amt.neutral { color: var(--text-secondary); }
 </style>

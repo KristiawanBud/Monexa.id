@@ -13,16 +13,22 @@
         :total-income="total_income"
         :total-expense="total_expense"
         :range-label="range_label"
+        :active-balance-group="filters.balance_group"
+        :loading="isLoading"
         @update:balance-hidden="balanceHidden = $event"
         @add="openAddForTab"
+        @select-group="onCardTap"
       />
 
       <!-- Tabs -->
       <div class="tab-row" role="tablist" aria-label="Bagian Dompet">
-        <button role="tab" :aria-selected="tab === 'transaksi'" :class="['chip', { active: tab === 'transaksi' }]" @click="tab = 'transaksi'">Transaksi</button>
-        <button role="tab" :aria-selected="tab === 'dompet'" :class="['chip', { active: tab === 'dompet' }]" @click="tab = 'dompet'">Dompet</button>
-        <button role="tab" :aria-selected="tab === 'tagihan'" :class="['chip', { active: tab === 'tagihan' }]" @click="tab = 'tagihan'">Tagihan</button>
+        <div class="tab-indicator" :style="`transform: translateX(${tabIndex * 100}%)`" aria-hidden="true"></div>
+        <button role="tab" :aria-selected="tab === 'transaksi'" :class="['tab-pill', { active: tab === 'transaksi' }]" @click="selectTab('transaksi')">Transaksi</button>
+        <button role="tab" :aria-selected="tab === 'dompet'" :class="['tab-pill', { active: tab === 'dompet' }]" @click="selectTab('dompet')">Dompet</button>
+        <button role="tab" :aria-selected="tab === 'tagihan'" :class="['tab-pill', { active: tab === 'tagihan' }]" @click="selectTab('tagihan')">Tagihan</button>
       </div>
+
+      <ErrorState v-if="hasError" class="error-banner" @retry="retryLoad" />
 
       <div v-if="pullDistance > 0 || refreshing" class="pull-indicator" :style="`height:${refreshing ? 48 : pullDistance}px`">
         {{ refreshing ? '🔄 Memuat ulang...' : '↓ Tarik untuk refresh' }}
@@ -86,13 +92,16 @@
                 aria-label="Cari transaksi"
               />
             </div>
-            <button class="filter-btn d-mobile-only" aria-label="Buka filter transaksi" @click="filterDrawerOpen = true">▤ Filter</button>
+            <button class="filter-btn d-mobile-only" aria-label="Buka filter transaksi" @click="filterDrawerOpen = true">
+              ▤ Filter
+              <span v-if="activeFilterCount > 0" class="filter-badge">● {{ activeFilterCount }}</span>
+            </button>
             <ExportButton :filters="exportFilters" />
           </div>
 
           <CategoryChipFilter
             :categories="categories"
-            :model-value="filters.category_id || null"
+            :model-value="filters.category_id"
             @select="onQuickCategorySelect"
           />
 
@@ -104,13 +113,12 @@
             <template v-if="isLoading">
               <SkeletonLoader v-for="n in 5" :key="n" variant="list-item" />
             </template>
-            <ErrorState v-else-if="hasError" @retry="retryLoad" />
             <EmptyState
               v-else-if="!transactions.data || transactions.data.length === 0"
-              icon="📝"
-              title="Belum ada transaksi"
-              action-label="+ Catat Transaksi"
-              @action="showAddTx = true"
+              :icon="activeFilterCount > 0 ? '🔍' : '📝'"
+              :title="activeFilterCount > 0 ? 'Tidak ada transaksi yang cocok dengan kombinasi filter ini' : 'Belum ada transaksi'"
+              :action-label="activeFilterCount > 0 ? 'Reset Filter' : '+ Catat Transaksi'"
+              @action="activeFilterCount > 0 ? resetAllFilters() : (showAddTx = true)"
             />
             <template v-else>
               <TransactionDateGroup
@@ -462,30 +470,66 @@ const filterDrawerOpen = ref(false)
 const isLoading = ref(false)
 const hasError = ref(false)
 const FILTER_STORAGE_KEY = 'monexa_dompet_filters'
+const ALL_TYPES = ['income', 'expense', 'transfer']
+
+// Normalisasi type/category_id: terima array (format baru), string tunggal
+// (bookmark lama), atau kosong — konsisten dengan kompatibilitas yang
+// diimplementasikan di DompetFilterRequest::prepareForValidation().
+function normalizeTypeArray(raw) {
+  if (Array.isArray(raw)) return raw.length ? raw : [...ALL_TYPES]
+  if (raw) return [raw]
+  return [...ALL_TYPES]
+}
+function normalizeCategoryArray(raw) {
+  if (Array.isArray(raw)) return raw
+  if (raw) return [raw]
+  return []
+}
 
 function readQueryFilters() {
   const params = new URLSearchParams(window.location.search)
+  const typeArr = params.getAll('type[]')
+  const catArr = params.getAll('category_id[]')
   return {
     start_date: params.get('start_date') || '',
     end_date: params.get('end_date') || '',
     wallet_id: params.get('wallet_id') || '',
-    type: params.get('type') || '',
-    category_id: params.get('category_id') || '',
+    type: normalizeTypeArray(typeArr.length ? typeArr : params.get('type')),
+    category_id: normalizeCategoryArray(catArr.length ? catArr : params.get('category_id')),
+    balance_group: params.get('balance_group') || null,
+    min_amount: params.get('min_amount') || '',
+    max_amount: params.get('max_amount') || '',
   }
 }
 
 const filters = reactive(readQueryFilters())
 
+const activeFilterCount = computed(() => {
+  let count = 0
+  if (filters.start_date || filters.end_date) count++
+  if (filters.wallet_id) count++
+  if (filters.type && filters.type.length > 0 && filters.type.length < ALL_TYPES.length) count++
+  if (filters.category_id && filters.category_id.length > 0) count++
+  if (filters.balance_group) count++
+  if (filters.min_amount) count++
+  if (filters.max_amount) count++
+  return count
+})
+
 function buildQuery(extra = {}) {
   const hasCustomRange = (extra.start_date ?? filters.start_date) && (extra.end_date ?? filters.end_date)
+  const isAllTypes = !filters.type || filters.type.length === 0 || filters.type.length >= ALL_TYPES.length
   const base = {
     tab: 'transaksi',
     range: hasCustomRange ? undefined : props.range,
     start_date: filters.start_date || undefined,
     end_date: filters.end_date || undefined,
     wallet_id: filters.wallet_id || undefined,
-    type: filters.type || undefined,
-    category_id: filters.category_id || undefined,
+    type: isAllTypes ? undefined : filters.type,
+    category_id: (filters.category_id && filters.category_id.length) ? filters.category_id : undefined,
+    balance_group: filters.balance_group || undefined,
+    min_amount: filters.min_amount || undefined,
+    max_amount: filters.max_amount || undefined,
     search: searchQuery.value || undefined,
   }
   return { ...base, ...extra }
@@ -497,8 +541,11 @@ function persistFilters(query) {
     start_date: query.start_date || '',
     end_date: query.end_date || '',
     wallet_id: query.wallet_id || '',
-    type: query.type || '',
-    category_id: query.category_id || '',
+    type: query.type || [],
+    category_id: query.category_id || [],
+    balance_group: query.balance_group || '',
+    min_amount: query.min_amount || '',
+    max_amount: query.max_amount || '',
   }))
 }
 
@@ -517,14 +564,43 @@ function changeRange(newRange) {
 }
 
 function applyFilters(payload) {
+  // Tap-kartu-saldo (balance_group) mutually exclusive dengan filter dompet
+  // tunggal dari bottom sheet — pilih salah satu wallet_id membatalkan balance_group.
+  if (payload.wallet_id) payload.balance_group = null
   Object.assign(filters, payload)
   trackEvent('dompet_filter_apply', payload)
+  trackEvent('wallet_filter_applied', { count: activeFilterCount.value })
   reload()
 }
 
 function onQuickCategorySelect(id) {
-  filters.category_id = id || ''
+  if (id === null) {
+    filters.category_id = []
+  } else {
+    const idx = filters.category_id.indexOf(id)
+    if (idx > -1) filters.category_id.splice(idx, 1)
+    else filters.category_id.push(id)
+  }
   trackEvent('dompet_category_chip', { category_id: filters.category_id })
+  reload()
+}
+
+function resetAllFilters() {
+  filters.start_date = ''
+  filters.end_date = ''
+  filters.wallet_id = ''
+  filters.type = [...ALL_TYPES]
+  filters.category_id = []
+  filters.balance_group = null
+  filters.min_amount = ''
+  filters.max_amount = ''
+  reload()
+}
+
+function onCardTap(group) {
+  filters.balance_group = filters.balance_group === group ? null : group
+  filters.wallet_id = ''
+  trackEvent('wallet_card_clicked', { type: group })
   reload()
 }
 
@@ -538,8 +614,9 @@ watch(searchQuery, (val) => {
   clearTimeout(searchDebounceTimer)
   searchDebounceTimer = setTimeout(() => {
     trackEvent('dompet_search', { query: val })
+    trackEvent('wallet_search_used', { query: val })
     reload({ search: val || undefined })
-  }, 400)
+  }, 300)
 })
 
 const exportFilters = computed(() => {
@@ -550,6 +627,13 @@ const exportFilters = computed(() => {
 })
 
 const tab = ref(props.active_tab === 'in' || props.active_tab === 'out' ? 'transaksi' : (props.active_tab === 'bill' ? 'tagihan' : props.active_tab))
+const TAB_ORDER = ['transaksi', 'dompet', 'tagihan']
+const tabIndex = computed(() => Math.max(0, TAB_ORDER.indexOf(tab.value)))
+
+function selectTab(name) {
+  tab.value = name
+  trackEvent('wallet_tab_viewed', { tab: name })
+}
 
 const showAddTx     = ref(false)
 const showAddWallet = ref(false)
@@ -584,6 +668,11 @@ const filteredCategories = computed(() =>
 )
 
 const openEditTx = (t) => {
+  trackEvent('transaction_item_opened', { transaction_id: t.id, type: t.type })
+  // Baris transfer (source: wallet_transfer, id ber-prefix "wt_") belum punya
+  // endpoint edit sendiri (di luar scope spec ini) — tidak bisa dibuka di modal
+  // yang sama karena route dompet.update mengharapkan model Transaction biasa.
+  if (t.type === 'transfer') return
   editingTx.value = t
   txForm.type = t.type
   txForm.amount = t.amount
@@ -864,7 +953,7 @@ let removeStart, removeFinish, removeError
 
 onMounted(() => {
   // A.4c: restore filter tersimpan kalau tidak ada query param eksplisit di URL
-  const filterKeys = ['range', 'period', 'start_date', 'end_date', 'wallet_id', 'type', 'category_id', 'search']
+  const filterKeys = ['range', 'period', 'start_date', 'end_date', 'wallet_id', 'type', 'type[]', 'category_id', 'category_id[]', 'balance_group', 'min_amount', 'max_amount', 'search']
   const params = new URLSearchParams(window.location.search)
   const hasExplicitFilter = filterKeys.some((k) => params.has(k))
   if (!hasExplicitFilter) {
@@ -873,13 +962,19 @@ onMounted(() => {
       try {
         const parsed = JSON.parse(saved)
         const query = { tab: 'transaksi', ...parsed }
-        Object.keys(query).forEach((k) => (!query[k]) && delete query[k])
+        Object.keys(query).forEach((k) => {
+          const v = query[k]
+          const isEmpty = v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0)
+          if (isEmpty) delete query[k]
+        })
         if (Object.keys(query).length > 1) {
           router.get(route('dompet.index'), query, { preserveState: true, preserveScroll: true, replace: true })
         }
       } catch { /* localStorage korup, abaikan */ }
     }
   }
+
+  trackEvent('wallet_tab_viewed', { tab: tab.value })
 
   removeStart = router.on('start', () => { isLoading.value = true; hasError.value = false })
   removeFinish = router.on('finish', () => {
@@ -910,7 +1005,27 @@ onUnmounted(() => {
 <style scoped>
 .page-content { padding: 20px; }
 
-.tab-row { display: flex; gap: 8px; margin-bottom: 16px; }
+.tab-row {
+  position: relative; display: flex; gap: 4px; margin-bottom: 16px;
+  background: var(--surface); border-radius: 99px; padding: 4px; box-shadow: var(--shadow-card);
+}
+.tab-indicator {
+  position: absolute; top: 4px; left: 4px; bottom: 4px;
+  width: calc((100% - 8px) / 3);
+  background: var(--primary); border-radius: 99px;
+  transition: transform .25s cubic-bezier(.4,0,.2,1);
+  z-index: 1;
+}
+.tab-pill {
+  position: relative; z-index: 2; flex: 1; min-height: 44px;
+  border: none; background: none; cursor: pointer;
+  font-size: 13px; font-weight: 700; color: var(--text-secondary);
+  border-radius: 99px; transition: color .2s;
+}
+.tab-pill.active { color: white; }
+.tab-pill:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+
+.error-banner { margin-bottom: 12px; }
 
 .pull-indicator {
   display: flex; align-items: center; justify-content: center;
@@ -946,7 +1061,8 @@ onUnmounted(() => {
 .search-box { flex: 1; display: flex; align-items: center; gap: 8px; background: var(--surface); border-radius: var(--radius-md); padding: 10px 14px; box-shadow: var(--shadow-card); min-height: 44px; }
 .search-box input { border: none; outline: none; background: none; font-size: 13px; flex: 1; font-family: inherit; }
 .search-icon { font-size: 14px; opacity: .6; }
-.filter-btn { background: var(--surface); border: none; padding: 10px 16px; border-radius: var(--radius-md); font-size: 12px; font-weight: 700; box-shadow: var(--shadow-card); cursor: pointer; white-space: nowrap; min-height: 44px; }
+.filter-btn { display: flex; align-items: center; gap: 6px; background: var(--surface); border: none; padding: 10px 16px; border-radius: var(--radius-md); font-size: 12px; font-weight: 700; box-shadow: var(--shadow-card); cursor: pointer; white-space: nowrap; min-height: 44px; }
+.filter-badge { color: var(--primary); font-size: 11px; font-weight: 800; }
 .d-mobile-only { }
 @media (min-width: 481px) { .d-mobile-only { display: none; } }
 

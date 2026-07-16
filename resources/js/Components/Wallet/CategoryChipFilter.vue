@@ -1,8 +1,9 @@
 <template>
-  <div class="cat-chip-scroll" role="group" aria-label="Filter kategori cepat">
+  <div class="cat-chip-scroll" role="group" aria-label="Filter kategori cepat (multi-pilih)">
     <button
       type="button"
-      :class="['chip', 'cat-chip', { active: modelValue === null }]"
+      :class="['chip', 'cat-chip', { active: selected.length === 0 }]"
+      :aria-pressed="selected.length === 0"
       @click="$emit('select', null)"
     >
       Semua
@@ -11,8 +12,9 @@
       v-for="c in categories"
       :key="c.id"
       type="button"
-      :class="['chip', 'cat-chip', { active: modelValue === c.id }]"
-      @click="$emit('select', modelValue === c.id ? null : c.id)"
+      :class="['chip', 'cat-chip', { active: selected.includes(c.id) }]"
+      :aria-pressed="selected.includes(c.id)"
+      @click="$emit('select', c.id)"
     >
       {{ c.emoji }} {{ c.name }}
     </button>
@@ -20,11 +22,17 @@
 </template>
 
 <script setup>
-defineProps({
+import { computed } from 'vue'
+
+const props = defineProps({
   categories: { type: Array, default: () => [] },
-  modelValue: { type: String, default: null },
+  // Multi-select: array kosong berarti "Semua kategori". Boleh juga diberi
+  // string/null tunggal untuk kompatibilitas pemanggil lama.
+  modelValue: { type: [Array, String], default: () => [] },
 })
 defineEmits(['select'])
+
+const selected = computed(() => (Array.isArray(props.modelValue) ? props.modelValue : (props.modelValue ? [props.modelValue] : [])))
 </script>
 
 <style scoped>

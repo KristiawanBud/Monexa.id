@@ -10,20 +10,28 @@
       </div>
 
       <div class="fd-field">
-        <span class="fd-label">Kategori Cepat</span>
+        <span class="fd-label">Kategori (multi-pilih)</span>
         <CategoryChipFilter
           :categories="categories"
-          :model-value="form.category_id || null"
-          @select="(id) => (form.category_id = id || '')"
+          :model-value="form.category_id"
+          @select="onCategorySelect"
         />
       </div>
 
       <div class="fd-field">
-        <span class="fd-label">Tipe</span>
-        <div class="type-toggle fd-type-toggle">
-          <button type="button" :class="['type-btn', { active: form.type === '' }]" @click="form.type = ''">Semua</button>
-          <button type="button" :class="['type-btn', { active: form.type === 'income' }]" @click="form.type = 'income'">Masuk</button>
-          <button type="button" :class="['type-btn', { active: form.type === 'expense' }]" @click="form.type = 'expense'">Keluar</button>
+        <span class="fd-label">Tipe (minimal 1 dipilih)</span>
+        <div class="type-checks" role="group" aria-label="Filter tipe transaksi">
+          <button
+            v-for="opt in typeOptions"
+            :key="opt.value"
+            type="button"
+            :class="['type-check', { active: form.type.includes(opt.value) }]"
+            :aria-pressed="form.type.includes(opt.value)"
+            @click="toggleType(opt.value)"
+          >
+            <span class="type-check-box">{{ form.type.includes(opt.value) ? '✓' : '' }}</span>
+            {{ opt.label }}
+          </button>
         </div>
       </div>
 
@@ -35,6 +43,15 @@
         </select>
       </div>
 
+      <div class="fd-field">
+        <span class="fd-label">Rentang Cepat</span>
+        <div class="date-presets">
+          <button type="button" class="chip" @click="applyPreset('today')">Hari Ini</button>
+          <button type="button" class="chip" @click="applyPreset('week')">Minggu Ini</button>
+          <button type="button" class="chip" @click="applyPreset('month')">Bulan Ini</button>
+        </div>
+      </div>
+
       <div class="fd-field fd-date-range">
         <div>
           <label class="fd-label" for="fd-start">Dari Tanggal</label>
@@ -43,6 +60,17 @@
         <div>
           <label class="fd-label" for="fd-end">Sampai Tanggal</label>
           <input id="fd-end" v-model="form.end_date" type="date" class="form-input-cc" :min="form.start_date || undefined" />
+        </div>
+      </div>
+
+      <div class="fd-field fd-amount-range">
+        <div>
+          <label class="fd-label" for="fd-min-amount">Jumlah Min (Rp)</label>
+          <input id="fd-min-amount" v-model="form.min_amount" type="number" inputmode="numeric" min="0" class="form-input-cc" placeholder="0" />
+        </div>
+        <div>
+          <label class="fd-label" for="fd-max-amount">Jumlah Maks (Rp)</label>
+          <input id="fd-max-amount" v-model="form.max_amount" type="number" inputmode="numeric" min="0" class="form-input-cc" placeholder="Tanpa batas" />
         </div>
       </div>
 
@@ -58,23 +86,41 @@
 import { reactive, watch } from 'vue'
 import CategoryChipFilter from './CategoryChipFilter.vue'
 
+const ALL_TYPES = ['income', 'expense', 'transfer']
+
+const typeOptions = [
+  { value: 'expense', label: 'Pengeluaran' },
+  { value: 'income', label: 'Pemasukan' },
+  { value: 'transfer', label: 'Transfer' },
+]
+
 const props = defineProps({
   open: { type: Boolean, default: false },
   wallets: { type: Array, default: () => [] },
   categories: { type: Array, default: () => [] },
   filters: {
     type: Object,
-    default: () => ({ start_date: '', end_date: '', wallet_id: '', type: '', category_id: '' }),
+    default: () => ({
+      start_date: '', end_date: '', wallet_id: '',
+      type: ['income', 'expense', 'transfer'], category_id: [], min_amount: '', max_amount: '',
+    }),
   },
 })
 const emit = defineEmits(['update:open', 'apply'])
+
+function toArray(v, fallback) {
+  if (Array.isArray(v)) return v.length ? [...v] : [...fallback]
+  return v ? [v] : [...fallback]
+}
 
 const form = reactive({
   start_date: props.filters.start_date || '',
   end_date: props.filters.end_date || '',
   wallet_id: props.filters.wallet_id || '',
-  type: props.filters.type || '',
-  category_id: props.filters.category_id || '',
+  type: toArray(props.filters.type, ALL_TYPES),
+  category_id: toArray(props.filters.category_id, []),
+  min_amount: props.filters.min_amount ?? '',
+  max_amount: props.filters.max_amount ?? '',
 })
 
 watch(
@@ -83,14 +129,57 @@ watch(
     form.start_date = f.start_date || ''
     form.end_date = f.end_date || ''
     form.wallet_id = f.wallet_id || ''
-    form.type = f.type || ''
-    form.category_id = f.category_id || ''
+    form.type = toArray(f.type, ALL_TYPES)
+    form.category_id = toArray(f.category_id, [])
+    form.min_amount = f.min_amount ?? ''
+    form.max_amount = f.max_amount ?? ''
   },
   { deep: true }
 )
 
+function toggleType(value) {
+  const idx = form.type.indexOf(value)
+  if (idx > -1) {
+    if (form.type.length === 1) return // minimal 1 tipe harus tetap terpilih
+    form.type.splice(idx, 1)
+  } else {
+    form.type.push(value)
+  }
+}
+
+function onCategorySelect(id) {
+  if (id === null) { form.category_id = []; return }
+  const idx = form.category_id.indexOf(id)
+  if (idx > -1) form.category_id.splice(idx, 1)
+  else form.category_id.push(id)
+}
+
+function pad(n) { return String(n).padStart(2, '0') }
+function toYMD(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` }
+
+function applyPreset(preset) {
+  const now = new Date()
+  if (preset === 'today') {
+    form.start_date = toYMD(now)
+    form.end_date = toYMD(now)
+  } else if (preset === 'week') {
+    const dow = now.getDay() === 0 ? 7 : now.getDay()
+    const monday = new Date(now)
+    monday.setDate(now.getDate() - (dow - 1))
+    const sunday = new Date(monday)
+    sunday.setDate(monday.getDate() + 6)
+    form.start_date = toYMD(monday)
+    form.end_date = toYMD(sunday)
+  } else if (preset === 'month') {
+    const first = new Date(now.getFullYear(), now.getMonth(), 1)
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    form.start_date = toYMD(first)
+    form.end_date = toYMD(last)
+  }
+}
+
 const handleApply = () => {
-  emit('apply', { ...form })
+  emit('apply', { ...form, type: [...form.type], category_id: [...form.category_id] })
   emit('update:open', false)
 }
 
@@ -98,9 +187,11 @@ const handleReset = () => {
   form.start_date = ''
   form.end_date = ''
   form.wallet_id = ''
-  form.type = ''
-  form.category_id = ''
-  emit('apply', { ...form })
+  form.type = [...ALL_TYPES]
+  form.category_id = []
+  form.min_amount = ''
+  form.max_amount = ''
+  emit('apply', { ...form, type: [...form.type], category_id: [...form.category_id] })
   emit('update:open', false)
 }
 </script>
@@ -116,13 +207,27 @@ const handleReset = () => {
 
 .fd-field { margin-bottom: 16px; }
 .fd-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px; }
-.fd-type-toggle { margin-bottom: 0; }
-.type-toggle { display: flex; gap: 8px; }
-.type-btn { flex: 1; padding: 10px; min-height: 40px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--surface); font-size: 12px; font-weight: 600; cursor: pointer; color: var(--text-secondary); }
-.type-btn.active { border-color: var(--primary); background: var(--primary-bg); color: var(--primary); }
 
-.fd-date-range { display: flex; gap: 10px; }
-.fd-date-range > div { flex: 1; min-width: 0; }
+.type-checks { display: flex; flex-direction: column; gap: 8px; }
+.type-check {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; min-height: 44px; border-radius: var(--radius-md);
+  border: 1.5px solid var(--border); background: var(--surface);
+  font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-secondary);
+  text-align: left; font-family: inherit;
+}
+.type-check.active { border-color: var(--primary); background: var(--primary-bg); color: var(--primary); }
+.type-check-box {
+  width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--border);
+  display: inline-flex; align-items: center; justify-content: center; font-size: 12px;
+  flex-shrink: 0; background: var(--surface);
+}
+.type-check.active .type-check-box { border-color: var(--primary); background: var(--primary); color: white; }
+
+.date-presets { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.fd-date-range, .fd-amount-range { display: flex; gap: 10px; }
+.fd-date-range > div, .fd-amount-range > div { flex: 1; min-width: 0; }
 
 .fd-actions { display: flex; gap: 10px; }
 .fd-actions .btn-secondary, .fd-actions .btn-primary { width: auto; flex: 1; }
@@ -160,6 +265,6 @@ const handleReset = () => {
     position: sticky;
     top: 24px;
   }
-  .fd-date-range { flex-direction: column; }
+  .fd-date-range, .fd-amount-range { flex-direction: column; }
 }
 </style>

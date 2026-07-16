@@ -166,7 +166,7 @@ const goTo = (action) => {
   position: relative;
 }
 
-.main-content { padding-bottom: 88px; }
+.main-content { padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
 
 .desktop-sidebar { display: none; }
 
@@ -278,7 +278,7 @@ const goTo = (action) => {
   background: var(--surface);
   border-top: 1px solid var(--border);
   height: 72px;
-  padding: 0 4px 12px;
+  padding: 0 4px calc(12px + env(safe-area-inset-bottom, 0px));
   z-index: 100;
   box-shadow: 0 -4px 20px rgba(15,23,42,.05);
 }
