@@ -3,12 +3,14 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "build": "vite build"
+        "build": "vite build",
+        "screenshot:ui": "node scripts/screenshot-ui.js"
     },
     "devDependencies": {
         "@vitejs/plugin-vue": "^5.2.4",
         "autoprefixer": "^10.4.20",
         "laravel-vite-plugin": "^1.0.0",
+        "playwright": "^1.61.1",
         "postcss": "^8.4.49",
         "tailwindcss": "^3.4.17",
         "vite": "^5.0.0"
