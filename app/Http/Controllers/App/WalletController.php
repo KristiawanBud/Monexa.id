@@ -163,6 +163,7 @@ class WalletController extends Controller
                     'amount' => $request->amount,
                     'fee' => $fee,
                     'note' => $request->note,
+                    'category_id' => $request->category_id,
                     'transferred_at' => $request->transferred_at,
                     'request_id' => $request->request_id,
                 ]);

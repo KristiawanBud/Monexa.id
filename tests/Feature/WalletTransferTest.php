@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Events\WalletTransferFailed;
 use App\Events\WalletTransferInitiated;
 use App\Events\WalletTransferSucceeded;
+use App\Models\TransactionCategory;
 use App\Models\UserWallet;
 use App\Models\WalletTransfer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -330,5 +331,129 @@ class WalletTransferTest extends TestCase
         Event::assertDispatched(WalletTransferInitiated::class, 1);
         Event::assertDispatched(WalletTransferFailed::class, 1);
         Event::assertNotDispatched(WalletTransferSucceeded::class);
+    }
+
+    public function test_transfer_with_valid_category_id_is_persisted(): void
+    {
+        $user = $this->createAppUser();
+        $from = $this->makeWallet($user->id, 100000);
+        $to = $this->makeWallet($user->id, 0);
+        $category = TransactionCategory::create([
+            'user_id' => $user->id,
+            'type' => 'expense',
+            'name' => 'Tabungan',
+            'is_system' => false,
+            'sort_order' => 1,
+        ]);
+
+        $response = $this->actingAs($user)->post(route('wallets.transfer'), [
+            'from_wallet_id' => $from->id,
+            'to_wallet_id' => $to->id,
+            'amount' => 40000,
+            'category_id' => $category->id,
+            'transferred_at' => now()->format('Y-m-d'),
+            'request_id' => (string) Str::uuid(),
+        ]);
+
+        $response->assertRedirect();
+        $this->assertSame($category->id, WalletTransfer::firstOrFail()->category_id);
+    }
+
+    public function test_transfer_with_nonexistent_category_id_is_rejected(): void
+    {
+        $user = $this->createAppUser();
+        $from = $this->makeWallet($user->id, 100000);
+        $to = $this->makeWallet($user->id, 0);
+
+        $response = $this->actingAs($user)->post(route('wallets.transfer'), [
+            'from_wallet_id' => $from->id,
+            'to_wallet_id' => $to->id,
+            'amount' => 40000,
+            'category_id' => 999999,
+            'transferred_at' => now()->format('Y-m-d'),
+            'request_id' => (string) Str::uuid(),
+        ]);
+
+        $response->assertSessionHasErrors('category_id');
+        $this->assertDatabaseCount('wallet_transfers', 0);
+    }
+
+    public function test_transfer_without_category_id_still_succeeds(): void
+    {
+        $user = $this->createAppUser();
+        $from = $this->makeWallet($user->id, 100000);
+        $to = $this->makeWallet($user->id, 0);
+
+        $response = $this->actingAs($user)->post(route('wallets.transfer'), [
+            'from_wallet_id' => $from->id,
+            'to_wallet_id' => $to->id,
+            'amount' => 40000,
+            'transferred_at' => now()->format('Y-m-d'),
+            'request_id' => (string) Str::uuid(),
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('success');
+        $this->assertNull(WalletTransfer::firstOrFail()->category_id);
+    }
+
+    public function test_transfer_exceeding_configured_max_amount_is_rejected(): void
+    {
+        config(['wallet.max_transfer_amount' => 50000]);
+
+        $user = $this->createAppUser();
+        $from = $this->makeWallet($user->id, 200000);
+        $to = $this->makeWallet($user->id, 0);
+
+        $response = $this->actingAs($user)->post(route('wallets.transfer'), [
+            'from_wallet_id' => $from->id,
+            'to_wallet_id' => $to->id,
+            'amount' => 100000,
+            'transferred_at' => now()->format('Y-m-d'),
+            'request_id' => (string) Str::uuid(),
+        ]);
+
+        $response->assertSessionHasErrors('amount');
+        $this->assertDatabaseCount('wallet_transfers', 0);
+    }
+
+    public function test_transfer_below_configured_max_amount_still_succeeds(): void
+    {
+        config(['wallet.max_transfer_amount' => 50000]);
+
+        $user = $this->createAppUser();
+        $from = $this->makeWallet($user->id, 200000);
+        $to = $this->makeWallet($user->id, 0);
+
+        $response = $this->actingAs($user)->post(route('wallets.transfer'), [
+            'from_wallet_id' => $from->id,
+            'to_wallet_id' => $to->id,
+            'amount' => 40000,
+            'transferred_at' => now()->format('Y-m-d'),
+            'request_id' => (string) Str::uuid(),
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('success');
+    }
+
+    public function test_transfer_with_default_max_amount_config_has_no_limit(): void
+    {
+        $this->assertNull(config('wallet.max_transfer_amount'));
+
+        $user = $this->createAppUser();
+        $from = $this->makeWallet($user->id, 10000000);
+        $to = $this->makeWallet($user->id, 0);
+
+        $response = $this->actingAs($user)->post(route('wallets.transfer'), [
+            'from_wallet_id' => $from->id,
+            'to_wallet_id' => $to->id,
+            'amount' => 5000000,
+            'transferred_at' => now()->format('Y-m-d'),
+            'request_id' => (string) Str::uuid(),
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('success');
     }
 }

@@ -8,5 +8,6 @@ return [
         'fee_numeric' => 'Biaya transfer harus berupa angka.',
         'fee_min' => 'Biaya transfer tidak boleh negatif.',
         'request_id_required' => 'ID permintaan wajib disertakan untuk mencegah transfer ganda.',
+        'amount_exceeds_max' => 'Jumlah transfer melebihi batas maksimum Rp :max.',
     ],
 ];

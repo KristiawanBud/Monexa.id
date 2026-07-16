@@ -12,7 +12,7 @@ class WalletTransfer extends Model
 
     protected $fillable = [
         'user_id', 'from_wallet_id', 'to_wallet_id',
-        'amount', 'fee', 'note', 'transferred_at', 'request_id',
+        'amount', 'fee', 'note', 'category_id', 'transferred_at', 'request_id',
     ];
 
     protected function casts(): array
@@ -43,5 +43,13 @@ class WalletTransfer extends Model
     public function toWallet(): BelongsTo
     {
         return $this->belongsTo(UserWallet::class, 'to_wallet_id');
+    }
+
+    /**
+     * @return BelongsTo<TransactionCategory, $this>
+     */
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(TransactionCategory::class);
     }
 }

@@ -16,9 +16,18 @@ class TransferWalletRequest extends FormRequest
         return [
             'from_wallet_id' => ['required', 'exists:user_wallets,id', 'different:to_wallet_id'],
             'to_wallet_id' => ['required', 'exists:user_wallets,id'],
-            'amount' => ['required', 'numeric', 'min:1'],
+            'amount' => ['required', 'numeric', 'min:1', function ($attribute, $value, $fail) {
+                $max = config('wallet.max_transfer_amount');
+
+                if ($max && $value > $max) {
+                    $fail(__('wallet.validation.amount_exceeds_max', [
+                        'max' => number_format((float) $max, 0, ',', '.'),
+                    ]));
+                }
+            }],
             'fee' => ['nullable', 'numeric', 'min:0'],
             'note' => ['nullable', 'string', 'max:255'],
+            'category_id' => ['nullable', 'integer', 'exists:transaction_categories,id'],
             'transferred_at' => ['required', 'date'],
             'request_id' => ['required', 'string', 'max:64'],
         ];
