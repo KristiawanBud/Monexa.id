@@ -9,7 +9,7 @@ use App\Models\Bank;
 use App\Models\Transaction;
 use App\Models\TransactionCategory;
 use App\Models\TransactionEditLog;
-use App\Models\User;
+use App\Services\TransactionFeedService;
 use App\Services\WalletService;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -21,31 +21,19 @@ use Inertia\Response;
 
 class TransactionController extends Controller
 {
-    public function __construct(private WalletService $walletService) {}
+    public function __construct(
+        private WalletService $walletService,
+        private TransactionFeedService $transactionFeed,
+    ) {}
 
     public function index(DompetFilterRequest $request): Response
     {
         $user = $request->user();
         $range = $this->resolveRange($request);
 
-        $transactions = $this->buildFilteredQuery($request, $user, $range)
+        $transactions = $this->transactionFeed->buildQuery($user, $request, $range)
             ->paginate(30)
-            ->through(fn ($t) => [
-                'id' => $t->id,
-                'type' => $t->type,
-                'amount' => (float) $t->amount,
-                'note' => $t->note,
-                'category' => $t->category?->name,
-                'category_emoji' => $t->category?->emoji,
-                'category_icon_url' => $t->category?->icon_path ? Storage::url($t->category->icon_path) : null,
-                'wallet' => $t->wallet?->display_name,
-                'wallet_id' => $t->wallet_id,
-                'category_id' => $t->category_id,
-                'transacted_at' => $t->transacted_at->format('Y-m-d'),
-                'transacted_at_label' => $t->transacted_at->translatedFormat('d M Y'),
-                'transacted_at_time' => $t->created_at?->format('H:i'),
-                'source' => $t->source,
-            ]);
+            ->through(fn ($row) => $this->transactionFeed->mapRow($row));
 
         $period = $request->period ?? now()->format('Y-m');
 
@@ -258,21 +246,27 @@ class TransactionController extends Controller
         $user = $request->user();
         $range = $this->resolveRange($request);
 
-        $transactions = $this->buildFilteredQuery($request, $user, $range)
+        $transactions = $this->transactionFeed->buildQuery($user, $request, $range)
             ->limit(5000)
-            ->get();
+            ->get()
+            ->map(fn ($row) => $this->transactionFeed->mapRow($row));
 
         $handle = fopen('php://temp', 'w+');
         fputcsv($handle, ['Tanggal', 'Tipe', 'Kategori', 'Dompet', 'Catatan', 'Jumlah']);
 
         foreach ($transactions as $t) {
             fputcsv($handle, [
-                $t->transacted_at->format('d/m/Y'),
-                $t->type === 'income' ? 'Pemasukan' : 'Pengeluaran',
-                $t->category?->name ?? '-',
-                $t->wallet?->display_name ?? '-',
-                $t->note ?? '-',
-                (float) $t->amount,
+                Carbon::parse($t['transacted_at'])->format('d/m/Y'),
+                match ($t['type']) {
+                    'income' => 'Pemasukan',
+                    'expense' => 'Pengeluaran',
+                    'transfer' => 'Transfer',
+                    default => throw new \RuntimeException("Unexpected transaction type: {$t['type']}"),
+                },
+                $t['category'] ?? '-',
+                $t['wallet'] ?? '-',
+                $t['note'] ?? '-',
+                $t['amount'],
             ]);
         }
 
@@ -322,36 +316,5 @@ class TransactionController extends Controller
             'month' => 'Bulan Ini',
             default => 'Hari Ini',
         };
-    }
-
-    private function buildFilteredQuery(Request $request, User $user, string $range): Builder
-    {
-        $query = $user->transactions()
-            ->with(['wallet:id,display_name', 'category:id,name,emoji,type,icon_path'])
-            ->orderByDesc('transacted_at')
-            ->orderByDesc('created_at');
-
-        $this->applyDateFilter($query, $request, $range);
-
-        if ($request->wallet_id) {
-            $query->where('wallet_id', $request->wallet_id);
-        }
-        if ($request->type) {
-            $query->where('type', $request->type);
-        }
-        if ($request->category_id) {
-            $query->where('category_id', $request->category_id);
-        }
-        if ($request->search) {
-            $query->where('note', 'like', '%'.$request->search.'%');
-        }
-        if ($request->min_amount) {
-            $query->where('amount', '>=', $request->min_amount);
-        }
-        if ($request->max_amount) {
-            $query->where('amount', '<=', $request->max_amount);
-        }
-
-        return $query;
     }
 }
