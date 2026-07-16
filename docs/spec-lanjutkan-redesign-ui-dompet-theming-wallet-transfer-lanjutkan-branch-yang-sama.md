@@ -1044,3 +1044,258 @@ PR 2 hanya perlu dibuka kalau memang belum ada PR aktif untuk branch ini di GitH
 - [ ] Cakupan i18n didokumentasikan eksplisit di PR (string baru masuk `lang/id/wallet.php`, retrofit
   penuh frontend dicatat sebagai keputusan terpisah butuh approval, bukan silently skipped) (§10.5).
 - [ ] `phpstan`/`pint`/`php artisan test` tetap hijau termasuk test baru §10.7.
+
+---
+
+## 11. REVISI 2026-07-16 (iterasi ke-5) — Arahan CEO: rerun pipeline CI + lanjutkan sisa redesign
+
+CEO mengonfirmasi migrasi `cuanai_chat` sudah diperbaiki manual (sqlite-compatible) dan sudah di-commit,
+menyebut "sebelumnya 25 test hijau", minta verifikasi ulang lewat pipeline CI di branch ini, lalu lanjutkan
+sisa redesign UI Dompet/theming/Wallet Transfer sampai selesai. PM iterasi ini memverifikasi ulang langsung
+ke `git log`, isi migration, dan isi kode (bukan asumsi) sebelum menulis bagian ini — lihat §11.0–§11.1 untuk
+temuan yang **mengubah cara Todo di bawah harus dieksekusi**.
+
+### 11.0 Verifikasi klaim CEO (dicek langsung, bukan diasumsikan benar)
+
+- **Migrasi `cuanai_chat` sudah sqlite-compatible** — dikonfirmasi: `database/migrations/2026_07_08_000001_add_cuanai_chat_to_transactions_source_enum.php`
+  (commit `a208765`, HEAD saat ini) sudah bercabang `DB::getDriverName() === 'sqlite'` → pakai
+  `$table->string('source')->default('manual')->change()` (SQLite tidak dukung `ALTER ... MODIFY COLUMN ENUM`),
+  else → `DB::statement('ALTER TABLE ... ENUM(...)')` untuk MySQL. `up()` dan `down()` keduanya sudah
+  bercabang sama. **Klaim CEO benar, tidak ada Todo perbaikan lagi untuk migration ini.**
+- **"Sebelumnya 25 test hijau"** — dikonfirmasi by count: `grep -rE "public function test_|#\[Test\]" tests`
+  = **25** method test, tersebar di `tests/Feature/{WalletTransferTest,AccountThemeTest,DompetTransactionHistoryTest,WalletArchiveTest}.php`
+  + `tests/Unit/WalletServiceFeeTest.php` + `tests/Unit/ExampleTest.php`. Angka yang disebut CEO cocok
+  dengan state kode saat ini — **PM tidak menjalankan test ini sendiri** (di luar batasan peran PM, lihat
+  `docs/agents/project-manager-ai.md` §Batasan), tapi keberadaan & jumlahnya terverifikasi by static count.
+  Database/Backend AI tetap **wajib** menjalankan `php artisan test` sungguhan (§11.2) — angka statis ini
+  bukan pengganti eksekusi nyata.
+- **Item §10 (fee, idempotensi, telemetri, 8 komponen UI, string i18n) sudah landed**, jangan dikerjakan
+  ulang — dikonfirmasi lewat `git show --stat` pada 3 commit setelah §10 ditulis:
+  - `90ab4ab` (database migration): `2026_07_15_000001_add_fee_and_request_id_to_wallet_transfers_table.php` ada.
+  - `6530db7` (backend): `app/Events/WalletTransfer{Initiated,Succeeded,Failed}.php`,
+    `app/Listeners/LogWalletTransferTelemetry.php`, `lang/id/wallet.php`, perubahan
+    `WalletController@transfer`/`WalletService::transferBetweenWallets` untuk fee+idempotency, plus
+    `tests/Feature/WalletTransferTest.php` (203 baris baru) & `tests/Unit/WalletServiceFeeTest.php` — semua
+    sesuai kontrak §10.1/§10.2/§10.7.
+  - `221b5c7` (frontend): 8 komponen `resources/js/Components/UI/{Button,Input,Select,Checkbox,Radio,Modal,Drawer,Tabs,Alert,Toast,ToastContainer}.vue`
+    + `useToast.js` + migrasi flash message di `AppLayout.vue` ke `useToast()` + `docs/theming-guide.md`
+    ditambah 48 baris (bagian komponen dasar) — sesuai kontrak §10.6.
+  Kesimpulan: **§1–§10 secara substansi sudah dikerjakan di kode**, bukan cuma spec di atas kertas. Sisa
+  pekerjaan riil ada di §11.1 (gap infra CI) dan §11.3–§11.5 (item baru dari brief CEO kali ini yang belum
+  pernah masuk spec manapun sebelumnya: kategori transfer, batas maksimum, CHANGELOG).
+
+### 11.1 TEMUAN KRITIS — Tidak ada pipeline CI di repository ini sama sekali
+
+**Temuan**: `find` untuk `.github/workflows/*`, `.gitlab-ci.yml`, `.circleci/*` di root repo — **nol hasil**
+di semua tiga. Tidak ada satupun file konfigurasi pipeline CI (GitHub Actions, GitLab CI, maupun CircleCI)
+yang ter-commit di repository ini, di branch manapun (dicek juga `git log --all -- '.github' '.gitlab-ci.yml'`
+— kosong). Arahan CEO poin 2 ("Trigger ulang testing pipeline untuk branch ini (rerun latest pipeline)...
+Pantau hasil pipeline. Lampirkan link pipeline...") **tidak bisa dieksekusi secara harfiah** karena tidak ada
+pipeline yang bisa di-rerun — tidak ada "latest pipeline" yang eksis untuk branch ini maupun branch manapun.
+
+**Ini bukan hal yang boleh PM putuskan sendiri untuk dibuatkan** — menulis file `.github/workflows/ci.yml`
+adalah perubahan infrastruktur/konfigurasi CI, di luar cakupan "kontrak API" yang jadi tugas PM, dan juga
+bukan migration/PHP/Vue murni yang jadi domain Database/Backend/Frontend AI di bawah PM. Ini butuh keputusan
+eksplisit: apakah CI dijalankan lewat sistem eksternal yang konfigurasinya **tidak** disimpan di repo ini
+(mis. pipeline didefinisikan di UI platform CI, bukan file-as-code) — kalau begitu, "rerun pipeline" adalah
+aksi di platform tersebut (GitHub Actions UI / GitLab UI / dst.), bukan sesuatu yang bisa diverifikasi lewat
+isi repo. PM **tidak punya akses** ke platform CI eksternal untuk mengecek mana yang benar.
+
+### Todo Teknis — eskalasi, bukan implementasi (WAJIB dilakukan sebelum §11.2 "rerun pipeline" bisa dipenuhi)
+- [ ] **Eskalasi ke CEO/DevOps**: konfirmasi apakah pipeline CI untuk repo ini didefinisikan di luar repo
+  (platform CI eksternal) atau memang belum pernah dibuat sama sekali. Kalau belum pernah dibuat, "rerun
+  pipeline" tidak applicable — yang bisa dipenuhi cuma verifikasi lokal (§11.2), dan definisi pipeline baru
+  jadi task infra terpisah (di luar scope redesign Dompet/theming/transfer ini), butuh keputusan eksplisit
+  CEO sebelum dikerjakan (analog §10.5 soal keputusan cakupan i18n/vue-i18n, §7.2 soal Vitest — pola yang
+  sama: PM tidak menambah infra baru diam-diam tanpa approval).
+- [ ] **Kalau CEO konfirmasi pipeline memang belum ada**: rekomendasi minimal dari PM (bukan implementasi) —
+  workflow GitHub Actions sederhana yang menjalankan persis 4 langkah §11.2 di bawah (migrate SQLite,
+  `php artisan test`, `phpstan`, `pint --test`) tiap push ke branch ini, disimpan di `.github/workflows/ci.yml`.
+  Ini keputusan/implementasi untuk Backend AI/DevOps sesudah CEO approve, **bukan** dikerjakan oleh PM.
+- [ ] Sampai keputusan di atas ada, **deliverable "link pipeline hijau" di deskripsi PR (§7.4/§10.8) diganti**
+  dengan output verifikasi lokal §11.2 (paste hasil command, bukan link) — supaya Definition of Done tidak
+  terhambat oleh gap infra yang di luar kendali Database/Backend/Frontend AI.
+
+### Kontrak
+Tidak ada endpoint/tabel/kolom untuk temuan ini — ini murni gap infrastruktur CI, dicatat eksplisit supaya
+tidak silently diasumsikan "pipeline sudah ada tapi gagal" (beda akar masalah, beda solusi).
+
+---
+
+### 11.2 Todo verifikasi lokal (Database/Backend AI, dieksekusi nyata — bukan diasumsikan dari §11.0)
+
+Checklist ini **menggantikan** "rerun pipeline CI" selama gap §11.1 belum diputuskan CEO. Jalankan di branch
+aktif (`feature/lanjutkan-redesign-ui-dompet-theming-wallet-transfer-lanjutkan-branch-yang-sama`, **jangan
+checkout/buat branch baru**, `git pull` dulu untuk pastikan tidak ada commit baru dari sesi lain):
+
+- [ ] `php artisan migrate:fresh` di environment SQLite lokal — pastikan **semua** migration termasuk
+  `2026_07_08_000001_add_cuanai_chat_to_transactions_source_enum.php` dan
+  `2026_07_15_000001_add_fee_and_request_id_to_wallet_transfers_table.php` apply bersih tanpa error.
+- [ ] `php artisan migrate:rollback` lalu `php artisan migrate` lagi (siklus down/up penuh, bukan cuma up)
+  — verifikasi eksplisit yang diminta brief CEO poin 1, mengonfirmasi `down()` migration `cuanai_chat` (yang
+  juga sudah dicabang sqlite vs mysql, §11.0) tidak error.
+- [ ] `php artisan test` — target **25/25 hijau minimum** (angka existing, §11.0), test baru dari §11.3/§11.4
+  di bawah (kalau dikerjakan) akan menambah jumlah ini, semua harus tetap pass.
+- [ ] `vendor/bin/phpstan analyse` dan `./vendor/bin/pint --test` — bersih (pola existing §7.1/§10, sudah
+  didukung `.claude/settings.json` yang mengizinkan command ini, commit `be78526`).
+- [ ] Paste hasil ke-4 command di atas (ringkas, bukan cuma "lulus") ke deskripsi PR/MR existing untuk
+  branch ini — **jangan buat PR baru** (pola konsisten §7.4).
+
+### Kontrak
+Tidak ada endpoint/tabel baru — murni checklist eksekusi verifikasi, dijalankan oleh Database/Backend AI.
+
+---
+
+### 11.3 BARU — Kategori opsional pada Wallet Transfer
+
+**Temuan**: brief CEO poin 3 (Wallet Transfer) eksplisit minta "Opsi catatan/kategori opsional". `note`
+sudah ada (`wallet_transfers.note`, §3), tapi **tidak ada** kategori. Skema existing punya
+`transaction_categories` (dipakai `transactions.category_id`, lihat `app/Models/Transaction.php` baris 39),
+tapi `wallet_transfers` **tidak** punya kolom `category_id` sama sekali — transfer antar dompet sendiri
+secara konsep beda dari transaksi (pemasukan/pengeluaran), tapi user tetap mungkin mau menandai *alasan*
+transfer (mis. "Tabungan", "Modal Usaha") pakai kategori yang sudah mereka kenal dari transaksi.
+
+**Keputusan**: reuse tabel `transaction_categories` yang sudah ada (bukan bikin tabel kategori terpisah
+khusus transfer — akan duplikasi konsep tanpa manfaat), tambah kolom nullable `category_id` di
+`wallet_transfers`. Opsional penuh — transfer tanpa kategori tetap valid (perilaku existing tidak berubah).
+
+**Database** (migration baru):
+```
+Migration: 2026_07_16_000001_add_category_id_to_wallet_transfers_table.php
+Tabel: wallet_transfers
+Kolom baru:
+  category_id  unsignedSmallInteger NULL, foreign key → transaction_categories.id, nullOnDelete()
+```
+
+**`app/Models/WalletTransfer.php`**: tambah relasi `category(): BelongsTo` → `TransactionCategory::class`
+(pola sama seperti `Transaction::category()`).
+
+**Kontrak API — extend `POST /dompet/transfer` (`wallets.transfer`, endpoint sama, field baru opsional)**
+
+**Request**:
+```
+{
+  ...existing (from_wallet_id, to_wallet_id, amount, fee?, note, transferred_at, request_id)...,
+  category_id?: number | null   // BARU, opsional — nullable|exists:transaction_categories,id
+}
+```
+
+**Response**: tidak berubah (redirect `back()` + flash, pola existing).
+
+**Database**: migration di atas. Tidak ada perubahan pada `wallet_balance_logs` (kategori murni metadata
+pencatatan, tidak memengaruhi kalkulasi saldo).
+
+**Validasi** (`TransferWalletRequest`, tambah rule):
+```
+category_id: ['nullable', 'integer', 'exists:transaction_categories,id'],
+```
+
+**Frontend (`Dompet.vue`)**: tambah `<Select>` (reuse komponen `Select.vue` dari §10.6, **jangan** `<select>`
+native baru) untuk `category_id` di form transfer, di bawah field `note`, opsional (placeholder "Tanpa
+kategori"), pakai daftar kategori yang sama dengan yang sudah dipakai form transaksi di halaman ini (props
+`categories` — cek nama prop existing yang dikirim `TransactionController@index` untuk form transaksi, reuse
+persis, jangan minta prop baru dari backend kalau `categories` sudah dikirim). Tampilkan di ringkasan
+konfirmasi (§3) sebagai baris "Kategori: {nama}" hanya kalau dipilih (baris disembunyikan kalau kosong).
+
+---
+
+### 11.4 BARU — Batas maksimum jumlah transfer (klarifikasi, bukan fitur baru berisiko)
+
+**Temuan**: brief CEO minta "batas minimum/maximum" pada input jumlah transfer. Minimum sudah ada (`min:1`
+di `TransferWalletRequest`, §3) plus batas implisit saldo tersedia (`amount + fee <= fromWallet.balance`,
+§10.1) — ini **sudah** berfungsi sebagai batas maksimum alami (tidak mungkin transfer melebihi saldo).
+Tidak ada konfigurasi batas maksimum **eksplisit** (mis. limit fraud-control per transaksi) di manapun di
+codebase (`grep` untuk `max_transaction`/`transfer_limit`/`MAX_TRANSFER` di `config/`+`app/Http/Requests` —
+kosong).
+
+**Keputusan**: PM **tidak** mengarang angka limit spesifik (mis. "maks Rp 50.000.000") tanpa dasar bisnis —
+itu keputusan produk/risiko yang harus datang dari CEO, bukan asumsi teknis. Assumption paling masuk akal
+mengikuti pola Monexa existing: sediakan **hook konfigurasi opsional**, bukan hardcode angka. Kalau CEO tidak
+memberi angka, batas maksimum tetap = saldo tersedia (perilaku existing, sudah cukup memenuhi "batas
+maksimum" secara fungsional — user tidak pernah bisa transfer lebih dari yang dia punya).
+
+### Todo Teknis
+- [ ] `config/wallet.php` (file config baru, pola Laravel native, bukan hardcode di kelas): tambah key
+  `'max_transfer_amount' => env('WALLET_MAX_TRANSFER_AMOUNT', null)` — `null` berarti tidak ada batas
+  eksplisit selain saldo (perilaku default/existing tidak berubah).
+- [ ] `TransferWalletRequest::rules()`: tambah `'amount' => [..., function ($attr, $value, $fail) { if
+  (config('wallet.max_transfer_amount') && $value > config('wallet.max_transfer_amount')) { $fail(__('wallet.validation.amount_exceeds_max', ['max' => config('wallet.max_transfer_amount')])); } }]`
+  — closure rule, aktif hanya kalau config diisi (default tidak mengubah perilaku existing, aman untuk semua
+  environment yang belum set `WALLET_MAX_TRANSFER_AMOUNT`).
+- [ ] `lang/id/wallet.php`: tambah key `validation.amount_exceeds_max` (pola sama dengan key `validation.*`
+  yang sudah ada dari §10.5).
+- [ ] **Eskalasi ke CEO**: kalau memang perlu limit fraud-control nyata, minta angka konkret (bisa beda per
+  tier user/jenis dompet) — di luar scope PM untuk menentukan angkanya sendiri. Sampai ada angka, fitur ini
+  **tidak aktif** (config `null` = off), tidak mengubah behaviour transfer existing.
+
+**Kontrak API — extend `POST /dompet/transfer` (endpoint sama, tidak ada field request baru)**
+
+**Response tambahan**: kalau `amount > config('wallet.max_transfer_amount')` (dan config diisi): validasi
+422 dengan pesan `wallet.validation.amount_exceeds_max` — pola error existing (Inertia validation errors),
+tidak ada perubahan shape response.
+
+**Database**: tidak ada kolom/tabel baru — batas maksimum murni di level config, bukan data.
+
+**Validasi**: closure rule di atas, ditambahkan ke `TransferWalletRequest`.
+
+---
+
+### 11.5 CHANGELOG — pembalikan keputusan §7.3 lama (baca alasan sebelum eksekusi)
+
+**Konteks**: §7.3 (iterasi lama) eksplisit memutuskan **tidak** membuat `CHANGELOG.md` baru, dengan alasan
+"bukan pola yang dipakai project ini". Brief CEO kali ini (poin 5, "Dokumentasi & housekeeping") eksplisit
+minta **"Update CHANGELOG dan dokumentasi user/developer"**. Ini instruksi CEO langsung, bukan sekadar
+kelanjutan brief lama — PM iterasi ini **membalik** keputusan §7.3 khusus untuk poin CHANGELOG, karena
+instruksi eksplisit CEO lebih tinggi otoritasnya daripada keputusan cakupan yang diambil PM sendiri
+sebelumnya. Bagian lain §7.3 (README, `theming-guide.md`) tetap berlaku, sudah dikerjakan (§11.0, konfirmasi
+`221b5c7`).
+
+### Todo Teknis
+- [ ] Buat `CHANGELOG.md` baru di root repo (belum ada — dikonfirmasi `find . -maxdepth 1 -iname CHANGELOG*`
+  kosong), format [Keep a Changelog](https://keepachangelog.com/) sederhana (`## [Unreleased]` di atas,
+  section `### Added`/`### Fixed`/`### Changed`). Isi entri untuk **seluruh** kerja §1–§11 di branch ini
+  (bukan cuma §11) karena ini pertama kalinya file ini dibuat — ringkas per fitur (theming 4 opsi, redesign
+  kartu dompet icon/color custom, arsip dompet, wallet transfer + fee + idempotensi + kategori, komponen UI
+  dasar, migration `cuanai_chat`), bukan 1 baris per commit.
+- [ ] Dokumentasi developer: extend `docs/theming-guide.md` (sudah ada bagian komponen dasar dari §10.6) dan
+  README (sudah ada bagian "Theming" dari §7.3) dengan 1 sub-bagian baru masing-masing: cara kerja kategori
+  transfer opsional (§11.3) dan catatan `WALLET_MAX_TRANSFER_AMOUNT` (§11.4, opsional/off by default).
+- [ ] Dokumentasi migration: catatan singkat di `CHANGELOG.md` (bukan file terpisah) soal migration
+  `cuanai_chat` — kenapa perlu percabangan SQLite vs MySQL (SQLite tidak dukung `MODIFY COLUMN ENUM`), supaya
+  developer lain yang menulis migration `ENUM` baru ke depan tahu polanya tanpa harus menemukan ulang.
+
+### Kontrak
+Tidak ada endpoint/tabel — murni dokumentasi. `CHANGELOG.md` baru di root, bukan di `docs/`.
+
+---
+
+### 11.6 Testing tambahan (melengkapi §7.1/§10.7, bukan menggantikan)
+
+- [ ] Feature test **kategori transfer** (§11.3): transfer dengan `category_id` valid milik user →
+  tersimpan & muncul di response riwayat; `category_id` milik kategori yang tidak ada / bukan milik siapapun
+  yang relevan → 422; transfer tanpa `category_id` (opsional) → tetap sukses seperti sebelumnya (regresi
+  check eksplisit, karena field ini baru).
+- [ ] Feature test **batas maksimum** (§11.4): `WALLET_MAX_TRANSFER_AMOUNT` di-set di `.env.testing` untuk
+  1 test spesifik (pakai `config(['wallet.max_transfer_amount' => ...])` di dalam test, bukan ubah
+  `.env.testing` global supaya tidak memengaruhi test lain) → transfer melebihi batas ditolak 422 dengan
+  pesan yang benar; transfer di bawah batas tetap sukses; config default (`null`, tidak di-set) → tidak ada
+  batas selain saldo (test regresi eksplisit untuk memastikan default **tidak** mengubah behaviour existing).
+- [ ] Migration test **cuanai_chat down/up cycle** (§11.2 poin 2, dijadikan test otomatis bukan cuma manual):
+  test yang menjalankan `Artisan::call('migrate:rollback', ['--step' => 1])` lalu `Artisan::call('migrate')`
+  di sekitar migration ini tidak wajib kalau `php artisan test` sudah jalan di atas skema yang sudah
+  ter-migrate penuh (pola RefreshDatabase existing sudah implisit menutup ini tiap test run) — **cukup**
+  verifikasi manual §11.2, tidak perlu test PHPUnit khusus baru untuk 1 migration ini (menghindari duplikasi
+  cakupan yang sudah otomatis ter-cover oleh `RefreshDatabase` di semua Feature test yang sudah ada).
+
+### Kriteria Selesai tambahan (melengkapi bagian sebelumnya, khusus iterasi §11)
+- [ ] Gap CI pipeline (§11.1) dieskalasi ke CEO secara eksplisit di deskripsi PR — bukan silently diasumsikan
+  beres atau silently diabaikan.
+- [ ] Verifikasi lokal §11.2 (migrate fresh, rollback+migrate, `php artisan test`, `phpstan`, `pint`)
+  dijalankan nyata dengan hasil di-paste ke PR, bukan diasumsikan dari angka statis §11.0.
+- [ ] Kategori opsional pada transfer berfungsi end-to-end, tidak mengubah perilaku transfer tanpa kategori
+  (§11.3).
+- [ ] Batas maksimum transfer terdokumentasi sebagai off-by-default + hook config, bukan angka yang
+  dikarang PM (§11.4).
+- [ ] `CHANGELOG.md` baru dibuat mencakup seluruh riwayat fitur §1–§11 (§11.5), README & `theming-guide.md`
+  di-extend dengan sub-bagian baru untuk §11.3/§11.4.
+- [ ] Test baru §11.6 pass, total test count bertambah dari 25 (baseline §11.0) tanpa ada yang regresi.
