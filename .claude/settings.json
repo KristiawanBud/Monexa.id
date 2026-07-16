@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(vendor/bin/phpstan analyse*)",
+      "Bash(./vendor/bin/pint --test*)",
+      "Bash(php artisan test*)",
+      "Bash(npm run build*)"
+    ]
+  }
+}
