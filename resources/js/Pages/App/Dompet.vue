@@ -382,8 +382,10 @@
                 <span v-if="transferErrors.fee" id="transfer-fee-error" class="field-error">{{ transferErrors.fee }}</span>
               </div>
               <div class="form-group">
-                <label class="form-label">Catatan (opsional)</label>
-                <input v-model="transferForm.note" type="text" class="form-input-cc" placeholder="Contoh: Pindah ke tabungan" />
+                <label class="form-label" for="transfer-note">Catatan (opsional)</label>
+                <input id="transfer-note" v-model="transferForm.note" type="text" class="form-input-cc" placeholder="Contoh: Pindah ke tabungan"
+                  :aria-invalid="!!transferErrors.note" aria-describedby="transfer-note-error" />
+                <span v-if="transferErrors.note" id="transfer-note-error" class="field-error">{{ transferErrors.note }}</span>
               </div>
               <div class="form-group">
                 <Select
@@ -878,6 +880,18 @@ const onTransferFeeInput = (e) => {
 }
 
 const transferTotalDeducted = computed(() => Number(transferForm.amount || 0) + Number(transferForm.fee || 0))
+
+// Validasi client (validateTransferForm) mencegah sebagian besar kasus invalid, tapi
+// aturan yang cuma bisa dicek di server (mis. WALLET_MAX_TRANSFER_AMOUNT §11.4, category_id
+// tidak valid) baru muncul lewat transferForm.errors setelah submit — tanpa watcher ini
+// error itu hilang begitu saja karena UI cuma membaca transferErrors (client) & flash.error
+// (business error saldo), bukan transferForm.errors bawaan Inertia.
+watch(() => transferForm.errors, (errs) => {
+  if (errs && Object.keys(errs).length) {
+    Object.assign(transferErrors, errs)
+    showTransferConfirm.value = false
+  }
+}, { deep: true })
 
 const openTransfer = () => {
   showTransfer.value = true
