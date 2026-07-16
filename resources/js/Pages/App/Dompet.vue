@@ -386,6 +386,15 @@
                 <input v-model="transferForm.note" type="text" class="form-input-cc" placeholder="Contoh: Pindah ke tabungan" />
               </div>
               <div class="form-group">
+                <Select
+                  v-model="transferForm.category_id"
+                  label="Kategori (opsional)"
+                  placeholder="Tanpa kategori"
+                  :options="transferCategoryOptions"
+                  :error="transferErrors.category_id"
+                />
+              </div>
+              <div class="form-group">
                 <label class="form-label" for="transfer-date">Tanggal</label>
                 <input id="transfer-date" v-model="transferForm.transferred_at" type="date" class="form-input-cc"
                   :aria-invalid="!!transferErrors.transferred_at" aria-describedby="transfer-date-error" required />
@@ -406,6 +415,7 @@
               <div class="ts-row"><span>Jumlah</span><strong>{{ formatRupiah(Number(transferForm.amount || 0)) }}</strong></div>
               <div v-if="Number(transferForm.fee) > 0" class="ts-row"><span>Biaya admin</span><strong>{{ formatRupiah(Number(transferForm.fee)) }}</strong></div>
               <div v-if="Number(transferForm.fee) > 0" class="ts-row"><span>Total dipotong dari {{ transferFromWallet?.display_name }}</span><strong>{{ formatRupiah(transferTotalDeducted) }}</strong></div>
+              <div v-if="transferCategoryLabel" class="ts-row"><span>Kategori</span><strong>{{ transferCategoryLabel }}</strong></div>
               <div class="ts-row"><span>Tanggal</span><strong>{{ formatTransferDate(transferForm.transferred_at) }}</strong></div>
             </div>
             <div class="confirm-actions">
@@ -522,6 +532,7 @@ import EmptyState from '@/Components/Wallet/EmptyState.vue'
 import ErrorState from '@/Components/Wallet/ErrorState.vue'
 import SkeletonLoader from '@/Components/Wallet/SkeletonLoader.vue'
 import ExportButton from '@/Components/Wallet/ExportButton.vue'
+import Select from '@/Components/UI/Select.vue'
 import { formatRupiah, formatShort } from '@/lib/format'
 import { trackEvent } from '@/lib/analytics'
 
@@ -799,7 +810,7 @@ const showTransfer = ref(false)
 const showTransferConfirm = ref(false)
 const transferErrors = reactive({})
 const transferForm = useForm({
-  from_wallet_id: '', to_wallet_id: '', amount: '', fee: '', note: '',
+  from_wallet_id: '', to_wallet_id: '', amount: '', fee: '', note: '', category_id: '',
   transferred_at: new Date().toISOString().split('T')[0],
   request_id: '',
 })
@@ -819,6 +830,14 @@ const isTransferFormValid = computed(() =>
 
 const transferFromWallet = computed(() => props.wallets.find((w) => w.id === transferForm.from_wallet_id))
 const transferToWallet = computed(() => props.wallets.find((w) => w.id === transferForm.to_wallet_id))
+
+const transferCategoryOptions = computed(() =>
+  props.categories.map((c) => ({ value: c.id, label: c.emoji ? `${c.emoji} ${c.name}` : c.name }))
+)
+const transferCategoryLabel = computed(() => {
+  const found = props.categories.find((c) => String(c.id) === String(transferForm.category_id))
+  return found ? found.name : ''
+})
 
 const serverError = computed(() => page.props.flash?.error ?? null)
 
