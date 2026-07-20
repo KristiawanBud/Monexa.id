@@ -430,3 +430,82 @@ Dompet mobile sudah lengkap di §2 (filter multi-select), §3 (kartu saldo inter
 list), §5 (export CSV) — dan seluruhnya sudah diimplementasikan di commit `8020f36`/`dd6daae`/`00a7817`.
 Tidak ada endpoint baru, tidak ada kolom database baru, tidak ada perubahan request/response shape
 yang perlu ditambahkan untuk menyelesaikan task dokumentasi & PR ini.
+
+## 11. Lanjutan — Finalisasi: Dokumentasi, PR, dan Review (arahan CEO lanjutan, 2026-07-20)
+
+Arahan lanjutan: CEO AI, task "Finalisasi redesign halaman Dompet (mobile): dokumentasi, PR, dan
+review". Ini **elaborasi §10** dengan detail lebih spesifik (resolusi uji, isi checklist PR, label,
+reviewer) — bukan kontrak API/DB baru. Semua batasan §10.0 (tidak ada `i18n`, tidak ada Storybook,
+target branch `develop`, JANGAN ulang security scan) tetap berlaku di sini.
+
+### 11.0 Status implementasi saat ini (dicek sebelum breakdown)
+- `CHANGELOG.md` **sudah dibuat & sudah ada entri** redesign Dompet (commit `2308ade`), tapi
+  strukturnya belum pakai heading `## [Unreleased]` ala Keep a Changelog yang diminta §10.1 —
+  saat ini heading-nya `## 2026-07-20 — Lanjutkan dokumentasi dan buka PR redesign halaman Dompet
+  (mobile)`. Bukan blocker fungsional, tapi Frontend AI perlu tahu formatnya menyimpang dari acuan
+  §10.0 kalau mau dirapikan.
+- `README.md` **belum menyinggung halaman Dompet sama sekali** (`grep -i "dompet\|wallet"` kosong),
+  walau pesan commit `2308ade` menyebut "update README & CHANGELOG" — isi commit itu ternyata cuma
+  mengubah `CHANGELOG.md` (1 file). Todo README di §10.1 dan di arahan CEO terbaru **masih
+  outstanding**.
+- File dokumentasi pengguna (`docs/user-guide-dompet-mobile.md` atau sejenis) **belum ada** — todo
+  §10.1 terkait ini juga masih outstanding.
+- PR ke `develop` **belum dibuka** (`gh pr list` untuk branch ini kosong; `gh auth login` bahkan
+  belum dijalankan di environment ini).
+
+### 11.1 Todo Teknis (breakdown pelaksanaan)
+
+Catatan lingkup: sesuai batasan peranku (Project Manager AI), bagian ini murni **memecah** arahan
+jadi todo konkret. Aku tidak mengeksekusi apa pun di bawah ini (tidak edit README/CHANGELOG, tidak
+buka PR, tidak pasang label, tidak minta review, tidak merge).
+
+**Dokumentasi (eksekutor: Frontend AI)**
+- [ ] Rapikan `CHANGELOG.md`: pindahkan/sesuaikan entri existing ke bawah heading `## [Unreleased]`
+  (Keep a Changelog) supaya konsisten dengan §10.0/§10.1, tanpa menghapus isi entri yang sudah ada.
+- [ ] Update `README.md`: tambahkan bagian singkat tentang halaman Dompet (mobile) — cara akses
+  (`/dompet`, butuh login), ringkasan perubahan redesign (saldo & 3 kartu interaktif, filter
+  multi-select, Transfer muncul di list, safe-area bottom nav, dark mode), dan tautkan ke dokumen
+  user-guide di bawah kalau dibuat.
+- [ ] Buat `docs/user-guide-dompet-mobile.md` (lihat isi wajib di §10.1 — screenshot before/after,
+  penjelasan UI/UX baru, perilaku tap-to-filter, empty/error state, catatan "tidak ada breaking
+  change" dan "tidak ada string yang perlu diterjemahkan").
+  - Screenshot/rekaman diambil pada 3 resolusi mobile umum: **360×640, 390×844, 414×896** (sesuai
+    permintaan CEO), masing-masing light & dark mode kalau memungkinkan.
+- [ ] Kalau ada komponen reusable yang berubah signifikan dari task ini (`BalanceSummaryCard.vue`,
+  `FilterDrawer.vue`, `TransactionItem.vue`), tambahkan catatan ringkas props/perilaku barunya di
+  `docs/user-guide-dompet-mobile.md` atau komentar singkat di komponen — bukan dokumen API terpisah,
+  karena ini bukan endpoint publik.
+
+**Proses PR & rilis (eksekutor: CEO AI / DevOps / human — di luar kewenangan Project Manager AI
+maupun Frontend/Backend/Database AI)**
+- [ ] Buka PR `feature/redesign-halaman-dompet-mobile-sesuai-screenshot` → `develop` (branch existing,
+  **jangan** buat branch baru), judul mis. "Redesign Halaman Dompet (Mobile)".
+- [ ] Isi body PR: ringkasan perubahan, alasan redesign (match screenshot referensi), dampak (UI only,
+  tanpa perubahan logika/basis data — sesuai §10.2, tidak ada migration baru di §1 Database), lampiran
+  screenshot before/after dari 3 resolusi di atas, dan bila memungkinkan rekaman singkat interaksi
+  (tap kartu saldo → filter, buka filter drawer, scroll list dengan baris Transfer).
+- [ ] Checklist PR (verbatim dari arahan CEO, cantumkan di deskripsi):
+  - UI sesuai screenshot pada resolusi mobile umum (360x640, 390x844, 414x896).
+  - Dark mode sesuai (jika ada).
+  - pint, phpstan, test, build, migrate: hijau.
+  - Security scan: dilewati sesuai instruksi owner (temuan LOW non-blocking) — **jangan jalankan
+    ulang scan**.
+  - Tidak ada perubahan schema/DB (konsisten dengan §1 Database: tidak ada migration baru).
+  - Semua string terlokalisasi, tanpa hard-coded — catat pengecualian sesuai §10.0: aplikasi ini
+    single-language id-ID, tidak ada framework i18n, jadi item ini secara literal "N/A, string
+    Bahasa Indonesia hardcoded adalah pola yang sudah ada di seluruh aplikasi" (bukan regresi baru
+    dari task ini).
+- [ ] Label: `feature`, `ui`, `mobile`, `ready-for-review`, `skip-security-scan` (pakai label
+  setara yang sudah ada di repo kalau salah satu nama di atas belum terdaftar).
+- [ ] Reviewer: **Kristiawan (owner)** + tim desain/QA.
+- [ ] Tautkan issue/tiket terkait bila ada (belum ditemukan tiket eksplisit di repo ini — cek
+  tracker eksternal kalau ada sebelum PR dibuka).
+- [ ] Setelah feedback review masuk: tindak lanjuti, push perbaikan **seperlunya** (polish, tanpa
+  menambah fitur baru — tetap dalam batas §0/§9 spec ini), jangan jalankan ulang security scan.
+- [ ] DoD: PR approved, lalu squash-merge ke `develop` sesuai konvensi repo (lihat §10.1 poin
+  "Pasca-approve"), hapus branch feature setelah merge aman, pindahkan entri `[Unreleased]` di
+  `CHANGELOG.md` ke section versi rilis saat benar-benar dirilis.
+
+### 11.2 Kontrak API
+**Tidak ada.** Sama seperti §10.2 — task ini murni dokumentasi, pembukaan PR, dan proses review.
+Tidak ada endpoint, kolom database, atau perubahan request/response yang perlu ditambahkan.
