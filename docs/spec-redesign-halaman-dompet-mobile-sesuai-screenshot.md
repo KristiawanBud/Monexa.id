@@ -343,3 +343,90 @@ jadi fallback sudah sesuai pola desain sistem ini.
 28–32sp untuk saldo, 12–14sp untuk badge/nama dompet, tinggi header 220–260dp — murni perubahan
 CSS di `.dompet-hero-bg`/`.hero-saldo-amount` pada `BalanceSummaryCard.vue`, tidak menyentuh props
 atau kontrak data.
+
+## 10. Lanjutan — Dokumentasi & Pembukaan PR (arahan CEO lanjutan, 2026-07-20)
+
+Arahan lanjutan: CEO AI, task "Lanjutkan dokumentasi dan buka PR redesign halaman Dompet (mobile)".
+Implementasi DB/Backend/Frontend untuk §1–§9 di atas **sudah selesai dan sudah commit** di branch ini
+(`8020f36` database, `dd6daae` backend, `00a7817` frontend). Task lanjutan ini murni dokumentasi +
+proses PR, **bukan** perubahan kontrak API/DB baru.
+
+### 10.0 Temuan repo penting (baca sebelum eksekusi)
+- **Tidak ada `CHANGELOG.md`** di root repo saat ini. Entri "Unreleased" yang diminta CEO berarti
+  **membuat file baru** dengan struktur [Keep a Changelog](https://keepachangelog.com/) (`## [Unreleased]`
+  di atas), bukan menyisipkan ke file yang sudah ada.
+- **Tidak ada Storybook / katalog komponen** di repo ini (`find` untuk `*storybook*` kosong). Langkah
+  "perbarui katalog komponen/Storybook" di arahan CEO **tidak applicable** — lewati, jangan bikin
+  setup Storybook baru hanya untuk task dokumentasi ini (di luar scope).
+- **Tidak ada framework i18n** (tidak ada `vue-i18n`, tidak ada folder `lang/`, tidak ada helper
+  `__()`/`trans()` dipakai di `resources/js`). Semua string UI (termasuk yang baru dari §1–§9,
+  mis. label "Transfer", badge jumlah filter, preset tanggal "Hari ini/Minggu ini/Bulan ini") adalah
+  string Bahasa Indonesia hardcoded langsung di komponen Vue. Jadi langkah "pastikan i18n/terjemahan
+  lengkap" **tidak applicable** sebagai kontrak API/DB — cukup dicatat sebagai catatan dokumentasi
+  bahwa aplikasi ini single-language (id-ID), tidak ada string yang perlu diterjemahkan ke locale lain.
+- Branch target PR di arahan CEO adalah **develop**, tersedia sebagai `origin/develop`.
+- **Tidak ada endpoint/tabel baru untuk task ini** — konsisten dengan §0: seluruh perubahan API/DB
+  sudah dikontrakkan di §2–§5 dan sudah diimplementasikan. Task lanjutan ini nihil kontrak API baru.
+
+### 10.1 Todo Teknis (breakdown pelaksanaan)
+
+Catatan lingkup: sesuai batasan peranku (Project Manager AI), bagian ini **memecah** arahan CEO jadi
+todo konkret per eksekutor. Aku sendiri tidak mengeksekusi todo di bawah (tidak commit ke
+`CHANGELOG.md`, tidak membuka PR, tidak assign reviewer, tidak merge) — itu tugas Frontend AI/Backend AI
+untuk isi teknis dan CEO AI/DevOps/human untuk aksi proses (git ops, PR, merge, deploy) yang levelnya
+di atas kewenanganku.
+
+**Dokumentasi (eksekutor: Frontend AI, karena scope-nya UI/UX halaman Dompet)**
+- [ ] Buat `CHANGELOG.md` (kalau memang belum ada) dengan section `## [Unreleased]`, tambahkan entri
+  di bawah heading `### Changed`:
+  `- Redesign halaman Dompet (mobile): saldo & 3 kartu ringkasan lebih besar & interaktif (tap untuk
+  filter), filter tipe/kategori jadi multi-select, transaksi Transfer kini muncul di list Transaksi,
+  bottom nav mendukung safe-area (notch/home indicator), dark mode header, ubah warna E-Wallet ke
+  amber (#F59E0B).`
+- [ ] Update/tulis dokumentasi user mobile halaman Dompet (cari lokasi yang sesuai konvensi repo,
+  mis. `docs/` atau folder user-guide kalau ada — kalau tidak ada folder user-guide, buat
+  `docs/user-guide-dompet-mobile.md`) mencakup:
+  - Screenshot before/after (ambil dari build lokal `npm run dev`/`npm run build` + emulator mobile
+    width ~375–414px, sesuai breakpoint di §9.3).
+  - Penjelasan perubahan UI/UX: header saldo lebih besar, 3 kartu saldo bisa di-tap untuk filter,
+    filter multi-select, badge jumlah filter aktif, Transfer sebagai tipe baru di list (ikon 🔄,
+    warna abu, tanpa +/−).
+  - Perilaku baru: tap kartu saldo = filter `balance_group` (mutually exclusive dengan filter dompet
+    tunggal di bottom sheet, lihat §3), badge filter aktif di tombol filter.
+  - Empty state: sudah pakai `EmptyState.vue` — dokumentasikan pesan yang tampil saat kombinasi
+    filter menghasilkan 0 hasil (lihat catatan §1 QA soal filter Transfer + kategori).
+  - Error/offline state: `ErrorState.vue`, banner di bawah header (lihat §8).
+  - Dampak ke pengguna: **tidak ada breaking change data** — filter lama (`type`/`category_id` string
+    tunggal, termasuk yang tersimpan di `localStorage` key `monexa_dompet_filters`) tetap kompatibel
+    (lihat catatan kompatibilitas di §2), tidak perlu migrasi data pengguna.
+  - Catat eksplisit: **tidak ada perubahan API/DB** di luar yang sudah dikontrakkan & diimplementasikan
+    di §2–§5 (semua sudah live di branch ini) — task dokumentasi ini tidak menambah endpoint/kolom baru.
+  - Catat eksplisit: **tidak ada string baru yang perlu diterjemahkan** — lihat §10.0 (tidak ada
+    framework i18n, aplikasi single-language id-ID).
+- [ ] Lewati langkah "katalog komponen/Storybook" — tidak applicable, lihat §10.0.
+
+**Proses PR & rilis (eksekutor: CEO AI / DevOps / human — di luar kewenangan Project Manager AI maupun
+Frontend/Backend/Database AI, dicatat di sini murni sebagai breakdown todo sesuai arahan CEO)**
+- [ ] Sinkronisasi branch `feature/redesign-halaman-dompet-mobile-sesuai-screenshot` dengan `develop`
+  (rebase/merge), pastikan pint/phpstan/test/build/migrate tetap hijau setelah sync.
+- [ ] Buka PR ke `develop`, judul "Redesign Halaman Dompet (Mobile)", body sesuai template arahan CEO
+  (ringkasan, screenshot before/after, checklist status check, catatan keamanan LOW non-blocking
+  — **jangan jalankan ulang security scan**, backward compatibility: tidak ada breaking change data).
+- [ ] Label: `feature`, `mobile`, `redesign`, `dompet`. Reviewer: Kristiawan + tim mobile/frontend/QA.
+- [ ] Sertakan panduan uji manual di deskripsi PR: buka Dompet (mobile), cek saldo & 3 kartu tap-filter,
+  daftar transaksi termasuk baris Transfer, pull-to-refresh, empty state (kombinasi filter kosong),
+  error state, dark mode, performa scroll list, responsivitas berbagai lebar layar mobile.
+- [ ] Sorot area berisiko untuk reviewer: query union `transactions`+`wallet_transfers` di §4
+  (performa & correctness pagination), perubahan filter jadi multi-select (state management di
+  `FilterDrawer.vue`/`Dompet.vue`), aksesibilitas label ikon kategori & kontras warna (§1 Frontend
+  todo terakhir).
+- [ ] Pasca-approve: squash-merge, hapus branch feature setelah aman.
+- [ ] Pindahkan entri `CHANGELOG.md` dari `[Unreleased]` ke section versi rilis saat benar-benar dirilis.
+  - [ ] Pastikan deploy staging jalan & halaman Dompet (mobile) berfungsi sesuai ekspektasi di staging.
+
+### 10.2 Kontrak API
+**Tidak ada.** Task ini murni dokumentasi + proses PR. Semua kontrak API/DB untuk fitur redesign
+Dompet mobile sudah lengkap di §2 (filter multi-select), §3 (kartu saldo interaktif), §4 (Transfer di
+list), §5 (export CSV) — dan seluruhnya sudah diimplementasikan di commit `8020f36`/`dd6daae`/`00a7817`.
+Tidak ada endpoint baru, tidak ada kolom database baru, tidak ada perubahan request/response shape
+yang perlu ditambahkan untuk menyelesaikan task dokumentasi & PR ini.
