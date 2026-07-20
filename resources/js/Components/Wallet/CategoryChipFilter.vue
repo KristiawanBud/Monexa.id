@@ -47,6 +47,6 @@ const selected = computed(() => (Array.isArray(props.modelValue) ? props.modelVa
 .cat-chip {
   flex-shrink: 0;
   white-space: nowrap;
-  min-height: 36px;
+  min-height: 44px;
 }
 </style>
