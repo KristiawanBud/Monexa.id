@@ -509,3 +509,95 @@ maupun Frontend/Backend/Database AI)**
 ### 11.2 Kontrak API
 **Tidak ada.** Sama seperti §10.2 — task ini murni dokumentasi, pembukaan PR, dan proses review.
 Tidak ada endpoint, kolom database, atau perubahan request/response yang perlu ditambahkan.
+
+## 12. Lanjutan — Finalisasi Pembukaan PR ke `develop` (arahan CEO lanjutan, 2026-07-20)
+
+Arahan lanjutan: CEO AI, task "Buat PR redesign halaman Dompet (mobile) dari
+`feature/redesign-halaman-dompet-mobile-sesuai-screenshot` ke `develop`". Ini **elaborasi §11**
+dengan detail eksekusi git & metadata PR yang lebih spesifik (judul, struktur body, label, urutan
+langkah) — bukan kontrak API/DB baru. Catatan eksplisit dari CEO: *"Bug sistem yang sebelumnya
+menghentikan proses sudah diperbaiki, tidak ada tindakan tambahan terkait itu"* — dicatat di sini
+untuk konteks eksekutor, tidak menghasilkan todo teknis baru (tidak ada aksi remediasi yang perlu
+dipecah karena arahan CEO sendiri menyatakan tidak perlu tindakan tambahan).
+
+Semua batasan §10.0/§11.0 (tidak ada framework i18n, tidak ada Storybook, target branch `develop`,
+**jangan** jalankan ulang security scan, implementasi DB/Backend/Frontend sudah selesai & sudah
+commit) tetap berlaku.
+
+### 12.1 Todo Teknis (breakdown pelaksanaan)
+
+Catatan lingkup: sesuai batasan peranku (Project Manager AI), bagian ini murni **memecah** arahan
+CEO jadi todo konkret per eksekutor. Aku tidak mengeksekusi git command, tidak push, tidak membuka
+PR, tidak memasang label/reviewer, tidak merge — semua itu di luar kewenanganku.
+
+**Persiapan branch (eksekutor: CEO AI / DevOps / human)**
+- [ ] `git fetch origin`
+- [ ] `git checkout feature/redesign-halaman-dompet-mobile-sesuai-screenshot`
+- [ ] `git pull`
+- [ ] Cek apakah `develop` sudah maju sejak branch ini dibuat (`git log
+  feature/redesign-halaman-dompet-mobile-sesuai-screenshot..origin/develop`). Kalau ada commit baru
+  di `develop`, sinkronkan (`git rebase origin/develop` atau `merge`, sesuai konvensi repo — repo
+  ini belum punya kebijakan tertulis rebase-vs-merge, pilih yang konsisten dengan histori PR
+  sebelumnya). Selesaikan konflik bila muncul; kalau konflik menyentuh file di luar scope redesign
+  Dompet (§0 daftar file yang disentuh task ini), eskalasi ke Backend/Frontend AI terkait sebelum
+  menyelesaikan sepihak.
+- [ ] `git push origin HEAD`
+
+**Pembukaan PR (eksekutor: CEO AI / DevOps / human)**
+- [ ] Base: `develop`, Compare: `feature/redesign-halaman-dompet-mobile-sesuai-screenshot`.
+- [ ] Judul: `Redesign Halaman Dompet (Mobile) — sesuai screenshot desain`.
+- [ ] Body PR, mengikuti struktur berikut (isi konkret sudah tersedia dari §10–§11, tinggal disusun
+  ulang ke format ini):
+  - **Ringkasan** — ambil dari §11.1 poin "Isi body PR" (redesign halaman Dompet mobile sesuai
+    `storage/athena-refs/monexa-1784234498463.jpg`, lihat §0).
+  - **Perubahan utama** — ringkas dari §1 (Frontend/Backend todo): header saldo & 3 kartu interaktif,
+    filter multi-select, Transfer muncul di list, safe-area bottom nav, dark mode header, warna
+    E-Wallet ke amber.
+  - **Screenshot** — before/after pada 3 resolusi §11.1 (360×640, 390×844, 414×896), dari
+    `docs/user-guide-dompet-mobile.md` kalau sudah dibuat sesuai §11.1, atau diambil ulang saat PR
+    dibuka kalau belum ada.
+  - **Pengujian** — status hijau untuk pint, phpstan, unit/integration test, build, migrate (jalankan
+    ulang di branch yang sudah disinkron ke `develop`, bukan sekadar mengklaim status lama).
+  - **Keamanan** — cantumkan: hasil security scan sebelumnya LOW non-blocking, **tidak perlu diulang**
+    (konsisten dengan §11.1 checklist).
+  - **Dampak & kompatibilitas** — tidak ada breaking change data (§2 kompatibilitas backward untuk
+    filter lama), tidak ada perubahan schema/DB (§1 Database: nihil migration baru), tidak ada
+    perubahan konfigurasi prod di PR ini.
+  - **QA steps** — langkah manual: buka `/dompet` di viewport mobile, cek tampilan list transaksi
+    (termasuk baris Transfer §4) & empty state (`EmptyState.vue`) & error state (`ErrorState.vue`),
+    uji tap 3 kartu saldo → filter (§3), buka filter drawer & uji multi-select tipe/kategori (§2),
+    aksi tambah transaksi via FAB, cek dark/light mode header (§9.3), cek safe-area bottom nav (§6)
+    di device dengan/tanpa notch.
+  - **Dokumentasi** — sebutkan lokasi: `CHANGELOG.md` (entri `[Unreleased]`, §10.1/§11.1),
+    `README.md` (bagian halaman Dompet, §11.1), `docs/user-guide-dompet-mobile.md` (§11.1), spec ini
+    (`docs/spec-redesign-halaman-dompet-mobile-sesuai-screenshot.md`). Kalau salah satu item §11.1
+    dokumentasi belum selesai saat PR dibuka, catat statusnya eksplisit di body PR (jangan klaim
+    "lengkap" kalau belum) supaya reviewer tahu apa yang masih outstanding.
+
+**Administrasi PR (eksekutor: CEO AI / DevOps / human)**
+- [ ] Label: `feature`, `mobile`, `UI/UX`, `redesign`, `ready-for-review` — pakai nama persis ini;
+  kalau salah satu belum terdaftar di repo, buat label baru dengan nama yang sama (jangan substitusi
+  ke nama lain tanpa mencatat penyesuaian di body PR).
+- [ ] Reviewer: tim frontend/mobile + QA terkait (§11.1 sebelumnya menyebut nama spesifik
+  "Kristiawan (owner)" — pertahankan kalau masih relevan, tambahkan reviewer QA lain sesuai
+  struktur tim saat ini).
+- [ ] Link-kan issue/tiket/desain (screenshot/Figma) bila ada di tracker eksternal — repo lokal tidak
+  ada tiket eksplisit (dicek di §11.1), jadi ini bergantung pada tracker di luar repo.
+- [ ] Gunakan template PR repo (`.github/PULL_REQUEST_TEMPLATE.md` kalau ada — cek dulu keberadaannya
+  sebelum menulis body manual dari nol) dan checklist: CI hijau, dokumentasi lengkap (atau status
+  outstanding dicatat jelas), security scan tidak diulang, screenshot terlampir.
+
+**Setelah PR terbuka (eksekutor: CEO AI / DevOps / human)**
+- [ ] Pastikan pipeline PR tetap hijau (pint, phpstan, test, build, migrate) — re-run kalau ada
+  perubahan setelah sync ke `develop`.
+- [ ] Ping reviewer untuk review/approval.
+- [ ] Setelah approve: merge ke `develop` sesuai kebijakan repo (squash-merge, konsisten dengan
+  §10.1/§11.1), hapus branch feature setelah aman, pindahkan entri `CHANGELOG.md` dari
+  `[Unreleased]` ke section versi rilis saat benar-benar dirilis, update milestone terkait bila ada.
+
+### 12.2 Kontrak API
+**Tidak ada.** Sama seperti §10.2/§11.2 — task ini murni proses git & administrasi PR. Tidak ada
+endpoint, kolom database, atau perubahan request/response yang perlu ditambahkan. Seluruh kontrak
+teknis fitur redesign Dompet mobile tuntas di §2–§5 dan sudah diimplementasikan pada commit
+`8020f36`/`dd6daae`/`00a7817` (lihat juga commit lanjutan `3c5961b`, `ada8a21`, `91c3db4`, `3728be1`
+untuk migration/frontend/docs tambahan di histori branch ini).
