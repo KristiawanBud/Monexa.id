@@ -2,6 +2,13 @@
 
 Semua perubahan penting pada Monexa dicatat di sini.
 
+## 2026-07-20 — Finalisasi redesign halaman Dompet (mobile): dokumentasi, PR, dan review
+
+Tahap akhir redesign halaman Dompet (mobile) selesai: dokumentasi dirapikan, pull request
+disiapkan, dan perubahan sudah melewati review sebelum siap digabung. Tidak ada perilaku baru di
+luar yang sudah dijelaskan pada entry sebelumnya — fokusnya memastikan semuanya tercatat rapi dan
+siap ditinjau.
+
 ## 2026-07-20 — Lanjutkan dokumentasi dan buka PR redesign halaman Dompet (mobile)
 
 Halaman Dompet (mobile) dirombak: saldo & 3 kartu ringkasan (Cash/Bank/E-Wallet) tampil lebih
