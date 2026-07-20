@@ -2,6 +2,13 @@
 
 Semua perubahan penting pada Monexa dicatat di sini.
 
+## 2026-07-20 — Buka PR redesign halaman Dompet (mobile) ke develop
+
+Pull request untuk redesign halaman Dompet (mobile) disiapkan untuk digabungkan dari branch
+`feature/redesign-halaman-dompet-mobile-sesuai-screenshot` ke `develop`. Tidak ada perubahan
+fitur atau API baru di langkah ini — murni proses penyelarasan branch dan pembukaan PR, seluruh
+perubahan teknis sudah tercatat di entry-entry sebelumnya.
+
 ## 2026-07-20 — Finalisasi redesign halaman Dompet (mobile): dokumentasi, PR, dan review
 
 Tahap akhir redesign halaman Dompet (mobile) selesai: dokumentasi dirapikan, pull request
