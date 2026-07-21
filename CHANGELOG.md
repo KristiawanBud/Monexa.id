@@ -4,6 +4,17 @@ Semua perubahan penting pada Monexa dicatat di sini.
 
 ## 2026-07-21 — Lanjutkan Review PR #1: Redesign Halaman Dompet (Mobile)
 
+Diff yang sempat dikirim ke reviewer sebelumnya diduga kosong, dan setelah dicek ulang ternyata
+bukan karena branch ini tidak punya perubahan — `git diff main...HEAD` berisi seluruh perubahan
+kode redesign halaman Dompet (filter transaksi multi-pilih, transaksi transfer ikut muncul di
+daftar, migrasi index database). Pengiriman request review diperbaiki supaya reviewer menerima
+diff kode yang sebenarnya, dan pengecekan lanjutan (keamanan multi-tenant pada query gabungan
+transaksi + transfer, serta kesesuaian implementasi dengan spec redesign) bisa dilanjutkan
+berdasarkan diff yang benar. Tidak ada perubahan fitur atau API baru dari langkah ini — kontrak
+teknis tetap seperti yang sudah tercatat di entry-entry sebelumnya.
+
+## 2026-07-21 — Lanjutkan Review PR #1: Redesign Halaman Dompet (Mobile) (checklist awal)
+
 Review PR #1 (redesign halaman Dompet mobile) dilanjutkan dan dipecah jadi checklist konkret:
 validasi UI vs desain, uji fungsional CTA dompet (tambah/edit/hapus/transfer), regresi state &
 performa, aksesibilitas, sampai kriteria approval sebelum merge ke `develop`. Tidak ada fitur atau
