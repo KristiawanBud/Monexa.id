@@ -729,3 +729,191 @@ membuka PR, tidak memasang label/reviewer, tidak merge — semua itu di luar kew
 administrasi PR. Tidak ada endpoint, kolom database, atau perubahan request/response yang perlu
 ditambahkan. Seluruh kontrak teknis fitur redesign Dompet mobile tuntas di §2–§5 dan sudah
 diimplementasikan pada commit-commit yang tercatat di §10–§12.
+
+## 14. Lanjutan — Lanjutkan Review PR #1: Redesign Halaman Dompet (Mobile) (arahan CEO lanjutan, 2026-07-21)
+
+Arahan lanjutan: CEO AI, task "Lanjutkan Review PR #1: Redesign Halaman Dompet (Mobile)"
+(`https://github.com/KristiawanBud/Monexa.id/pull/1`). Ini task **review/QA**, bukan kontrak API/DB
+baru — semua kontrak teknis fitur redesign Dompet mobile tetap tuntas di §2–§5 dan sudah
+diimplementasikan (lihat commit di §10–§13). Catatan CEO: *"Bug sistem yang sebelumnya menghentikan
+proses sebelum review sudah diperbaiki; tidak ada blocker eksternal untuk melanjutkan review"* — murni
+konteks, tidak menghasilkan todo remediasi baru.
+
+### 14.0 Temuan repo penting untuk elaborasi ini (baca sebelum eksekusi)
+- `gh` belum ter-autentikasi di environment tempat spec ini ditulis (`gh auth status` → belum login,
+  tidak ada token di env) — aku (Project Manager AI) tidak bisa membuka/verifikasi isi PR #1 secara
+  langsung dari sini. Breakdown di bawah disusun dari state kode branch ini + histori spec §0–§13;
+  eksekutor yang menjalankan `gh`/browser dengan akses harus mengonfirmasi ulang detail PR (deskripsi,
+  link desain terlampir, komentar reviewer) terhadap breakdown ini sebelum menandai selesai.
+- **Tidak ada `.github/workflows` sama sekali** di repo ini (`.github` tidak ada). Jadi "pastikan semua
+  check CI lulus" **tidak applicable** sebagai status check GitHub otomatis — padanannya adalah
+  menjalankan manual command yang sudah dikontrakkan di §13.0/§13.1 (`vendor/bin/pint --test`,
+  `vendor/bin/phpstan analyse`, `vendor/bin/phpunit`, `npm run build`) dan melaporkan hasilnya di
+  deskripsi PR, bukan menunggu badge CI yang memang tidak ada.
+- **Tidak ada unit test/snapshot existing untuk Dompet/Wallet** — `tests/Feature/` kosong, `tests/Unit/`
+  cuma berisi `ExampleTest.php` bawaan Laravel. Item CEO "Perbarui/tambahkan unit test/snapshot yang
+  terdampak perubahan UI" berarti **membuat test baru dari nol** untuk area ini, bukan mengupdate test
+  lama (karena memang belum pernah ada).
+  Tidak ada test runner e2e/UI (tidak ada Cypress/Playwright/Vitest di `package.json`, dikonfirmasi
+  ulang — konsisten dengan §13.0). "Jalankan e2e/smoke test... viewport mobile" tidak bisa berupa
+  automated suite di repo ini saat ini; padanannya manual QA smoke-test checklist (lihat §14.1).
+- **Gap penting — CTA "set default dompet" TIDAK ADA di codebase**: dicek `app/Http/Controllers/App/
+  WalletController.php` (cuma ada `store`/`update`/`destroy`/`transfer`) dan skema tabel `user_wallets`
+  (`id, user_id, bank_id, display_name, icon, color, account_number, type, balance, initial_balance,
+  is_active, is_saham, saham_modal, saham_nilai_sekarang, sort_order, timestamps, deleted_at`) — **tidak
+  ada kolom `is_default`, tidak ada route, tidak ada UI** untuk menjadikan satu dompet sebagai default.
+  Pola `is_default` memang ada di repo (`WaGateway` admin, `app/Http/Controllers/Admin/
+  WaGatewayController.php`), tapi itu entitas gateway WhatsApp yang tidak relevan, bukan `UserWallet`.
+  Fitur ini **tidak pernah dikontrakkan** di §0–§13 (scope PR #1 sesuai §0 adalah **redesign tampilan**
+  halaman Dompet, bukan menambah kapabilitas wallet baru). Keputusan: **tidak membuat kontrak API baru
+  untuk ini di sini** — lihat §14.2 untuk penjelasan & draft opsional kalau CEO mau menugaskan ini
+  terpisah nanti.
+- "Navigasi ke detail dompet": tidak ada route/halaman detail dompet terpisah. Tap `CardDompet` di
+  `Dompet.vue` (`@click="openEditWallet"`) membuka **modal edit inline** (`showAddWallet`/
+  `editingWallet` state), bukan navigasi ke URL lain. QA menguji ini sebagai perilaku modal (buka/tutup/
+  data terisi benar), bukan mengharapkan halaman detail terpisah yang memang tidak ada di scope PR ini.
+- Aksi tambah/edit/hapus dompet **sudah ada & berfungsi** (route `wallets.store`/`wallets.update`/
+  `wallets.destroy`, lihat `routes/web.php:138-140`) — ini yang harus benar-benar diuji fungsional oleh
+  QA sesuai acceptance criteria CEO, bukan dibuatkan kontrak baru.
+
+### 14.1 Todo Teknis (breakdown pelaksanaan)
+
+Catatan lingkup: sesuai batasan peranku (Project Manager AI), bagian ini murni **memecah** arahan jadi
+todo konkret per eksekutor. Aku tidak mengeksekusi apa pun di bawah ini (tidak membuka PR, tidak
+menjalankan test/build, tidak menulis kode test, tidak approve/merge, tidak memasang label/reviewer).
+
+**Verifikasi ruang lingkup PR (eksekutor: CEO AI / DevOps / human — akses GitHub)**
+- [ ] Buka `https://github.com/KristiawanBud/Monexa.id/pull/1`, konfirmasi title/description menyebut
+  redesign halaman Dompet mobile sesuai referensi `storage/athena-refs/monexa-1784234498463.jpg` (§0).
+- [ ] Konfirmasi compare branch = `feature/redesign-halaman-dompet-mobile-sesuai-screenshot`, base =
+  `develop` (konsisten §13).
+- [ ] Cek link desain/asset yang dilampirkan di deskripsi PR benar-benar match referensi §0. Kalau ada
+  asset/desain baru yang belum tercatat di spec ini, **jangan ubah spec ini sepihak** — laporkan ke CEO
+  sebagai temuan untuk elaborasi spec berikutnya.
+
+**Validasi UI vs desain (eksekutor: Frontend AI / QA)**
+- [ ] Cocokkan layout/spacing/tipografi/color tokens/ikon terhadap keputusan desain §9: E-Wallet amber
+  `#F59E0B` (§9.1), ilustrasi `AppIcon` slug `dompet_hero` (§9.2), tipografi saldo 28–32sp & tinggi
+  header 220–260dp (§9.3).
+- [ ] Dark mode: verifikasi gradient header dark (§1 Frontend todo) memang pakai token
+  `--primary`/`--primary-dark` dari `[data-theme='dark']`, bukan hex hardcoded.
+
+**Uji fungsional viewport mobile (eksekutor: QA, manual — tidak ada automated e2e runner, §14.0)**
+- [ ] Device/emulator: Chrome Android (DevTools device toolbar) & Safari iOS (Simulator/BrowserStack/
+  device fisik kalau tersedia; kalau tidak tersedia di environment yang menjalankan review, catat
+  eksplisit sebagai limitasi di laporan QA — jangan klaim "sudah diuji Safari iOS" kalau nyatanya tidak
+  dijalankan).
+- [ ] Viewport width < 768px, fokus khusus rentang 320–430px (§13.0) dan titik resolusi 360×800/390×844
+  (opsional 414×896, §13.0).
+- [ ] Daftar dompet & saldo: buka tab "Dompet" (`selectTab('dompet')`), cek `CardDompet` menampilkan
+  saldo per dompet benar, header (`BalanceSummaryCard.vue`) + 3 kartu ringkasan (Cash/Bank/E-Wallet)
+  konsisten dengan total.
+- [ ] CTA tambah dompet: `showAddWallet = true` → submit `walletForm.post(route('wallets.store'))` →
+  dompet baru muncul tanpa reload penuh, tanpa error console.
+- [ ] CTA edit dompet: tap kartu → `openEditWallet` → modal terisi data lama → submit
+  `walletForm.put(route('wallets.update', ...))` → perubahan ter-reflect.
+- [ ] CTA hapus dompet: `deleteWallet()` → `router.delete(route('wallets.destroy', ...))` → uji 3
+  skenario backend (`WalletController::destroy`): (a) saldo ≠ 0 → pesan error tampil, dompet TIDAK
+  terhapus; (b) dompet punya riwayat transaksi & saldo 0 → soft-delete + `is_active=false` (hilang dari
+  list, riwayat transaksi lama tetap ada); (c) dompet baru tanpa transaksi & saldo 0 → terhapus permanen.
+- [ ] CTA "set default dompet": **tandai N/A** di laporan QA (lihat §14.0) — bukan kegagalan, fitur ini
+  tidak ada di scope PR #1.
+- [ ] "Navigasi ke detail dompet" (via modal edit, §14.0): modal terbuka/tertutup benar; tombol back
+  hardware Android / gesture back iOS saat modal terbuka menutup modal dulu (tidak langsung keluar dari
+  halaman Dompet secara tidak sengaja) — bagian dari acceptance "back behavior konsisten".
+- [ ] Transfer antar dompet (`openTransfer` → `wallets.transfer`, syarat `wallets.length >= 2`): uji
+  sebagai regresi fitur existing yang relevan dengan "aksi cepat" halaman Dompet meski tidak eksplisit
+  disebut arahan CEO.
+
+**Regresi data fetching/state (eksekutor: QA / Frontend AI)**
+- [ ] Console DevTools nihil error/warning saat: load awal `/dompet`, ganti tab, ganti filter
+  multi-select (§2), tap kartu saldo (§3), scroll list dengan baris Transfer (§4), submit form
+  tambah/edit/hapus dompet.
+- [ ] Loading: `isLoading` ref (`router.on('start')`/`finish`) tampil konsisten termasuk untuk header
+  saldo & 3 kartu (§1 Frontend todo "Skeleton/empty/error state").
+- [ ] Empty: `EmptyState.vue` untuk kombinasi filter 0 hasil (§1 QA todo, termasuk filter
+  Transfer+kategori §2).
+- [ ] Error/offline: `ErrorState.vue` + `router.on('error')` (`hasError` ref) — matikan network
+  (DevTools offline), ulangi aksi CTA, pastikan banner error tampil, bukan crash/blank page.
+
+**Performa (eksekutor: QA / Frontend AI)**
+- [ ] Re-render berlebih: Vue Devtools component highlight saat ganti filter/tab — pastikan tidak ada
+  komponen tak terkait ikut re-render (mis. list transaksi re-render penuh cuma karena toggle dark
+  mode).
+- [ ] Ukuran asset: cek hasil build `public/build/assets/Dompet-*.js`/`Dompet-*.css`, pastikan tidak ada
+  gambar raster besar tak terkompresi (ilustrasi pakai `AppIcon` terkelola admin, §9.2, seharusnya tidak
+  menambah bundle).
+- [ ] Scroll: uji list transaksi panjang di perangkat kelas menengah (CPU throttle 4–6x, DevTools
+  Performance/Lighthouse mobile).
+
+**Aksesibilitas (eksekutor: QA / Frontend AI)**
+- [ ] Screen reader: `aria-label` ikon kategori (§1 Frontend todo terakhir), label tombol
+  filter/tambah dompet/transfer, `role="tab"`/`aria-selected` di `.tab-pill` — verifikasi VoiceOver iOS
+  & TalkBack Android membacanya benar.
+- [ ] Urutan fokus logis: header → tab segmented → search/filter → list → bottom nav.
+- [ ] Target sentuh ≥44dp: audit ulang `.chip` & tombol CTA (§1 Frontend todo).
+
+**Internasionalisasi/lokalisasi (eksekutor: QA)**
+- [ ] Format angka/mata uang konsisten `Rp` + separator ribuan titik di seluruh halaman termasuk baris
+  Transfer baru (§4) — pola sama seperti `number_format($x, 0, ',', '.')` di `WalletController`.
+- [ ] String tidak terpotong di lebar 320px (§13.0): label dompet panjang, badge jumlah filter, teks
+  tombol. Tidak ada framework i18n di repo ini (single-language id-ID, §10.0/§13.0) — fokus murni ke
+  CSS overflow/truncation, bukan terjemahan.
+
+**Pengujian (eksekutor: Backend AI untuk PHP, Frontend AI/QA untuk sisi FE)**
+- [ ] Tidak ada test existing (§14.0) — buat Feature test PHP baru di `tests/Feature/` untuk
+  `WalletController` (`store`/`update`/`destroy` happy path + 2 skenario error saldo≠0 & ada transaksi)
+  dan `TransactionController@index` (filter multi-select §2, `balance_group` §3, union transfer §4).
+- [ ] Tidak ada test runner FE (§14.0) — menambah Vitest/Cypress adalah keputusan tooling baru di luar
+  scope spec ini; kalau tidak ditambah, cukup dokumentasikan hasil manual QA smoke-test checklist di
+  atas sebagai bukti pengujian.
+- [ ] "Smoke test e2e viewport mobile" dipenuhi lewat checklist manual "Uji fungsional viewport mobile"
+  di atas (tidak applicable sebagai automated suite, §14.0); hasilnya dilampirkan di deskripsi PR.
+
+**Dokumentasi & CI (eksekutor: CEO AI/DevOps/human; konten revisi docs oleh Frontend AI bila perlu)**
+- [ ] Tidak ada `.github/workflows` (§14.0) — "semua check CI lulus" dipenuhi lewat command manual
+  `vendor/bin/pint --test`, `vendor/bin/phpstan analyse`, `vendor/bin/phpunit`, `npm run build` (§13.1),
+  hasilnya dicantumkan di deskripsi PR.
+- [ ] Perbaiki lint/typing bila ada yang gagal dari command di atas — didelegasikan ke Backend AI (PHP)
+  atau Frontend AI (Vite build) sesuai jenis kegagalan.
+- [ ] Tambahkan/rapikan screenshot before/after di deskripsi PR: resolusi 360×800 & 390×844 (§13.1),
+  sertakan versi dark mode.
+- [ ] Update `CHANGELOG.md` bila ada perubahan baru hasil temuan reviewer — entri baru di bawah
+  `## [Unreleased]` (format §10.0), jangan hapus entri lama.
+- [ ] Label PR: gunakan set yang sudah dikontrakkan §13.1 (`redesign`, `mobile`, `UI` atau label setara
+  yang sudah terdaftar di repo) — cek daftar label dulu sebelum membuat baru.
+- [ ] Mention reviewer: Kristiawan (owner) + tim desain/QA (konsisten §11.1/§13.1).
+
+**Kriteria penerimaan (eksekutor: CEO AI/DevOps/human)**
+- [ ] Minimal 2 approval reviewer — pantau via `gh pr view 1 --json reviews` (perlu `gh auth login` di
+  environment yang menjalankan, §14.0) atau UI GitHub.
+- [ ] Semua komentar review ditangani (reply/resolve) atau diperbaiki via commit baru — tindak lanjuti
+  sesuai temuan reviewer, **jangan menambah fitur baru** di luar §0/§9/§14 (termasuk "set default
+  dompet" — perlu arahan CEO eksplisit terpisah kalau memang mau dikerjakan, bukan otomatis ditambah di
+  sini, §14.0).
+- [ ] QA smoke-test checklist di atas lulus tanpa blocker (blocker = bug yang mencegah alur inti: lihat/
+  tambah/edit/hapus dompet, lihat transaksi). Item "set default dompet" dikecualikan dari definisi
+  blocker karena N/A untuk PR ini.
+- [ ] PR siap merge ke `develop` dengan strategi non-squash (pertahankan histori conventional commits,
+  §13.0/§13.1).
+
+### 14.2 Kontrak API
+**Tidak ada endpoint/tabel/kolom baru.** Seluruh kontrak teknis fitur redesign Dompet mobile tuntas di
+§2–§5 dan sudah diimplementasikan. Task review PR #1 ini murni verifikasi & QA — tidak menghasilkan
+kontrak API baru.
+
+Catatan eksplisit soal CTA "set default dompet" yang disebut arahan CEO: **tidak dikontrakkan di sini**
+karena fitur ini tidak ada di scope PR #1 (§0) maupun di codebase saat ini (§14.0) — ini bukan gap
+implementasi yang lupa dikerjakan, melainkan di luar cakupan redesign UI yang sedang direview. Kalau CEO
+memang menghendaki kemampuan "dompet default" sebagai fitur baru, berikut draft awal kontrak (**bukan
+keputusan final**, perlu arahan CEO terpisah untuk dieksekusi):
+- Endpoint usulan: `PATCH /dompet/wallets/{wallet}/default`
+- Request: `{}` (wallet id dari route param, user dari auth)
+- Response: redirect back dengan flash `success`, konsisten pola `WalletController` yang ada.
+- Database: kolom baru `user_wallets.is_default` (boolean, default false), unique constraint logis
+  "hanya 1 dompet aktif ber-`is_default=true` per user" (di-enforce di service layer, pola sama seperti
+  `WaGatewayController` men-set `is_default=false` ke record lain sebelum set yang baru).
+- Validasi: wallet harus milik user yang login (`abort_if($wallet->user_id !== $request->user()->id,
+  403)`, pola sudah ada di `update`/`destroy`).
+Draft ini **tidak untuk dieksekusi Backend/Database AI** sampai ada arahan CEO eksplisit yang
+menugaskannya sebagai task tersendiri.
