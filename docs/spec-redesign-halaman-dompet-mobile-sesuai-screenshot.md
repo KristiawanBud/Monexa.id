@@ -601,3 +601,131 @@ endpoint, kolom database, atau perubahan request/response yang perlu ditambahkan
 teknis fitur redesign Dompet mobile tuntas di §2–§5 dan sudah diimplementasikan pada commit
 `8020f36`/`dd6daae`/`00a7817` (lihat juga commit lanjutan `3c5961b`, `ada8a21`, `91c3db4`, `3728be1`
 untuk migration/frontend/docs tambahan di histori branch ini).
+
+## 13. Lanjutan — Buat PR ke `develop` (arahan CEO lanjutan, 2026-07-21)
+
+Arahan lanjutan: CEO AI, task "Buat PR: `feature/redesign-halaman-dompet-mobile-sesuai-screenshot` →
+`develop` (Redesign Halaman Dompet - Mobile)". Ini **elaborasi §10–§12** dengan detail baru (langkah
+sinkronisasi eksplisit, validasi lokal, struktur body PR, acceptance criteria, checklist, label,
+catatan strategi commit). Bukan kontrak API/DB baru — semua kontrak teknis fitur ini tetap tuntas di
+§2–§5 dan sudah diimplementasikan. Tidak ada endpoint/tabel baru untuk elaborasi ini.
+
+### 13.0 Temuan repo penting untuk elaborasi ini (baca sebelum eksekusi)
+- **Tidak ada script lint di `package.json`** (`scripts` cuma `dev` dan `build` — cek isi file, tidak
+  ada `eslint`/`.eslintrc*` di root). Jadi item "Jalankan lint" dari arahan CEO **tidak applicable**
+  untuk sisi frontend JS — cukup jalankan `npm run build` (Vite) untuk validasi build. Untuk sisi
+  PHP, `vendor/bin/pint` (code style) dan `vendor/bin/phpstan` **tersedia** di repo — pakai `pint`
+  sebagai padanan "lint" yang dimaksud arahan CEO.
+- Test PHP tersedia via `vendor/bin/phpunit` (`phpunit.xml` ada di root). Tidak ada test runner UI/E2E
+  (tidak ada Cypress/Playwright/Vitest di `package.json`) — jadi "UI test" dari arahan CEO **tidak
+  applicable** sebagai automated test; yang bisa dilakukan hanya sanity check manual (lihat §13.1
+  QA/manual test todo).
+- **Konflik dengan keputusan sebelumnya (§10.1/§11.1)**: spec versi lama menetapkan strategi
+  "squash-merge" pasca-approve. Arahan CEO kali ini eksplisit: *"Hindari squash commit yang
+  menyatukan konteks penting. Gunakan pola conventional commits jika berlaku di repo."* Histori
+  commit branch ini memang sudah mengikuti conventional commits (`feat(...)`, `docs(...)`, lihat
+  `git log`). Ini **perubahan keputusan proses**, dicatat di sini sebagai penyesuaian: eksekutor
+  (CEO AI/DevOps/human) perlu memilih strategi merge **non-squash** (mis. merge commit biasa atau
+  rebase-merge) supaya histori per-commit (`feat`/`docs` terpisah untuk migration/backend/frontend)
+  tetap terjaga saat merge ke `develop` — ini menggantikan instruksi squash-merge di §10.1/§11.1/§12.1
+  untuk task ini.
+- **Resolusi screenshot berbeda dari arahan sebelumnya**: §11.1/§12.1 minta 3 resolusi
+  (360×640, 390×844, 414×896); arahan kali ini minta 2 resolusi (**360×800, 390×844**). Karena ini
+  arahan CEO paling baru, pakai **360×800 dan 390×844** sebagai resolusi wajib; menambahkan
+  414×896 tetap boleh (superset), tidak dilarang, tapi bukan lagi wajib.
+- **Kriteria responsif baru**: lebar **320–430px** (acceptance criteria eksplisit dari arahan ini,
+  belum ada di §10–§12) — perlu dicek manual (resize browser / device emulator) di rentang ini,
+  bukan cuma di titik-titik resolusi screenshot.
+- Konfirmasi dari CEO: token GitHub untuk automation/CLI sudah diperbaiki dengan permission
+  `pull requests: read+write`. Ini konteks autentikasi untuk eksekutor yang membuka PR via
+  CLI/automation (`gh` atau API) — tidak mengubah kontrak teknis apa pun di spec ini.
+
+### 13.1 Todo Teknis (breakdown pelaksanaan)
+
+Catatan lingkup: sesuai batasan peranku (Project Manager AI), bagian ini murni **memecah** arahan
+jadi todo konkret. Aku tidak mengeksekusi git command, tidak menjalankan build/lint/test, tidak
+membuka PR, tidak memasang label/reviewer, tidak merge — semua itu di luar kewenanganku.
+
+**Sinkronisasi branch (eksekutor: CEO AI / DevOps / human)**
+- [ ] `git fetch origin`
+- [ ] Cek `git log feature/redesign-halaman-dompet-mobile-sesuai-screenshot..origin/develop` — kalau
+  ada commit baru di `develop`, sinkronkan branch feature (rebase atau merge dari `develop`, pilih
+  yang konsisten dengan histori PR sebelumnya di repo ini).
+- [ ] Selesaikan konflik bila muncul; kalau konflik menyentuh file di luar scope redesign Dompet
+  (lihat daftar file di §0), eskalasi ke Backend/Frontend AI terkait sebelum menyelesaikan sepihak.
+- [ ] Push hasil sinkronisasi ke `origin` (branch feature, bukan `develop`).
+
+**Validasi lokal (eksekutor: CEO AI / DevOps / human, atau Backend/Frontend AI bila diminta run test)**
+- [ ] Build frontend: `npm run build` (Vite) — pastikan sukses tanpa error. Tidak ada script `lint`
+  terdaftar di `package.json` (lihat §13.0), jadi lewati langkah lint JS kecuali repo menambahkan
+  tooling baru (di luar scope task ini untuk menambahkannya sekarang).
+  gunakan `vendor/bin/pint --test` (cek tanpa mengubah file) sebagai padanan "lint" PHP.
+- [ ] Static analysis PHP: `vendor/bin/phpstan analyse` (kalau ada config `phpstan.neon`/
+  `phpstan.neon.dist` — cek keberadaannya dulu sebelum run).
+- [ ] Test PHP: `vendor/bin/phpunit` (atau `php artisan test`), pastikan semua lulus. Tidak ada
+  automated UI/E2E test runner di repo ini (§13.0) — untuk "UI test" cukup sanity check manual di
+  bawah.
+- [ ] Sanity check manual fitur (buka `/dompet` di browser dengan viewport mobile emulator):
+  - Daftar dompet & saldo total tampil benar (header `BalanceSummaryCard.vue`, 3 kartu Cash/Bank/
+    E-Wallet).
+  - Tombol tambah dompet berfungsi (alur existing di `WalletController`, tidak disentuh spec ini,
+    tapi wajib dipastikan tidak regresi — lihat §0 daftar komponen yang disentuh task ini).
+  - Navigasi ke detail dompet tetap berfungsi.
+  - Regresi filter (multi-select §2), kartu saldo tap-to-filter (§3), baris Transfer di list (§4),
+    export CSV (§5), safe-area bottom nav (§6) — semua sudah dikontrakkan & diimplementasikan
+    sebelumnya, tinggal diverifikasi ulang setelah sinkronisasi ke `develop`.
+  - Uji lebar viewport **320px sampai 430px** (lihat acceptance criteria §13.0) — tidak ada elemen
+    terpotong/overflow horizontal.
+
+**Pembukaan PR (eksekutor: CEO AI / DevOps / human, via `gh` CLI atau UI GitHub)**
+- [ ] Base: `develop`, Compare: `feature/redesign-halaman-dompet-mobile-sesuai-screenshot`.
+- [ ] Judul: `Redesign Halaman Dompet (Mobile) sesuai Screenshot`.
+- [ ] Body PR minimal mencakup:
+  - Ringkasan scope: layout/header saldo, kartu dompet, tombol tambah dompet, spacing/typography,
+    empty state, dark mode (lihat §9 keputusan desain & §1 todo Frontend untuk detail per-item).
+  - Tautan/lampiran ke referensi desain: `storage/athena-refs/monexa-1784234498463.jpg` (lihat §0).
+  - Screenshot hasil implementasi pada **360×800** dan **390×844**, light & dark mode (lihat §13.0
+    untuk perubahan resolusi dari arahan sebelumnya).
+  - Dampak ke bagian lain: catat perubahan token warna E-Wallet ke amber `#F59E0B` (§9.1, dampak ke
+    `CardDompet.vue`/badge lain yang masih pakai `--ewallet`), tidak ada perubahan schema/DB (§1
+    Database: nihil migration baru untuk elaborasi ini — migration yang sudah ada di commit
+    `8020f36`/`3c5961b`/`ada8a21` adalah bagian dari implementasi awal, bukan tambahan baru dari
+    task dokumentasi/PR ini).
+  - Instruksi uji manual singkat: rujuk ke checklist "Sanity check manual" di atas.
+- [ ] Acceptance criteria (cantumkan di body PR sebagai checklist):
+  - Tampilan mengikuti desain terbaru (referensi §0) dengan akurasi visual yang baik.
+  - Responsif di lebar **320–430px** (§13.0 — kriteria baru, belum ada di §10–§12).
+  - Tidak ada regresi pada: daftar dompet, saldo total, aksi tambah/ubah dompet, navigasi ke detail
+    dompet.
+- [ ] Checklist PR:
+  - CI lulus (build, lint/pint, test — lihat §13.0 untuk padanan tooling yang tersedia di repo ini).
+  - i18n/strings: **N/A** — repo ini tidak punya framework i18n, single-language id-ID (§10.0),
+    catat eksplisit di PR supaya reviewer tidak salah paham item ini "belum dikerjakan".
+  - Assets tidak terduplikasi/tidak terpakai dibersihkan (cek folder assets terkait ikon/gambar yang
+    disentuh redesign ini, bila ada).
+  - Changelog diperbarui: `CHANGELOG.md` entri `[Unreleased]` (§10.1/§11.1 — cek juga status
+    formatnya sesuai catatan §11.0, mungkin masih perlu dirapikan).
+
+**Administrasi PR (eksekutor: CEO AI / DevOps / human)**
+- [ ] Label: `redesign`, `mobile`, `UI` (atau label setara yang sudah terdaftar di repo — cek daftar
+  label yang ada sebelum membuat label baru).
+- [ ] Assign reviewer yang relevan (§11.1/§12.1 sebelumnya menyebut "Kristiawan (owner)" — pertahankan
+  kalau masih relevan) dan mention owner untuk review.
+- [ ] Gunakan token GitHub yang sudah diperbaiki (permission `pull requests: read+write`, §13.0) bila
+  membuat PR via CLI/automation.
+
+**Komunikasi (eksekutor: CEO AI / DevOps / human)**
+- [ ] Bagikan tautan PR di channel/project dan tag owner untuk konfirmasi.
+
+**Strategi commit/merge (catatan penting, lihat §13.0)**
+- [ ] **Jangan squash-merge** dengan cara yang menghilangkan konteks per-commit penting (mis.
+  memisahkan `feat(...)database migration`, `feat(...)frontend`, `feat(...)backend`). Pertahankan
+  pola conventional commits yang sudah dipakai di histori branch ini. Ini menggantikan instruksi
+  "squash-merge pasca-approve" di §10.1/§11.1/§12.1 — gunakan merge commit biasa atau rebase-merge
+  sesuai kebijakan repo yang berlaku saat PR ini di-merge.
+
+### 13.2 Kontrak API
+**Tidak ada.** Sama seperti §10.2/§11.2/§12.2 — task ini murni proses git, validasi lokal, dan
+administrasi PR. Tidak ada endpoint, kolom database, atau perubahan request/response yang perlu
+ditambahkan. Seluruh kontrak teknis fitur redesign Dompet mobile tuntas di §2–§5 dan sudah
+diimplementasikan pada commit-commit yang tercatat di §10–§12.
