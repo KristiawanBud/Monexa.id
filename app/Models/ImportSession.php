@@ -20,9 +20,9 @@ class ImportSession extends Model
     protected function casts(): array
     {
         return [
-            'preview_data'   => 'array',
+            'preview_data' => 'array',
             'column_mapping' => 'array',
-            'errors'         => 'array',
+            'errors' => 'array',
         ];
     }
 
@@ -33,20 +33,20 @@ class ImportSession extends Model
 
     public function getSourceLabelAttribute(): string
     {
-        return match($this->source_app) {
-            'bca'           => 'BCA Mobile',
-            'mandiri'       => 'Mandiri Online',
-            'bni'           => 'BNI Mobile',
-            'bri'           => 'BRImo',
-            'jenius'        => 'Jenius',
-            'gopay'         => 'GoPay',
-            'ovo'           => 'OVO',
-            'dana'          => 'DANA',
-            'shopeepay'     => 'ShopeePay',
-            'generic_csv'   => 'CSV Umum',
+        return match ($this->source_app) {
+            'bca' => 'BCA Mobile',
+            'mandiri' => 'Mandiri Online',
+            'bni' => 'BNI Mobile',
+            'bri' => 'BRImo',
+            'jenius' => 'Jenius',
+            'gopay' => 'GoPay',
+            'ovo' => 'OVO',
+            'dana' => 'DANA',
+            'shopeepay' => 'ShopeePay',
+            'generic_csv' => 'CSV Umum',
             'generic_excel' => 'Excel Umum',
-            'ai_detect'     => 'AI Auto-detect',
-            default         => $this->source_app,
+            'ai_detect' => 'AI Auto-detect',
+            default => $this->source_app,
         };
     }
 }

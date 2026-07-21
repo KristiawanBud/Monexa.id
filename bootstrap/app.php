@@ -1,10 +1,10 @@
 <?php
 
-use App\Http\Middleware\CheckSubscription;
 use App\Http\Middleware\AdminOnly;
-use App\Http\Middleware\SuperAdminOnly;
+use App\Http\Middleware\CheckSubscription;
 use App\Http\Middleware\EnsureOnboarded;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\SuperAdminOnly;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -12,9 +12,9 @@ use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        web: __DIR__ . '/../routes/web.php',
-        api: __DIR__ . '/../routes/api.php',
-        commands: __DIR__ . '/../routes/console.php',
+        web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
+        commands: __DIR__.'/../routes/console.php',
         health: '/up',
         then: function () {
             // Routes webhook untuk n8n — didaftarkan terpisah dari web.php
@@ -36,9 +36,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // Urutan alias mencerminkan hierarki pengecekan di route:
         //   auth → subscribed → onboarded → (fitur utama)
         $middleware->alias([
-            'subscribed'  => CheckSubscription::class,
-            'onboarded'   => EnsureOnboarded::class,
-            'admin'       => AdminOnly::class,
+            'subscribed' => CheckSubscription::class,
+            'onboarded' => EnsureOnboarded::class,
+            'admin' => AdminOnly::class,
             'super_admin' => SuperAdminOnly::class,
         ]);
 

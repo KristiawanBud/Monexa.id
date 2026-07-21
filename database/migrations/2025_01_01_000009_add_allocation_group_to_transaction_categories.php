@@ -23,29 +23,29 @@ return new class extends Migration
     {
         Schema::table('transaction_categories', function (Blueprint $table) {
             $table->enum('allocation_group', ['needs', 'wants', 'savings'])
-                  ->nullable()
-                  ->default(null)
-                  ->after('sort_order')
-                  ->comment('Kelompok alokasi untuk kalkulasi formula 50/30/20');
+                ->nullable()
+                ->default(null)
+                ->after('sort_order')
+                ->comment('Kelompok alokasi untuk kalkulasi formula 50/30/20');
         });
 
         // Isi data untuk kategori sistem yang sudah ada
         // Lakukan via DB::table untuk menghindari masalah model cache
         $mappings = [
             // ── NEEDS (Kebutuhan — 50%) ──────────────────────────
-            'Makan & Minum'  => 'needs',
+            'Makan & Minum' => 'needs',
             'Belanja Harian' => 'needs',
-            'Transport'      => 'needs',
-            'Tagihan'        => 'needs',
-            'Kesehatan'      => 'needs',
-            'Pendidikan'     => 'needs',
-            'Cicilan'        => 'needs',
+            'Transport' => 'needs',
+            'Tagihan' => 'needs',
+            'Kesehatan' => 'needs',
+            'Pendidikan' => 'needs',
+            'Cicilan' => 'needs',
 
             // ── WANTS (Keinginan — 30%) ───────────────────────────
-            'Hiburan'        => 'wants',
+            'Hiburan' => 'wants',
 
             // ── SAVINGS (Tabungan/Investasi — 20%) ───────────────
-            'Investasi'      => 'savings',
+            'Investasi' => 'savings',
         ];
 
         foreach ($mappings as $name => $group) {

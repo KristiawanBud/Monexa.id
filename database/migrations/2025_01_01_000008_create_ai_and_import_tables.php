@@ -12,7 +12,7 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->char('user_id', 26)->nullable(false);
             $table->foreign('user_id', 'fk_acs_user')
-                  ->references('id')->on('users')->cascadeOnDelete();
+                ->references('id')->on('users')->cascadeOnDelete();
             $table->json('messages')->nullable();
             $table->integer('message_count')->default(0);
             $table->timestamp('last_message_at')->nullable();
@@ -24,16 +24,16 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->char('user_id', 26)->nullable(false);
             $table->foreign('user_id', 'fk_ims_user')
-                  ->references('id')->on('users')->cascadeOnDelete();
+                ->references('id')->on('users')->cascadeOnDelete();
             $table->string('filename', 255);
             $table->string('file_path', 255);
             $table->enum('source_app', [
-                'generic_csv','generic_excel',
-                'bca','mandiri','bni','bri',
-                'jenius','gopay','ovo','dana','shopeepay',
-                'ai_detect'
+                'generic_csv', 'generic_excel',
+                'bca', 'mandiri', 'bni', 'bri',
+                'jenius', 'gopay', 'ovo', 'dana', 'shopeepay',
+                'ai_detect',
             ])->default('ai_detect');
-            $table->enum('status', ['uploaded','parsing','preview','importing','done','failed'])->default('uploaded');
+            $table->enum('status', ['uploaded', 'parsing', 'preview', 'importing', 'done', 'failed'])->default('uploaded');
             $table->json('preview_data')->nullable();
             $table->json('column_mapping')->nullable();
             $table->integer('total_rows')->default(0);

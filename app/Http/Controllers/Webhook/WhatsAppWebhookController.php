@@ -52,43 +52,44 @@ class WhatsAppWebhookController extends Controller
     {
         // ── Validasi secret key dari n8n ──
         if (! $this->verifyWebhookSecret($request)) {
-            Log::warning('WhatsAppWebhook: Invalid secret key from ' . $request->ip());
+            Log::warning('WhatsAppWebhook: Invalid secret key from '.$request->ip());
+
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
         $request->validate([
-            'sender'   => ['required', 'string'],
-            'message'  => ['nullable', 'string'],
-            'type'     => ['nullable', 'in:text,image'],
-            'image_url'=> ['nullable', 'string'],
+            'sender' => ['required', 'string'],
+            'message' => ['nullable', 'string'],
+            'type' => ['nullable', 'in:text,image'],
+            'image_url' => ['nullable', 'string'],
         ]);
 
         $senderNumber = $this->normalizePhoneNumber($request->sender);
-        $messageText  = $request->message ?? '';
-        $imageUrl     = $request->type === 'image' ? $request->image_url : null;
+        $messageText = $request->message ?? '';
+        $imageUrl = $request->type === 'image' ? $request->image_url : null;
 
         // ── Cari user berdasarkan nomor WA pengirim ──
         $user = User::where('wa_number', $senderNumber)
-            ->orWhere('wa_number', '0' . substr($senderNumber, 2)) // handle format 08xx vs 628xx
+            ->orWhere('wa_number', '0'.substr($senderNumber, 2)) // handle format 08xx vs 628xx
             ->first();
 
         if (! $user) {
             Log::info("WhatsAppWebhook: Nomor {$senderNumber} tidak terdaftar di sistem.");
 
             return response()->json([
-                'success'     => true,
-                'reply'       => "👋 Halo! Nomor WA kamu belum terdaftar di CatatCuan.\n\nSilakan daftar dulu di aplikasi, lalu isi nomor WA ini di halaman Profil.",
+                'success' => true,
+                'reply' => "👋 Halo! Nomor WA kamu belum terdaftar di CatatCuan.\n\nSilakan daftar dulu di aplikasi, lalu isi nomor WA ini di halaman Profil.",
                 'should_send' => true,
             ]);
         }
 
         // ── Log pesan masuk ──
         $log = WaMessageLog::create([
-            'user_id'     => $user->id,
-            'direction'   => 'incoming',
+            'user_id' => $user->id,
+            'direction' => 'incoming',
             'from_number' => $senderNumber,
-            'message'     => $messageText ?: '[Gambar]',
-            'status'      => 'pending',
+            'message' => $messageText ?: '[Gambar]',
+            'status' => 'pending',
             'received_at' => now(),
         ]);
 
@@ -102,23 +103,23 @@ class WhatsAppWebhookController extends Controller
             $this->touchGatewayUsage($request->receiver ?? null);
 
             return response()->json([
-                'success'     => true,
-                'reply'       => $reply,
+                'success' => true,
+                'reply' => $reply,
                 'should_send' => true,
-                'user_id'     => $user->id,
+                'user_id' => $user->id,
             ]);
 
         } catch (\Exception $e) {
             Log::error("WhatsAppWebhook error untuk user {$user->id}: {$e->getMessage()}");
 
             $log->update([
-                'status'        => 'failed',
+                'status' => 'failed',
                 'error_message' => $e->getMessage(),
             ]);
 
             return response()->json([
-                'success'     => true, // tetap true supaya n8n tidak retry terus-menerus
-                'reply'       => "⚠️ Maaf, terjadi kesalahan saat memproses pesanmu. Tim kami akan segera memperbaikinya.",
+                'success' => true, // tetap true supaya n8n tidak retry terus-menerus
+                'reply' => '⚠️ Maaf, terjadi kesalahan saat memproses pesanmu. Tim kami akan segera memperbaikinya.',
                 'should_send' => true,
             ]);
         }
@@ -142,7 +143,7 @@ class WhatsAppWebhookController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'CatatCuan webhook siap menerima pesan dari n8n!',
-            'time'    => now()->toIso8601String(),
+            'time' => now()->toIso8601String(),
         ]);
     }
 
@@ -172,9 +173,9 @@ class WhatsAppWebhookController extends Controller
         }
 
         return response()->json([
-            'success'        => true,
+            'success' => true,
             'gateway_number' => $gateway->phone_number,
-            'fonnte_token'   => $gateway->fonnte_token,
+            'fonnte_token' => $gateway->fonnte_token,
             'user_wa_number' => $user->wa_number,
         ]);
     }
@@ -191,6 +192,7 @@ class WhatsAppWebhookController extends Controller
         // Kalau secret belum di-set di .env, tolak semua (fail-safe)
         if (empty($expected)) {
             Log::warning('WhatsAppWebhook: N8N_WEBHOOK_SECRET belum di-set di .env!');
+
             return false;
         }
 
@@ -204,7 +206,7 @@ class WhatsAppWebhookController extends Controller
 
         // Normalisasi 08xx → 628xx
         if (str_starts_with($number, '0')) {
-            $number = '62' . substr($number, 1);
+            $number = '62'.substr($number, 1);
         }
 
         return $number;
@@ -212,14 +214,16 @@ class WhatsAppWebhookController extends Controller
 
     private function touchGatewayUsage(?string $receiverNumber): void
     {
-        if (! $receiverNumber) return;
+        if (! $receiverNumber) {
+            return;
+        }
 
         $normalized = $this->normalizePhoneNumber($receiverNumber);
 
         WaGateway::where('phone_number', $normalized)->update([
-            'last_used_at'      => now(),
-            'total_sent_today'  => \DB::raw('total_sent_today + 1'),
-            'total_sent_all'    => \DB::raw('total_sent_all + 1'),
+            'last_used_at' => now(),
+            'total_sent_today' => \DB::raw('total_sent_today + 1'),
+            'total_sent_all' => \DB::raw('total_sent_all + 1'),
         ]);
     }
 }

@@ -38,8 +38,8 @@ class RegisterController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'name'     => ['required', 'string', 'max:100'],
-            'email'    => ['required', 'string', 'email', 'max:150', 'unique:users,email'],
+            'name' => ['required', 'string', 'max:100'],
+            'email' => ['required', 'string', 'email', 'max:150', 'unique:users,email'],
             'password' => [
                 'required',
                 'confirmed',
@@ -50,30 +50,30 @@ class RegisterController extends Controller
             ],
         ], [
             // Pesan validasi bahasa Indonesia
-            'name.required'      => 'Nama lengkap wajib diisi.',
-            'email.required'     => 'Alamat email wajib diisi.',
-            'email.email'        => 'Format email tidak valid.',
-            'email.unique'       => 'Email ini sudah terdaftar.',
-            'password.required'  => 'Password wajib diisi.',
+            'name.required' => 'Nama lengkap wajib diisi.',
+            'email.required' => 'Alamat email wajib diisi.',
+            'email.email' => 'Format email tidak valid.',
+            'email.unique' => 'Email ini sudah terdaftar.',
+            'password.required' => 'Password wajib diisi.',
             'password.confirmed' => 'Konfirmasi password tidak cocok.',
-            'password.min'       => 'Password minimal 8 karakter.',
+            'password.min' => 'Password minimal 8 karakter.',
         ]);
 
         $user = User::create([
-            'name'      => $request->name,
-            'email'     => $request->email,
-            'password'  => Hash::make($request->password),
-            'role'      => 'user',
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'role' => 'user',
             'is_active' => true,
         ]);
 
         // Buat subscription trial 7 hari
         Subscription::create([
-            'user_id'       => $user->id,
-            'plan'          => 'trial',
-            'status'        => 'active',
+            'user_id' => $user->id,
+            'plan' => 'trial',
+            'status' => 'active',
             'trial_ends_at' => now()->addDays(7),
-            'starts_at'     => now(),
+            'starts_at' => now(),
         ]);
 
         // Dispatch event registered (untuk verifikasi email di masa depan)

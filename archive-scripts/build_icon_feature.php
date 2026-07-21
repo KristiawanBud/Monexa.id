@@ -1,12 +1,13 @@
 <?php
 
-function writeFile(string $path, string $content): void {
+function writeFile(string $path, string $content): void
+{
     $dir = dirname($path);
-    if (!is_dir($dir)) {
+    if (! is_dir($dir)) {
         mkdir($dir, 0755, true);
     }
     if (file_exists($path)) {
-        copy($path, $path . '.bak_' . date('Ymd_His'));
+        copy($path, $path.'.bak_'.date('Ymd_His'));
     }
     file_put_contents($path, $content);
     echo "Ditulis: $path\n";
@@ -693,8 +694,9 @@ $newLink = <<<'LINK'
 LINK;
 
 foreach ($navFiles as $file) {
-    if (!file_exists($file)) {
+    if (! file_exists($file)) {
         echo "SKIP (tidak ditemukan): $file\n";
+
         continue;
     }
 
@@ -702,16 +704,18 @@ foreach ($navFiles as $file) {
 
     if (strpos($content, "route('admin.icons')") !== false) {
         echo "SKIP (link sudah ada): $file\n";
+
         continue;
     }
 
     if (strpos($content, '</nav>') === false) {
         echo "⚠️  Tidak ketemu </nav> di: $file — tambah manual\n";
+
         continue;
     }
 
-    copy($file, $file . '.bak_' . date('Ymd_His'));
-    $newContent = str_replace('</nav>', $newLink . "\n      </nav>", $content);
+    copy($file, $file.'.bak_'.date('Ymd_His'));
+    $newContent = str_replace('</nav>', $newLink."\n      </nav>", $content);
     file_put_contents($file, $newContent);
 
     echo "OK (nav link ditambah): $file\n";

@@ -18,7 +18,7 @@ class WalletTransfer extends Model
     protected function casts(): array
     {
         return [
-            'amount'         => 'decimal:2',
+            'amount' => 'decimal:2',
             'transferred_at' => 'datetime',
         ];
     }

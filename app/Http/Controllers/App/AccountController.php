@@ -8,7 +8,9 @@ use App\Services\WaGatewayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class AccountController extends Controller
 {
@@ -17,21 +19,21 @@ class AccountController extends Controller
     // ─────────────────────────────────────────────
     // Halaman Profil — tanpa kelola dompet (sudah pindah ke Dompet)
     // ─────────────────────────────────────────────
-    public function index(Request $request): \Inertia\Response
+    public function index(Request $request): Response
     {
         $user = $request->user()->load(['profile', 'subscription', 'waGatewayAssignment.gateway']);
 
         $activeGateway = $user->waGatewayAssignment?->gateway;
 
         return Inertia::render('App/Account', [
-            'user'         => $user->only('id', 'name', 'email', 'wa_number', 'role'),
-            'profile'      => $user->profile,
+            'user' => $user->only('id', 'name', 'email', 'wa_number', 'role'),
+            'profile' => $user->profile,
             'subscription' => $user->subscription,
-            'bot_gateway'  => $activeGateway ? [
+            'bot_gateway' => $activeGateway ? [
                 'phone_number' => $activeGateway->phone_number,
-                'name'         => $activeGateway->name,
-                'status'       => $activeGateway->status,
-                'assigned_at'  => $user->waGatewayAssignment->assigned_at->format('d M Y'),
+                'name' => $activeGateway->name,
+                'status' => $activeGateway->status,
+                'assigned_at' => $user->waGatewayAssignment->assigned_at->format('d M Y'),
             ] : null,
         ]);
     }
@@ -48,27 +50,27 @@ class AccountController extends Controller
     public function updateProfile(Request $request)
     {
         $request->validate([
-            'name'                    => ['required', 'string', 'max:100'],
-            'wa_number'               => ['required', 'string', 'max:20'],
-            'notif_wa_enabled'        => ['boolean'],
-            'monthly_report_enabled'  => ['boolean'],
-            'saham_enabled'           => ['boolean'],
+            'name' => ['required', 'string', 'max:100'],
+            'wa_number' => ['required', 'string', 'max:20'],
+            'notif_wa_enabled' => ['boolean'],
+            'monthly_report_enabled' => ['boolean'],
+            'saham_enabled' => ['boolean'],
         ]);
 
-        $user        = $request->user();
+        $user = $request->user();
         $oldWaNumber = $user->wa_number;
 
         $user->update([
-            'name'      => $request->name,
+            'name' => $request->name,
             'wa_number' => $request->wa_number,
         ]);
 
         UserProfile::updateOrCreate(
             ['user_id' => $user->id],
             [
-                'notif_wa_enabled'       => $request->boolean('notif_wa_enabled'),
+                'notif_wa_enabled' => $request->boolean('notif_wa_enabled'),
                 'monthly_report_enabled' => $request->boolean('monthly_report_enabled'),
-                'saham_enabled'          => $request->boolean('saham_enabled'),
+                'saham_enabled' => $request->boolean('saham_enabled'),
             ]
         );
 
@@ -86,7 +88,7 @@ class AccountController extends Controller
     {
         $request->validate([
             'current_password' => ['required'],
-            'password'         => ['required', 'confirmed', \Illuminate\Validation\Rules\Password::min(8)->mixedCase()->numbers()->symbols()],
+            'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
         ]);
 
         $user = $request->user();

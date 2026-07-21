@@ -12,7 +12,7 @@ class CheckSubscription
     {
         $user = $request->user();
 
-        if (!$user) {
+        if (! $user) {
             return $next($request);
         }
 
@@ -24,7 +24,7 @@ class CheckSubscription
         // Cek subscription aktif
         $subscription = $user->subscription;
 
-        if (!$subscription) {
+        if (! $subscription) {
             return redirect()->route('subscription.expired');
         }
 
@@ -33,6 +33,7 @@ class CheckSubscription
             if ($subscription->trial_ends_at && $subscription->trial_ends_at->isPast()) {
                 return redirect()->route('subscription.expired');
             }
+
             return $next($request);
         }
 

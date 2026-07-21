@@ -35,10 +35,10 @@ return new class extends Migration
             $table->bigIncrements('id');
             $table->char('user_id', 26)->nullable(false);
             $table->foreign('user_id', 'fk_uwg_user')
-                  ->references('id')->on('users')->cascadeOnDelete();
+                ->references('id')->on('users')->cascadeOnDelete();
             $table->unsignedSmallInteger('gateway_id');
             $table->foreign('gateway_id', 'fk_uwg_gateway')
-                  ->references('id')->on('wa_gateways')->cascadeOnDelete();
+                ->references('id')->on('wa_gateways')->cascadeOnDelete();
             $table->enum('status', ['active', 'released'])->default('active');
             $table->timestamp('assigned_at')->useCurrent();
             $table->timestamp('released_at')->nullable();
@@ -49,10 +49,10 @@ return new class extends Migration
             $table->bigIncrements('id');
             $table->unsignedSmallInteger('gateway_id');
             $table->foreign('gateway_id', 'fk_wgl_gateway')
-                  ->references('id')->on('wa_gateways')->cascadeOnDelete();
+                ->references('id')->on('wa_gateways')->cascadeOnDelete();
             $table->char('user_id', 26)->nullable();
             $table->foreign('user_id', 'fk_wgl_user')
-                  ->references('id')->on('users')->nullOnDelete();
+                ->references('id')->on('users')->nullOnDelete();
             $table->string('to_number', 25);
             $table->enum('type', ['transaction', 'bill_reminder', 'monthly_report', 'export', 'system', 'test']);
             $table->enum('status', ['sent', 'failed', 'queued']);

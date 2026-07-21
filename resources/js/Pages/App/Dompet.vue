@@ -2,135 +2,133 @@
   <AppLayout>
     <div class="page-content">
 
-      <!-- Hero -->
-      <div class="dompet-hero-bg">
-        <div class="hero-top-row">
-          <div>
-            <h1 class="hero-page-title">Dompet 👛</h1>
-            <div class="hero-page-sub">Kelola semua rekening dan uangmu di sini.</div>
-          </div>
-          <button class="hero-add-btn" @click="openAddForTab">＋</button>
-        </div>
-
-        <AppIcon slug="dompet_hero" class="dompet-hero-illustration">👛</AppIcon>
-
-        <div class="hero-saldo-row">
-          <span class="hero-saldo-label">TOTAL SALDO</span>
-          <button class="hero-eye-btn" @click="balanceHidden = !balanceHidden">
-            <svg v-if="balanceHidden" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M3 3l18 18M10.58 10.58a2 2 0 002.83 2.83M9.88 5.09A9.77 9.77 0 0112 5c5 0 9 4 10 7-.36 1.1-1 2.19-1.87 3.19M6.1 6.1C4.2 7.4 2.8 9.4 2 12c1.14 3.5 5.05 7 10 7 1.52 0 2.96-.34 4.24-.94" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <svg v-else viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-              <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
-            </svg>
-          </button>
-        </div>
-        <div class="hero-saldo-amount">
-          <span v-if="!balanceHidden">{{ formatRupiah(total_balance) }}</span>
-          <span v-else class="hidden-text">••••••••••</span>
-        </div>
-        <div class="hero-wallet-badge">● {{ active_wallets_count }} Dompet Aktif</div>
-      </div>
-
-      <!-- Breakdown Saldo -->
-      <div class="card breakdown-card">
-        <div class="breakdown-item">
-          <div class="bd-icon cash">💵</div>
-          <div class="bd-info">
-            <div class="bd-label">Saldo Cash</div>
-            <div class="bd-value cash">{{ formatShort(cash_total) }}</div>
-            <div class="bd-bar-bg"><div class="bd-bar-fill cash" :style="`width:${total_balance ? Math.min(100, (cash_total/total_balance)*100) : 0}%`"></div></div>
-          </div>
-        </div>
-        <div class="breakdown-item">
-          <div class="bd-icon bank">🏦</div>
-          <div class="bd-info">
-            <div class="bd-label">Saldo Bank</div>
-            <div class="bd-value bank">{{ formatShort(bank_total) }}</div>
-            <div class="bd-bar-bg"><div class="bd-bar-fill bank" :style="`width:${total_balance ? Math.min(100, (bank_total/total_balance)*100) : 0}%`"></div></div>
-          </div>
-        </div>
-        <div class="breakdown-item">
-          <div class="bd-icon ewallet">👛</div>
-          <div class="bd-info">
-            <div class="bd-label">E-Wallet</div>
-            <div class="bd-value ewallet">{{ formatShort(ewallet_total) }}</div>
-            <div class="bd-bar-bg"><div class="bd-bar-fill ewallet" :style="`width:${total_balance ? Math.min(100, (ewallet_total/total_balance)*100) : 0}%`"></div></div>
-          </div>
-        </div>
-      </div>
+      <BalanceSummaryCard
+        :total-balance="total_balance"
+        :active-wallets-count="active_wallets_count"
+        :cash-total="cash_total"
+        :bank-total="bank_total"
+        :ewallet-total="ewallet_total"
+        :balance-hidden="balanceHidden"
+        :show-range-stats="tab === 'transaksi'"
+        :total-income="total_income"
+        :total-expense="total_expense"
+        :range-label="range_label"
+        :active-balance-group="filters.balance_group"
+        :loading="isLoading"
+        @update:balance-hidden="balanceHidden = $event"
+        @add="openAddForTab"
+        @select-group="onCardTap"
+      />
 
       <!-- Tabs -->
-      <div class="tab-row">
-        <button :class="['chip', { active: tab === 'transaksi' }]" @click="tab = 'transaksi'">Transaksi</button>
-        <button :class="['chip', { active: tab === 'dompet' }]" @click="tab = 'dompet'">Dompet</button>
-        <button :class="['chip', { active: tab === 'tagihan' }]" @click="tab = 'tagihan'">Tagihan</button>
+      <div class="tab-row" role="tablist" aria-label="Bagian Dompet">
+        <div class="tab-indicator" :style="`transform: translateX(${tabIndex * 100}%)`" aria-hidden="true"></div>
+        <button role="tab" :aria-selected="tab === 'transaksi'" :class="['tab-pill', { active: tab === 'transaksi' }]" @click="selectTab('transaksi')">Transaksi</button>
+        <button role="tab" :aria-selected="tab === 'dompet'" :class="['tab-pill', { active: tab === 'dompet' }]" @click="selectTab('dompet')">Dompet</button>
+        <button role="tab" :aria-selected="tab === 'tagihan'" :class="['tab-pill', { active: tab === 'tagihan' }]" @click="selectTab('tagihan')">Tagihan</button>
+      </div>
+
+      <ErrorState v-if="hasError" class="error-banner" @retry="retryLoad" />
+
+      <div v-if="pullDistance > 0 || refreshing" class="pull-indicator" :style="`height:${refreshing ? 48 : pullDistance}px`">
+        {{ refreshing ? '🔄 Memuat ulang...' : '↓ Tarik untuk refresh' }}
       </div>
 
       <!-- ═══════════ TAB: TRANSAKSI ═══════════ -->
-      <div v-if="tab === 'transaksi'">
+      <div v-if="tab === 'transaksi'" class="tx-layout">
+        <aside class="tx-sidebar">
+          <div class="card range-summary-card">
+            <div class="range-dropdown">
+              <button class="range-btn" aria-haspopup="true" :aria-expanded="showRangeMenu" @click="showRangeMenu = !showRangeMenu">
+                📅 {{ range_label }} <span class="range-caret">▾</span>
+              </button>
+              <div v-if="showRangeMenu" class="range-menu">
+                <button @click="changeRange('today')">Hari Ini</button>
+                <button @click="changeRange('week')">Minggu Ini</button>
+                <button @click="changeRange('month')">Bulan Ini</button>
+              </div>
+            </div>
+            <div class="range-stat-grid">
+              <div class="range-stat">
+                <span class="rs-label">↓ Masuk</span>
+                <span class="rs-val up">{{ formatShort(total_income) }}</span>
+              </div>
+              <div class="range-stat">
+                <span class="rs-label">↑ Keluar</span>
+                <span class="rs-val down">{{ formatShort(total_expense) }}</span>
+              </div>
+              <div class="range-stat">
+                <span class="rs-label">Saldo</span>
+                <span class="rs-val">{{ formatShort(total_balance) }}</span>
+              </div>
+            </div>
+          </div>
 
-        <!-- Filter periode + ringkasan -->
-        <div class="range-filter-row">
-          <div class="range-dropdown">
-            <button class="range-btn" @click="showRangeMenu = !showRangeMenu">
-              📅 {{ range_label }} <span class="range-caret">▾</span>
+          <FilterDrawer
+            v-model:open="filterDrawerOpen"
+            :wallets="wallets"
+            :categories="categories"
+            :filters="filters"
+            @apply="applyFilters"
+          />
+        </aside>
+
+        <div class="tx-main">
+          <QuickActions
+            :can-transfer="wallets.length >= 2"
+            @add-income="openAddIncome"
+            @add-expense="openAddExpense"
+            @transfer="openTransfer"
+          />
+
+          <div class="search-row">
+            <div class="search-box">
+              <span class="search-icon">🔍</span>
+              <input
+                ref="searchInputRef"
+                v-model="searchQuery"
+                type="text"
+                placeholder="Cari transaksi..."
+                aria-label="Cari transaksi"
+              />
+            </div>
+            <button class="filter-btn d-mobile-only" aria-label="Buka filter transaksi" @click="filterDrawerOpen = true">
+              ▤ Filter
+              <span v-if="activeFilterCount > 0" class="filter-badge">● {{ activeFilterCount }}</span>
             </button>
-            <div v-if="showRangeMenu" class="range-menu">
-              <button @click="changeRange('today')">Hari Ini</button>
-              <button @click="changeRange('week')">Minggu Ini</button>
-              <button @click="changeRange('month')">Bulan Ini</button>
-            </div>
-          </div>
-          <div class="range-stat">
-            <span class="rs-label">↓ Masuk</span>
-            <span class="rs-val up">{{ formatShort(total_income) }}</span>
-          </div>
-          <div class="range-stat">
-            <span class="rs-label">↑ Keluar</span>
-            <span class="rs-val down">{{ formatShort(total_expense) }}</span>
-          </div>
-          <div class="range-stat">
-            <span class="rs-label">Saldo</span>
-            <span class="rs-val">{{ formatShort(total_balance) }}</span>
-          </div>
-        </div>
-
-        <!-- Search + Filter -->
-        <div class="search-row">
-          <div class="search-box">
-            <span class="search-icon">🔍</span>
-            <input v-model="searchQuery" @keyup.enter="applySearch" type="text" placeholder="Cari transaksi..." />
-          </div>
-          <button class="filter-btn" @click="alert('Filter lanjutan segera hadir')">▤ Filter</button>
-        </div>
-
-        <div class="tx-list-heading">
-          <span class="section-title">Transaksi {{ range_label }}</span>
-        </div>
-
-        <!-- Transaction List -->
-        <div class="card tx-list-card">
-          <div v-if="!transactions.data || transactions.data.length === 0" class="empty-state">
-            <div class="empty-illust">📝</div>
-            <div class="empty-text">Belum ada transaksi bulan ini</div>
-            <button class="btn-primary" style="margin-top:14px;max-width:220px;" @click="showAddTx = true">
-              + Catat Transaksi
-            </button>
+            <ExportButton :filters="exportFilters" />
           </div>
 
-          <div v-for="t in transactions.data" :key="t.id" class="tx-item" @click="openEditTx(t)">
-            <div class="tx-icon" :style="`background:${t.type === 'income' ? 'var(--success-bg)' : 'var(--danger-bg)'}`">
-              {{ t.category_emoji || (t.type === 'income' ? '💵' : '🛍️') }}
-            </div>
-            <div class="tx-info">
-              <div class="tx-name">{{ t.note || t.category || 'Transaksi' }}</div>
-              <div class="tx-cat">{{ t.category }} · {{ t.wallet }} · {{ t.transacted_at_label }}</div>
-            </div>
-            <div :class="['tx-amt', t.type === 'income' ? 'up' : 'down']">
-              {{ t.type === 'income' ? '+' : '−' }}{{ formatShort(t.amount) }}
-            </div>
+          <CategoryChipFilter
+            :categories="categories"
+            :model-value="filters.category_id"
+            @select="onQuickCategorySelect"
+          />
+
+          <div class="tx-list-heading">
+            <h2 class="section-title">Transaksi {{ range_label }}</h2>
+          </div>
+
+          <div class="card tx-list-card">
+            <template v-if="isLoading">
+              <SkeletonLoader v-for="n in 5" :key="n" variant="list-item" />
+            </template>
+            <EmptyState
+              v-else-if="!transactions.data || transactions.data.length === 0"
+              :icon="activeFilterCount > 0 ? '🔍' : '📝'"
+              :title="activeFilterCount > 0 ? 'Tidak ada transaksi yang cocok dengan kombinasi filter ini' : 'Belum ada transaksi'"
+              :action-label="activeFilterCount > 0 ? 'Reset Filter' : '+ Catat Transaksi'"
+              @action="activeFilterCount > 0 ? resetAllFilters() : (showAddTx = true)"
+            />
+            <template v-else>
+              <TransactionDateGroup
+                v-for="group in groupedTransactions"
+                :key="group.key"
+                :label="group.label"
+                :transactions="group.transactions"
+                @item-click="openEditTx"
+              />
+            </template>
           </div>
         </div>
       </div>
@@ -140,35 +138,31 @@
 
         <div class="summary-row single">
           <div class="summary-item full">
-            <div class="summary-label">💰 Total Saldo Semua Dompet</div>
+            <h2 class="summary-label">💰 Total Saldo Semua Dompet</h2>
             <div class="summary-val">{{ formatRupiah(total_balance) }}</div>
           </div>
         </div>
 
-        <button v-if="wallets.length >= 2" class="transfer-btn" @click="showTransfer = true">
+        <button v-if="wallets.length >= 2" class="transfer-btn" @click="openTransfer">
           🔄 Transfer Antar Dompet
         </button>
 
-        <div v-if="wallets.length === 0" class="empty-state card">
-          <div class="empty-illust">👛</div>
-          <div class="empty-text">Belum ada dompet</div>
-          <button class="btn-primary" style="margin-top:14px;max-width:220px;" @click="showAddWallet = true">
-            + Tambah Dompet
-          </button>
-        </div>
+        <EmptyState
+          v-if="wallets.length === 0"
+          icon="👛"
+          title="Belum ada dompet"
+          action-label="+ Tambah Dompet"
+          @action="showAddWallet = true"
+        />
 
-        <div v-for="w in wallets" :key="w.id" class="card wallet-card" @click="openEditWallet(w)">
-          <div class="wallet-row">
-            <div class="wallet-logo" :style="`background:${w.bank_color}`">
-              <img v-if="w.logo_url" :src="w.logo_url" class="wallet-logo-img" />
-              <span v-else>{{ w.bank_initial }}</span>
-            </div>
-            <div class="wallet-info">
-              <div class="wallet-name">{{ w.display_name }}</div>
-              <div class="wallet-type">{{ w.is_saham ? 'Saham' : typeLabel(w.type) }}</div>
-            </div>
-            <div class="wallet-balance">{{ formatRupiah(w.balance) }}</div>
-          </div>
+        <div v-else class="wallet-grid">
+          <CardDompet
+            v-for="w in wallets"
+            :key="w.id"
+            :wallet="w"
+            :balance-hidden="balanceHidden"
+            @click="openEditWallet"
+          />
         </div>
 
         <button class="add-wallet-btn" @click="showAddWallet = true">
@@ -178,14 +172,15 @@
 
       <!-- ═══════════ TAB: TAGIHAN ═══════════ -->
       <div v-if="tab === 'tagihan'">
+        <h2 class="sr-only">Tagihan</h2>
 
-        <div v-if="bills.length === 0" class="empty-state card">
-          <div class="empty-illust">📋</div>
-          <div class="empty-text">Belum ada tagihan</div>
-          <button class="btn-primary" style="margin-top:14px;max-width:220px;" @click="showAddBill = true">
-            + Tambah Tagihan
-          </button>
-        </div>
+        <EmptyState
+          v-if="bills.length === 0"
+          icon="📋"
+          title="Belum ada tagihan"
+          action-label="+ Tambah Tagihan"
+          @action="showAddBill = true"
+        />
 
         <div v-for="b in bills" :key="b.id" class="card bill-card">
           <div class="bill-row">
@@ -428,11 +423,22 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useForm, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import EmojiPicker from '@/Components/EmojiPicker.vue'
-import AppIcon from '@/Components/AppIcon.vue'
+import BalanceSummaryCard from '@/Components/Wallet/BalanceSummaryCard.vue'
+import QuickActions from '@/Components/Wallet/QuickActions.vue'
+import CardDompet from '@/Components/Wallet/CardDompet.vue'
+import TransactionDateGroup from '@/Components/Wallet/TransactionDateGroup.vue'
+import FilterDrawer from '@/Components/Wallet/FilterDrawer.vue'
+import CategoryChipFilter from '@/Components/Wallet/CategoryChipFilter.vue'
+import EmptyState from '@/Components/Wallet/EmptyState.vue'
+import ErrorState from '@/Components/Wallet/ErrorState.vue'
+import SkeletonLoader from '@/Components/Wallet/SkeletonLoader.vue'
+import ExportButton from '@/Components/Wallet/ExportButton.vue'
+import { formatRupiah, formatShort } from '@/lib/format'
+import { trackEvent } from '@/lib/analytics'
 
 const props = defineProps({
   transactions: Object,
@@ -443,6 +449,8 @@ const props = defineProps({
   period: String,
   range: { type: String, default: 'today' },
   range_label: { type: String, default: 'Hari Ini' },
+  start_date: { type: String, default: null },
+  end_date: { type: String, default: null },
   total_income: Number,
   total_expense: Number,
   total_balance: Number,
@@ -457,21 +465,175 @@ const props = defineProps({
 const balanceHidden = ref(false)
 const showRangeMenu = ref(false)
 const searchQuery = ref(props.search_query || '')
+const searchInputRef = ref(null)
+const filterDrawerOpen = ref(false)
+const isLoading = ref(false)
+const hasError = ref(false)
+const FILTER_STORAGE_KEY = 'monexa_dompet_filters'
+const ALL_TYPES = ['income', 'expense', 'transfer']
+
+// Normalisasi type/category_id: terima array (format baru), string tunggal
+// (bookmark lama), atau kosong — konsisten dengan kompatibilitas yang
+// diimplementasikan di DompetFilterRequest::prepareForValidation().
+function normalizeTypeArray(raw) {
+  if (Array.isArray(raw)) return raw.length ? raw : [...ALL_TYPES]
+  if (raw) return [raw]
+  return [...ALL_TYPES]
+}
+function normalizeCategoryArray(raw) {
+  if (Array.isArray(raw)) return raw
+  if (raw) return [raw]
+  return []
+}
+
+function readQueryFilters() {
+  const params = new URLSearchParams(window.location.search)
+  const typeArr = params.getAll('type[]')
+  const catArr = params.getAll('category_id[]')
+  return {
+    start_date: params.get('start_date') || '',
+    end_date: params.get('end_date') || '',
+    wallet_id: params.get('wallet_id') || '',
+    type: normalizeTypeArray(typeArr.length ? typeArr : params.get('type')),
+    category_id: normalizeCategoryArray(catArr.length ? catArr : params.get('category_id')),
+    balance_group: params.get('balance_group') || null,
+    min_amount: params.get('min_amount') || '',
+    max_amount: params.get('max_amount') || '',
+  }
+}
+
+const filters = reactive(readQueryFilters())
+
+const activeFilterCount = computed(() => {
+  let count = 0
+  if (filters.start_date || filters.end_date) count++
+  if (filters.wallet_id) count++
+  if (filters.type && filters.type.length > 0 && filters.type.length < ALL_TYPES.length) count++
+  if (filters.category_id && filters.category_id.length > 0) count++
+  if (filters.balance_group) count++
+  if (filters.min_amount) count++
+  if (filters.max_amount) count++
+  return count
+})
+
+function buildQuery(extra = {}) {
+  const hasCustomRange = (extra.start_date ?? filters.start_date) && (extra.end_date ?? filters.end_date)
+  const isAllTypes = !filters.type || filters.type.length === 0 || filters.type.length >= ALL_TYPES.length
+  const base = {
+    tab: 'transaksi',
+    range: hasCustomRange ? undefined : props.range,
+    start_date: filters.start_date || undefined,
+    end_date: filters.end_date || undefined,
+    wallet_id: filters.wallet_id || undefined,
+    type: isAllTypes ? undefined : filters.type,
+    category_id: (filters.category_id && filters.category_id.length) ? filters.category_id : undefined,
+    balance_group: filters.balance_group || undefined,
+    min_amount: filters.min_amount || undefined,
+    max_amount: filters.max_amount || undefined,
+    search: searchQuery.value || undefined,
+  }
+  return { ...base, ...extra }
+}
+
+function persistFilters(query) {
+  window.localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({
+    range: query.range || '',
+    start_date: query.start_date || '',
+    end_date: query.end_date || '',
+    wallet_id: query.wallet_id || '',
+    type: query.type || [],
+    category_id: query.category_id || [],
+    balance_group: query.balance_group || '',
+    min_amount: query.min_amount || '',
+    max_amount: query.max_amount || '',
+  }))
+}
+
+function reload(extra = {}) {
+  const query = buildQuery(extra)
+  Object.keys(query).forEach((k) => query[k] === undefined && delete query[k])
+  persistFilters(query)
+  router.get(route('dompet.index'), query, { preserveState: true, preserveScroll: true, replace: true })
+}
 
 function changeRange(newRange) {
   showRangeMenu.value = false
-  router.get(route('dompet.index'), { range: newRange, tab: 'transaksi' }, {
-    preserveState: true, preserveScroll: true,
-  })
+  filters.start_date = ''
+  filters.end_date = ''
+  reload({ range: newRange, start_date: undefined, end_date: undefined })
 }
 
-function applySearch() {
-  router.get(route('dompet.index'), { range: props.range, search: searchQuery.value, tab: 'transaksi' }, {
-    preserveState: true, preserveScroll: true,
-  })
+function applyFilters(payload) {
+  // Tap-kartu-saldo (balance_group) mutually exclusive dengan filter dompet
+  // tunggal dari bottom sheet — pilih salah satu wallet_id membatalkan balance_group.
+  if (payload.wallet_id) payload.balance_group = null
+  Object.assign(filters, payload)
+  trackEvent('dompet_filter_apply', payload)
+  trackEvent('wallet_filter_applied', { count: activeFilterCount.value })
+  reload()
 }
+
+function onQuickCategorySelect(id) {
+  if (id === null) {
+    filters.category_id = []
+  } else {
+    const idx = filters.category_id.indexOf(id)
+    if (idx > -1) filters.category_id.splice(idx, 1)
+    else filters.category_id.push(id)
+  }
+  trackEvent('dompet_category_chip', { category_id: filters.category_id })
+  reload()
+}
+
+function resetAllFilters() {
+  filters.start_date = ''
+  filters.end_date = ''
+  filters.wallet_id = ''
+  filters.type = [...ALL_TYPES]
+  filters.category_id = []
+  filters.balance_group = null
+  filters.min_amount = ''
+  filters.max_amount = ''
+  reload()
+}
+
+function onCardTap(group) {
+  filters.balance_group = filters.balance_group === group ? null : group
+  filters.wallet_id = ''
+  trackEvent('wallet_card_clicked', { type: group })
+  reload()
+}
+
+function retryLoad() {
+  hasError.value = false
+  router.reload()
+}
+
+let searchDebounceTimer = null
+watch(searchQuery, (val) => {
+  clearTimeout(searchDebounceTimer)
+  searchDebounceTimer = setTimeout(() => {
+    trackEvent('dompet_search', { query: val })
+    trackEvent('wallet_search_used', { query: val })
+    reload({ search: val || undefined })
+  }, 300)
+})
+
+const exportFilters = computed(() => {
+  const q = buildQuery()
+  delete q.tab
+  Object.keys(q).forEach((k) => q[k] === undefined && delete q[k])
+  return q
+})
 
 const tab = ref(props.active_tab === 'in' || props.active_tab === 'out' ? 'transaksi' : (props.active_tab === 'bill' ? 'tagihan' : props.active_tab))
+const TAB_ORDER = ['transaksi', 'dompet', 'tagihan']
+const tabIndex = computed(() => Math.max(0, TAB_ORDER.indexOf(tab.value)))
+
+function selectTab(name) {
+  tab.value = name
+  trackEvent('wallet_tab_viewed', { tab: name })
+}
 
 const showAddTx     = ref(false)
 const showAddWallet = ref(false)
@@ -506,6 +668,11 @@ const filteredCategories = computed(() =>
 )
 
 const openEditTx = (t) => {
+  trackEvent('transaction_item_opened', { transaction_id: t.id, type: t.type })
+  // Baris transfer (source: wallet_transfer, id ber-prefix "wt_") belum punya
+  // endpoint edit sendiri (di luar scope spec ini) — tidak bisa dibuka di modal
+  // yang sama karena route dompet.update mengharapkan model Transaction biasa.
+  if (t.type === 'transfer') return
   editingTx.value = t
   txForm.type = t.type
   txForm.amount = t.amount
@@ -522,6 +689,20 @@ const closeTxModal = () => {
   editingTx.value = null
   txForm.reset()
   amountDisplay.value = ''
+}
+
+const openAddIncome = () => {
+  closeTxModal()
+  txForm.type = 'income'
+  showAddTx.value = true
+  trackEvent('dompet_quick_action', { action: 'add-income' })
+}
+
+const openAddExpense = () => {
+  closeTxModal()
+  txForm.type = 'expense'
+  showAddTx.value = true
+  trackEvent('dompet_quick_action', { action: 'add-expense' })
 }
 
 const submitTx = () => {
@@ -596,6 +777,11 @@ const onTransferAmountInput = (e) => {
   transferAmountDisplay.value = raw ? Number(raw).toLocaleString('id-ID') : ''
 }
 
+const openTransfer = () => {
+  showTransfer.value = true
+  trackEvent('dompet_quick_action', { action: 'transfer' })
+}
+
 const submitTransfer = () => {
   transferForm.post(route('wallets.transfer'), {
     onSuccess: () => {
@@ -661,7 +847,6 @@ const submitPayBill = () => {
   })
 }
 
-const typeLabel = (t) => ({ both: 'Multi Fungsi', cash_flow: 'Transaksi', saving: 'Tabungan' }[t] ?? t)
 const dueLabel = (d) => {
   if (d === null) return 'Belum ada jadwal'
   if (d === 0) return '🔴 Jatuh tempo hari ini'
@@ -669,149 +854,272 @@ const dueLabel = (d) => {
   if (d <= 3) return `🟡 H-${d}`
   return `🟢 H-${d}`
 }
-const formatRupiah = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID')
-const formatShort = (n) => {
-  n = Number(n || 0)
-  if (n >= 1_000_000) return (n/1_000_000).toFixed(1) + 'jt'
-  if (n >= 1_000)     return (n/1_000).toFixed(0) + 'rb'
-  return String(n)
+
+// ── Pengelompokan transaksi per tanggal (A.3) ──
+function localYMD(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
+const todayYMD = localYMD(new Date())
+const yesterdayYMD = localYMD(new Date(Date.now() - 86400000))
+
+const groupedTransactions = computed(() => {
+  const groups = []
+  for (const t of props.transactions.data || []) {
+    const last = groups[groups.length - 1]
+    if (!last || last.key !== t.transacted_at) {
+      let label = t.transacted_at_label
+      if (t.transacted_at === todayYMD) label = 'Hari Ini'
+      else if (t.transacted_at === yesterdayYMD) label = 'Kemarin'
+      groups.push({ key: t.transacted_at, label, transactions: [t] })
+    } else {
+      last.transactions.push(t)
+    }
+  }
+  return groups
+})
+
+// ── A.4a: Keyboard shortcut desktop (≥1025px) ──
+function closeAllOverlays() {
+  if (showAddTx.value) { closeTxModal(); return }
+  if (showAddWallet.value) { showAddWallet.value = false; editingWallet.value = null; return }
+  if (showTransfer.value) { showTransfer.value = false; return }
+  if (showAddBill.value) { showAddBill.value = false; return }
+  if (showPayBill.value) { showPayBill.value = false; return }
+  if (filterDrawerOpen.value) { filterDrawerOpen.value = false; return }
+  if (showRangeMenu.value) { showRangeMenu.value = false; return }
+}
+
+function onKeydown(e) {
+  if (e.key === 'Escape') { closeAllOverlays(); return }
+  if (window.innerWidth < 1025) return
+
+  const tagName = document.activeElement?.tagName
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tagName)) return
+
+  if (e.key === '/') {
+    e.preventDefault()
+    searchInputRef.value?.focus()
+  } else if (e.key === 'N' && e.shiftKey) {
+    openAddExpense()
+  } else if (e.key === 'n') {
+    openAddIncome()
+  } else if (e.key === 't' && props.wallets.length >= 2) {
+    openTransfer()
+  }
+}
+
+// ── A.4e: Pull-to-refresh (mobile only, ≤480px) ──
+const pullDistance = ref(0)
+const refreshing = ref(false)
+let pullStartY = null
+
+function onTouchStart(e) {
+  if (window.innerWidth > 480 || window.scrollY > 0) { pullStartY = null; return }
+  pullStartY = e.touches[0].clientY
+}
+function onTouchMove(e) {
+  if (pullStartY === null) return
+  const delta = e.touches[0].clientY - pullStartY
+  if (delta > 0) pullDistance.value = Math.min(delta, 100)
+}
+function onTouchEnd() {
+  if (pullStartY === null) return
+  if (pullDistance.value > 60) {
+    refreshing.value = true
+    pullDistance.value = 0
+    router.reload({ onFinish: () => { refreshing.value = false } })
+  } else {
+    pullDistance.value = 0
+  }
+  pullStartY = null
+}
+
+// ── A.9: Scroll depth transaksi (analytics stub) ──
+let scrollTracked = false
+function onWindowScroll() {
+  if (scrollTracked || tab.value !== 'transaksi') return
+  const percent = (window.scrollY + window.innerHeight) / document.documentElement.scrollHeight
+  if (percent > 0.8) {
+    scrollTracked = true
+    trackEvent('dompet_tx_list_scroll_depth', { percent: 80 })
+  }
+}
+watch(() => props.transactions?.data, () => { scrollTracked = false })
+
+let removeStart, removeFinish, removeError
+
+onMounted(() => {
+  // A.4c: restore filter tersimpan kalau tidak ada query param eksplisit di URL
+  const filterKeys = ['range', 'period', 'start_date', 'end_date', 'wallet_id', 'type', 'type[]', 'category_id', 'category_id[]', 'balance_group', 'min_amount', 'max_amount', 'search']
+  const params = new URLSearchParams(window.location.search)
+  const hasExplicitFilter = filterKeys.some((k) => params.has(k))
+  if (!hasExplicitFilter) {
+    const saved = window.localStorage.getItem(FILTER_STORAGE_KEY)
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+        const query = { tab: 'transaksi', ...parsed }
+        Object.keys(query).forEach((k) => {
+          const v = query[k]
+          const isEmpty = v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0)
+          if (isEmpty) delete query[k]
+        })
+        if (Object.keys(query).length > 1) {
+          router.get(route('dompet.index'), query, { preserveState: true, preserveScroll: true, replace: true })
+        }
+      } catch { /* localStorage korup, abaikan */ }
+    }
+  }
+
+  trackEvent('wallet_tab_viewed', { tab: tab.value })
+
+  removeStart = router.on('start', () => { isLoading.value = true; hasError.value = false })
+  removeFinish = router.on('finish', () => {
+    isLoading.value = false
+    Object.assign(filters, readQueryFilters())
+  })
+  removeError = router.on('error', () => { hasError.value = true })
+
+  window.addEventListener('keydown', onKeydown)
+  window.addEventListener('scroll', onWindowScroll, { passive: true })
+  document.addEventListener('touchstart', onTouchStart, { passive: true })
+  document.addEventListener('touchmove', onTouchMove, { passive: true })
+  document.addEventListener('touchend', onTouchEnd, { passive: true })
+})
+
+onUnmounted(() => {
+  removeStart?.()
+  removeFinish?.()
+  removeError?.()
+  window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('scroll', onWindowScroll)
+  document.removeEventListener('touchstart', onTouchStart)
+  document.removeEventListener('touchmove', onTouchMove)
+  document.removeEventListener('touchend', onTouchEnd)
+})
 </script>
 
 <style scoped>
 .page-content { padding: 20px; }
 
-.dompet-hero-bg {
-  position: relative; overflow: hidden;
-  background: linear-gradient(160deg, var(--primary) 0%, var(--primary-dark) 100%);
-  margin: -20px -20px 0; padding: 20px 20px 24px;
-  border-radius: 0 0 26px 26px;
+.tab-row {
+  position: relative; display: flex; gap: 4px; margin-bottom: 16px;
+  background: var(--surface); border-radius: 99px; padding: 4px; box-shadow: var(--shadow-card);
 }
-.hero-top-row { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; position:relative; z-index:2; }
-.hero-page-title { font-family:'Plus Jakarta Sans',sans-serif; font-size:22px; font-weight:800; color:white; }
-.hero-page-sub { font-size:12px; color:rgba(255,255,255,.75); margin-top:4px; }
-.hero-add-btn { width:44px; height:44px; border-radius:50%; background:white; color:var(--primary); border:none; font-size:20px; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,.15); flex-shrink:0; }
-.dompet-hero-illustration { position:absolute; right:14px; top:50px; width:80px; height:80px; opacity:.95; pointer-events:none; z-index:1; }
-.hero-saldo-row { display:flex; align-items:center; gap:8px; position:relative; z-index:2; }
-.hero-saldo-label { font-size:11px; font-weight:700; letter-spacing:.06em; color:rgba(255,255,255,.8); }
-.hero-eye-btn { background:rgba(255,255,255,.18); border:none; border-radius:50%; width:26px; height:26px; cursor:pointer; display:flex; align-items:center; justify-content:center; color:white; }
-.hero-eye-btn svg { width:14px; height:14px; }
-.hero-saldo-amount { font-family:'Plus Jakarta Sans',sans-serif; font-size:28px; font-weight:800; color:white; margin:4px 0 10px; position:relative; z-index:2; }
-.hidden-text { letter-spacing:.1em; color:rgba(255,255,255,.6); }
-.hero-wallet-badge { display:inline-block; background:rgba(255,255,255,.18); color:white; font-size:11px; font-weight:600; padding:5px 12px; border-radius:99px; position:relative; z-index:2; }
-
-.breakdown-card { display:flex; gap:14px; margin: -14px 0 16px; padding:16px; position:relative; z-index:3; }
-.breakdown-item { flex:1; display:flex; gap:8px; align-items:flex-start; }
-.bd-icon { width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
-.bd-icon.cash { background:var(--success-bg); }
-.bd-icon.bank { background:var(--primary-bg); }
-.bd-icon.ewallet { background:#F3E8FF; }
-.bd-info { flex:1; min-width:0; }
-.bd-label { font-size:10px; color:var(--text-secondary); font-weight:600; }
-.bd-value { font-size:13px; font-weight:800; margin:2px 0 4px; }
-.bd-value.cash { color:var(--success); }
-.bd-value.bank { color:var(--primary); }
-.bd-value.ewallet { color:#9333EA; }
-.bd-bar-bg { height:4px; background:var(--background); border-radius:99px; overflow:hidden; }
-.bd-bar-fill { height:100%; border-radius:99px; }
-.bd-bar-fill.cash { background:var(--success); }
-.bd-bar-fill.bank { background:var(--primary); }
-.bd-bar-fill.ewallet { background:#9333EA; }
-
-.range-filter-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:var(--surface); border-radius:var(--radius-lg); padding:12px 14px; box-shadow:var(--shadow-card); margin-bottom:12px; }
-.range-dropdown { position:relative; }
-.range-btn { background:var(--primary-bg); color:var(--primary); border:none; padding:8px 12px; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px; }
-.range-menu { position:absolute; top:110%; left:0; background:var(--surface); border-radius:10px; box-shadow:var(--shadow-lg); z-index:50; overflow:hidden; min-width:130px; }
-.range-menu button { display:block; width:100%; text-align:left; padding:10px 14px; background:none; border:none; font-size:12px; cursor:pointer; color:var(--text-primary); }
-.range-menu button:hover { background:var(--background); }
-.range-stat { display:flex; flex-direction:column; }
-.rs-label { font-size:10px; color:var(--text-secondary); font-weight:600; }
-.rs-val { font-size:13px; font-weight:800; }
-.rs-val.up { color:var(--success); }
-.rs-val.down { color:var(--danger); }
-
-.search-row { display:flex; gap:8px; margin-bottom:16px; }
-.search-box { flex:1; display:flex; align-items:center; gap:8px; background:var(--surface); border-radius:var(--radius-md); padding:10px 14px; box-shadow:var(--shadow-card); }
-.search-box input { border:none; outline:none; background:none; font-size:13px; flex:1; font-family:inherit; }
-.search-icon { font-size:14px; opacity:.6; }
-.filter-btn { background:var(--surface); border:none; padding:10px 16px; border-radius:var(--radius-md); font-size:12px; font-weight:700; box-shadow:var(--shadow-card); cursor:pointer; white-space:nowrap; }
-
-.tx-list-heading { margin-bottom:10px; }
-.page-header {
-  display:flex; justify-content:space-between; align-items:center;
-  background:var(--surface); border-radius:var(--radius-lg); padding:16px 18px;
-  margin-bottom:12px; box-shadow:var(--shadow-card);
-  position:sticky; top:0; z-index:40;
+.tab-indicator {
+  position: absolute; top: 4px; left: 4px; bottom: 4px;
+  width: calc((100% - 8px) / 3);
+  background: var(--primary); border-radius: 99px;
+  transition: transform .25s cubic-bezier(.4,0,.2,1);
+  z-index: 1;
 }
-.page-title { font-family:'Plus Jakarta Sans',sans-serif; font-size:22px; font-weight:800; }
-.add-icon-btn { width:38px; height:38px; border-radius:50%; background:var(--primary); color:white; border:none; font-size:18px; cursor:pointer; box-shadow:var(--shadow-sm); }
+.tab-pill {
+  position: relative; z-index: 2; flex: 1; min-height: 44px;
+  border: none; background: none; cursor: pointer;
+  font-size: 13px; font-weight: 700; color: var(--text-secondary);
+  border-radius: 99px; transition: color .2s;
+}
+.tab-pill.active { color: white; }
+.tab-pill:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
 
-.tab-row { display:flex; gap:8px; margin-bottom:16px; }
+.error-banner { margin-bottom: 12px; }
 
-.summary-row { display:flex; gap:10px; margin-bottom:16px; }
-.summary-row.single { flex-direction:column; }
-.summary-item { flex:1; background:var(--surface); border-radius:var(--radius-lg); padding:14px; box-shadow:var(--shadow-card); }
-.summary-item.full { text-align:center; }
-.summary-label { font-size:11px; color:var(--text-secondary); font-weight:600; margin-bottom:4px; }
-.summary-val { font-family:'Plus Jakarta Sans',sans-serif; font-size:16px; font-weight:800; }
-.summary-val.up { color:var(--success); }
-.summary-val.down { color:var(--danger); }
+.pull-indicator {
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden; font-size: 12px; font-weight: 600; color: var(--text-secondary);
+  transition: height .2s ease;
+}
 
-.tx-list-card { padding:8px 16px; }
-.tx-item { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--border); cursor:pointer; }
-.tx-item:last-child { border-bottom:none; }
-.tx-item:active { opacity:.7; }
-.tx-icon { width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
-.tx-info { flex:1; min-width:0; }
-.tx-name { font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.tx-cat { font-size:11px; color:var(--text-secondary); }
-.tx-amt { font-size:13px; font-weight:700; flex-shrink:0; }
-.tx-amt.up { color:var(--success); }
-.tx-amt.down { color:var(--danger); }
+/* ── Grid 2 kolom tablet/desktop (≥481px): sidebar filter kiri, list kanan ── */
+.tx-layout { display: block; }
+.tx-sidebar { display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
+.tx-main { min-width: 0; }
 
-.empty-state { text-align:center; padding:32px 20px; }
-.empty-illust { font-size:40px; margin-bottom:10px; }
-.empty-text { font-size:14px; font-weight:600; color:var(--text-secondary); }
+@media (min-width: 481px) {
+  .tx-layout { display: grid; grid-template-columns: 280px 1fr; gap: 20px; align-items: start; }
+  .tx-sidebar { margin-bottom: 0; }
+  .tx-main { max-width: 720px; }
+}
 
-.wallet-card { margin-bottom:10px; cursor:pointer; }
-.wallet-row { display:flex; align-items:center; gap:12px; }
-.wallet-logo { width:44px; height:44px; border-radius:12px; color:white; font-weight:800; font-family:'Plus Jakarta Sans',sans-serif; font-size:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; }
-.wallet-logo-img { width:100%; height:100%; object-fit:cover; }
-.wallet-info { flex:1; }
-.wallet-name { font-size:14px; font-weight:700; }
-.wallet-type { font-size:11px; color:var(--text-secondary); }
-.wallet-balance { font-family:'Plus Jakarta Sans',sans-serif; font-size:14px; font-weight:800; }
+.range-summary-card { display: flex; flex-direction: column; gap: 14px; }
+.range-dropdown { position: relative; }
+.range-btn { background: var(--primary-bg); color: var(--primary); border: none; padding: 10px 14px; border-radius: 10px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 4px; min-height: 44px; width: 100%; justify-content: center; }
+.range-menu { position: absolute; top: 110%; left: 0; right: 0; background: var(--surface); border-radius: 10px; box-shadow: var(--shadow-lg); z-index: 50; overflow: hidden; }
+.range-menu button { display: block; width: 100%; text-align: left; padding: 12px 14px; background: none; border: none; font-size: 12px; cursor: pointer; color: var(--text-primary); min-height: 44px; }
+.range-menu button:hover { background: var(--background); }
+.range-stat-grid { display: flex; justify-content: space-between; gap: 8px; }
+.range-stat { display: flex; flex-direction: column; }
+.rs-label { font-size: 10px; color: var(--text-secondary); font-weight: 600; }
+.rs-val { font-size: 13px; font-weight: 800; }
+.rs-val.up { color: var(--success); }
+.rs-val.down { color: var(--danger); }
 
-.transfer-btn { width:100%; padding:12px; background:var(--primary-bg); color:var(--primary); border:none; border-radius:var(--radius-md); font-size:13px; font-weight:700; cursor:pointer; margin-bottom:12px; }
-.danger-text { color:var(--danger) !important; border-color:var(--danger-bg) !important; }
+.search-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.search-box { flex: 1; display: flex; align-items: center; gap: 8px; background: var(--surface); border-radius: var(--radius-md); padding: 10px 14px; box-shadow: var(--shadow-card); min-height: 44px; }
+.search-box input { border: none; outline: none; background: none; font-size: 13px; flex: 1; font-family: inherit; }
+.search-icon { font-size: 14px; opacity: .6; }
+.filter-btn { display: flex; align-items: center; gap: 6px; background: var(--surface); border: none; padding: 10px 16px; border-radius: var(--radius-md); font-size: 12px; font-weight: 700; box-shadow: var(--shadow-card); cursor: pointer; white-space: nowrap; min-height: 44px; }
+.filter-badge { color: var(--primary); font-size: 11px; font-weight: 800; }
+.d-mobile-only { }
+@media (min-width: 481px) { .d-mobile-only { display: none; } }
 
-.add-wallet-btn { width:100%; padding:16px; background:none; border:2px dashed var(--border); border-radius:var(--radius-lg); font-size:13px; font-weight:600; color:var(--text-secondary); cursor:pointer; margin-top:8px; display:flex; align-items:center; justify-content:center; gap:8px; transition:all .15s; }
-.add-wallet-btn:hover { border-color:var(--primary); color:var(--primary); background:var(--primary-bg); }
+.tx-list-heading { margin-bottom: 10px; }
+.section-title { font-size: 15px; font-weight: 800; font-family: 'Plus Jakarta Sans', sans-serif; }
 
-.bill-card { margin-bottom:10px; }
-.bill-row { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
-.bill-icon { font-size:24px; }
-.bill-info { flex:1; }
-.bill-name { font-size:14px; font-weight:700; }
-.bill-due { font-size:11px; font-weight:600; margin-top:2px; }
-.bill-amt { font-family:'Plus Jakarta Sans',sans-serif; font-size:14px; font-weight:800; }
-.bill-pay-btn { width:100%; padding:10px; background:var(--primary-bg); color:var(--primary); border:none; border-radius:var(--radius-md); font-size:13px; font-weight:700; cursor:pointer; }
+.tx-list-card { padding: 8px 16px; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+.wallet-grid { display: block; }
+@media (min-width: 481px) {
+  .wallet-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .wallet-grid :deep(.wallet-card) { margin-bottom: 0; }
+}
+@media (min-width: 1025px) {
+  .wallet-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+.summary-row { display: flex; gap: 10px; margin-bottom: 16px; }
+.summary-row.single { flex-direction: column; }
+.summary-item { flex: 1; background: var(--surface); border-radius: var(--radius-lg); padding: 14px; box-shadow: var(--shadow-card); }
+.summary-item.full { text-align: center; }
+.summary-label { font-size: 11px; color: var(--text-secondary); font-weight: 600; margin-bottom: 4px; }
+.summary-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 16px; font-weight: 800; }
+
+.transfer-btn { width: 100%; padding: 12px; min-height: 44px; background: var(--primary-bg); color: var(--primary); border: none; border-radius: var(--radius-md); font-size: 13px; font-weight: 700; cursor: pointer; margin-bottom: 12px; }
+.danger-text { color: var(--danger) !important; border-color: var(--danger-bg) !important; }
+
+.add-wallet-btn { width: 100%; padding: 16px; min-height: 44px; background: none; border: 2px dashed var(--border); border-radius: var(--radius-lg); font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all .15s; }
+.add-wallet-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-bg); }
+.add-wallet-btn:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+
+.bill-card { margin-bottom: 10px; }
+.bill-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.bill-icon { font-size: 24px; }
+.bill-info { flex: 1; }
+.bill-name { font-size: 14px; font-weight: 700; }
+.bill-due { font-size: 11px; font-weight: 600; margin-top: 2px; }
+.bill-amt { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 800; }
+.bill-pay-btn { width: 100%; padding: 10px; min-height: 44px; background: var(--primary-bg); color: var(--primary); border: none; border-radius: var(--radius-md); font-size: 13px; font-weight: 700; cursor: pointer; }
 
 /* Modal */
-.modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,.45); z-index:500; display:flex; align-items:flex-end; justify-content:center; backdrop-filter:blur(4px); }
-.modal-sheet { background:var(--surface); border-radius:28px 28px 0 0; width:100%; max-width:480px; padding:24px 20px 40px; max-height:90vh; overflow-y:auto; box-shadow:0 -10px 40px rgba(15,23,42,.15); }
-.modal-handle { width:40px; height:4px; background:var(--border); border-radius:99px; margin:0 auto 20px; }
-.modal-title { font-family:'Plus Jakarta Sans',sans-serif; font-size:18px; font-weight:800; margin-bottom:16px; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 500; display: flex; align-items: flex-end; justify-content: center; backdrop-filter: blur(4px); }
+.modal-sheet { background: var(--surface); border-radius: 28px 28px 0 0; width: 100%; max-width: 480px; padding: 24px 20px 40px; max-height: 90vh; overflow-y: auto; box-shadow: 0 -10px 40px rgba(15,23,42,.15); }
+.modal-handle { width: 40px; height: 4px; background: var(--border); border-radius: 99px; margin: 0 auto 20px; }
+.modal-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; margin-bottom: 16px; }
 
-.type-toggle { display:flex; gap:8px; margin-bottom:18px; }
-.type-btn { flex:1; padding:12px; border-radius:var(--radius-md); border:1.5px solid var(--border); background:var(--surface); font-size:13px; font-weight:600; cursor:pointer; color:var(--text-secondary); }
-.type-btn.active { border-color:var(--primary); background:var(--primary-bg); color:var(--primary); }
+.type-toggle { display: flex; gap: 8px; margin-bottom: 18px; }
+.type-btn { flex: 1; padding: 12px; min-height: 44px; border-radius: var(--radius-md); border: 1.5px solid var(--border); background: var(--surface); font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-secondary); }
+.type-btn.active { border-color: var(--primary); background: var(--primary-bg); color: var(--primary); }
 
-.form-group { margin-bottom:14px; }
-.form-label { font-size:12px; font-weight:600; color:var(--text-secondary); display:block; margin-bottom:6px; }
-.amount-input { font-family:'Plus Jakarta Sans',sans-serif; font-size:20px; font-weight:800; }
+.form-group { margin-bottom: 14px; }
+.form-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px; }
+.amount-input { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 20px; font-weight: 800; }
 
-.remind-pills { display:flex; gap:8px; }
-.remind-pill { padding:8px 14px; border-radius:99px; border:1.5px solid var(--border); background:var(--surface); font-size:12px; font-weight:600; color:var(--text-secondary); cursor:pointer; }
-.remind-pill.selected { border-color:var(--primary); background:var(--primary); color:white; }
+.remind-pills { display: flex; gap: 8px; }
+.remind-pill { padding: 8px 14px; min-height: 44px; border-radius: 99px; border: 1.5px solid var(--border); background: var(--surface); font-size: 12px; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+.remind-pill.selected { border-color: var(--primary); background: var(--primary); color: white; }
 </style>

@@ -29,6 +29,32 @@ In addition, [Laracasts](https://laracasts.com) contains thousands of video tuto
 
 You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
 
+## Halaman Dompet (Mobile) — Filter Transaksi
+
+Endpoint `GET /dompet` (dan `GET /dompet/export` untuk CSV) mendukung filter transaksi yang bisa
+memilih lebih dari satu tipe/kategori sekaligus, plus filter kelompok saldo dan rentang jumlah.
+
+**Query params yang relevan:**
+
+| Param | Tipe | Keterangan |
+|---|---|---|
+| `type[]` | array | `income`, `expense`, dan/atau `transfer`. Kosongkan untuk semua tipe. |
+| `category_id[]` | array | ID kategori, bisa lebih dari satu. Diabaikan kalau `type[]` cuma berisi `transfer`. |
+| `balance_group` | string | `cash`, `bank`, atau `ewallet` — cocok dengan kartu ringkasan saldo di halaman Dompet. |
+| `wallet_id` | string | Filter ke satu dompet spesifik. |
+| `min_amount` / `max_amount` | number | Rentang nominal transaksi. |
+| `search` | string | Cari di catatan (note) transaksi. |
+| `start_date` / `end_date`, `period`, `range` | — | Filter tanggal (sudah ada sebelumnya). |
+
+Contoh: `GET /dompet?type[]=income&type[]=transfer&balance_group=bank`
+
+**Kompatibilitas:** format lama yang mengirim `type`/`category_id` sebagai string tunggal (mis. dari
+bookmark atau `localStorage` browser lama) tetap diterima dan otomatis dinormalisasi jadi array.
+
+**Perubahan pada response:** daftar transaksi di `transactions.data[]` sekarang juga menyertakan
+transaksi *transfer* antar dompet (sebelumnya hanya income/expense), ditandai `type: "transfer"`
+dan `wallet` berisi label `"Dari → Ke"`.
+
 ## Agentic Development
 
 Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:

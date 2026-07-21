@@ -2,36 +2,36 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
+use App\Models\Subscription;
 use App\Models\User;
 use App\Models\UserProfile;
-use App\Models\Subscription;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class SuperAdminSeeder extends Seeder
 {
     public function run(): void
     {
         $user = User::create([
-            'name'      => 'Kristiawan Budiono',
-            'email'     => 'admin@catatcuan.id',
-            'password'  => Hash::make('admin123'),
-            'role'      => 'super_admin',
+            'name' => 'Kristiawan Budiono',
+            'email' => 'admin@catatcuan.id',
+            'password' => Hash::make('admin123'),
+            'role' => 'super_admin',
             'is_active' => true,
         ]);
 
         UserProfile::create([
-            'user_id'  => $user->id,
+            'user_id' => $user->id,
             'currency' => 'IDR',
             'timezone' => 'Asia/Jakarta',
         ]);
 
         Subscription::create([
-            'user_id'    => $user->id,
-            'plan'       => 'yearly',
-            'status'     => 'active',
-            'starts_at'  => now(),
-            'ends_at'    => now()->addYears(10),
+            'user_id' => $user->id,
+            'plan' => 'yearly',
+            'status' => 'active',
+            'starts_at' => now(),
+            'ends_at' => now()->addYears(10),
         ]);
     }
 }
