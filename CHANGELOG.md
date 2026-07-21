@@ -2,6 +2,16 @@
 
 Semua perubahan penting pada Monexa dicatat di sini.
 
+## 2026-07-21 — Lanjutkan Review PR #1: Redesign Halaman Dompet (Mobile)
+
+Review PR #1 (redesign halaman Dompet mobile) dilanjutkan dan dipecah jadi checklist konkret:
+validasi UI vs desain, uji fungsional CTA dompet (tambah/edit/hapus/transfer), regresi state &
+performa, aksesibilitas, sampai kriteria approval sebelum merge ke `develop`. Tidak ada fitur atau
+endpoint baru — seluruh kontrak teknis tetap seperti yang sudah tercatat di entry-entry sebelumnya;
+satu catatan penting: CTA "set default dompet" yang sempat disinggung ternyata di luar cakupan PR
+ini dan belum ada di kode sama sekali, jadi ditandai sebagai usulan terpisah, bukan bug yang harus
+diperbaiki sekarang.
+
 ## 2026-07-21 — Buat PR redesign halaman Dompet (mobile) ke develop
 
 Pull request untuk redesign halaman Dompet (mobile) dibuat dari branch
