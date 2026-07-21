@@ -979,3 +979,169 @@ review PR #1)**
 - **Jangan** membuat migration baru, **jangan** membuat branch baru — perbaikan cukup di branch
   `feature/redesign-halaman-dompet-mobile-sesuai-screenshot` yang sudah ada, cukup dengan mengirim
   ulang request review dengan diff yang benar.
+
+## 15. Lanjutan — Jalankan Ulang Pipeline Review PR #1 (arahan CEO lanjutan, 2026-07-21)
+
+Arahan lanjutan: CEO AI, task "Lanjutkan review PR #1: Redesign Halaman Dompet (Mobile)"
+(`https://github.com/KristiawanBud/Monexa.id/pull/1`). Catatan CEO: *"Bug sistem yang menghentikan
+proses review sebelumnya sudah diperbaiki; jalankan ulang pipeline dari branch PR yang sama."* Ini
+**elaborasi §14** (khususnya menindaklanjuti §14.3 — catatan reviewer sebelumnya soal diff kosong)
+dengan cakupan pipeline yang lebih rinci: lint, static analysis, test, build, code review kualitas
+kode, verifikasi UI/UX (termasuk format mata uang IDR & pembulatan secara eksplisit), visual
+regression, dan keputusan Approve/Request Changes + ringkasan di komentar PR. **Bukan kontrak
+API/DB baru** — §2–§5 tetap tuntas dan sudah diimplementasikan.
+
+### 15.0 Temuan repo penting untuk elaborasi ini (dicek ulang saat menulis spec ini)
+
+- **Konfirmasi ulang temuan §14.3**: `git diff main...HEAD --stat` di branch ini **tetap tidak
+  kosong** — 17 file berubah (1837 insertion(+)/188 deletion(-)), termasuk seluruh file kode yang
+  relevan (`TransactionController.php`, `DompetFilterRequest.php`, `TransactionFeedService.php`,
+  `Dompet.vue`, `BalanceSummaryCard.vue`, `FilterDrawer.vue`, `TransactionItem.vue`,
+  `CategoryChipFilter.vue`, `AppLayout.vue`, 2 migration index). "Bug sistem" yang disebut CEO
+  (diff kosong/tidak terkirim benar ke reviewer) berada di **proses pengiriman/tooling review**,
+  bukan di kode branch ini — tidak ada tindakan kode tambahan yang perlu dipecah untuk itu, sesuai
+  §14.3.
+- **Belum ada perubahan tooling sejak §13.0/§14.0**: tetap tidak ada script `lint` di
+  `package.json` (cuma `dev`/`build`), tetap tidak ada `.github/workflows`, tetap tidak ada
+  test runner e2e/visual-regression (`Cypress`/`Playwright`/`Percy`/`BackstopJS`/`Chromatic` — semua
+  dicek ulang, nihil di `package.json` maupun root repo). `vendor/bin/pint`, `vendor/bin/phpstan`
+  (kalau ada config), `vendor/bin/phpunit` tetap jadi padanan lint/static-analysis/test PHP.
+  **"Visual regression"** yang diminta arahan CEO poin 5 **tidak applicable sebagai automated
+  suite** — padanannya adalah perbandingan screenshot manual before/after pada resolusi yang sudah
+  dikontrakkan (§13.0: 360×800, 390×844, opsional 414×896) terhadap referensi desain §0, dicatat
+  sebagai bagian dari "Validasi UI vs desain" (§14.1), bukan tugas baru.
+- `gh auth status` di environment penulisan spec ini **masih belum login** — Project Manager AI
+  tetap tidak bisa membuka/mengomentari PR #1 secara langsung (konsisten §14.0). Eksekutor yang
+  menjalankan langkah 1, 7, 8 dari arahan CEO (checkout, approve/request changes, komentar ringkasan
+  di PR) butuh akses `gh`/browser dengan token yang sudah diperbaiki (dicatat CEO di §13.0).
+- **Format mata uang IDR & pembulatan** (poin 4 arahan CEO, belum eksplisit di §14.1 sebelumnya):
+  dicek langsung di kode branch ini —
+  - Backend: `number_format($amount, 0, ',', '.')` dipakai di `WalletController.php` (pesan flash
+    saldo tidak cukup, transfer, hapus dompet) — 0 desimal, pemisah ribuan titik, sesuai konvensi
+    Rupiah tanpa sen.
+  - Frontend: `Number(x).toLocaleString('id-ID')` dipakai di `Dompet.vue` (baris ~663, ~679, ~777,
+    ~806, ~834) untuk tampilan input nominal — juga 0 desimal default untuk `id-ID` locale tanpa
+    opsi `minimumFractionDigits`, konsisten dengan backend.
+  - Belum dicek: apakah kolom `transactions.amount`/`user_wallets.balance` bertipe desimal (mis.
+    `decimal(15,2)`) sehingga berpotensi menyimpan sen meski UI selalu menampilkan bulat — ini murni
+    item verifikasi QA (§15.1), **bukan** temuan yang memerlukan migration baru (di luar scope
+    redesign UI PR #1, §0).
+- Ukuran layar "kecil–menengah" yang diminta arahan CEO konsisten dengan rentang **320–430px** yang
+  sudah dikontrakkan di §13.0 — tidak ada rentang baru yang perlu ditambahkan.
+
+### 15.1 Todo Teknis (breakdown pelaksanaan)
+
+Catatan lingkup: sesuai batasan peranku (Project Manager AI), bagian ini murni **memecah** arahan
+CEO jadi todo konkret per eksekutor, mengikuti urutan 8 langkah dari arahan CEO. Aku tidak
+mengeksekusi apa pun di bawah ini (tidak checkout/pull, tidak menjalankan lint/test/build, tidak
+membuka/meng-approve/comment PR).
+
+**Langkah 1 — Checkout & sinkronisasi (eksekutor: CEO AI / DevOps / human)**
+- [ ] `git fetch origin`, `git checkout feature/redesign-halaman-dompet-mobile-sesuai-screenshot`,
+  `git pull`.
+- [ ] Sinkronkan dengan `develop` (target branch, §13.1) bila ada commit baru di `develop` sejak
+  branch ini dibuat — rebase/merge sesuai konvensi repo, selesaikan konflik (eskalasi ke Backend/
+  Frontend AI kalau konflik menyentuh file di luar §0).
+- [ ] Bersihkan cache/artefak build sebelumnya: `rm -rf node_modules/.vite public/build`,
+  `php artisan config:clear && php artisan cache:clear && php artisan view:clear`, `composer dump-autoload`
+  — supaya hasil lint/test/build berikutnya tidak dipengaruhi cache basi dari run sebelumnya (relevan
+  dengan "bug sistem" yang disebut CEO, meski akar masalahnya di tooling review, bukan cache lokal —
+  tetap dijalankan sebagai kebersihan standar sebelum re-run pipeline).
+
+**Langkah 2 — Lint, static analysis, test, build (eksekutor: CEO AI / DevOps / human, atau Backend/
+Frontend AI bila diminta run)**
+- [ ] `vendor/bin/pint --test` (padanan lint PHP, §13.0 — tidak ada lint JS terdaftar).
+- [ ] `vendor/bin/phpstan analyse` (kalau ada `phpstan.neon`/`phpstan.neon.dist`).
+- [ ] `vendor/bin/phpunit` (atau `php artisan test`) — termasuk test baru yang seharusnya sudah dibuat
+  sesuai §14.1 "Pengujian" (`WalletController`, `TransactionController` filter/union). Kalau test itu
+  belum ada, catat sebagai gap outstanding di laporan (§15.1 "Dokumentasi temuan"), jangan blokir
+  seluruh pipeline karena hal ini kalau bukan regresi baru dari task ini.
+- [ ] `npm run build` (Vite) — pastikan sukses tanpa error/warning baru.
+- [ ] Tidak ada "instrumentation test" (Android/iOS native) di repo ini — ini aplikasi web Laravel +
+  Inertia, bukan native mobile app; item ini dari arahan CEO **tidak applicable**, dipenuhi oleh
+  kombinasi `phpunit` (server) + `npm run build` (client) + smoke-test manual viewport mobile (§14.1).
+
+**Langkah 3 — Review kode (eksekutor: Backend AI untuk PHP, Frontend AI untuk Vue, atau reviewer
+manusia/CEO AI)**
+- [ ] Kepatuhan arsitektur: `TransactionController`/`TransactionFeedService`/`DompetFilterRequest`
+  ikuti pola MVC + FormRequest + Service yang sudah ada di Monexa (bandingkan dengan controller lain
+  seperti `WalletController`), tidak ada logic bisnis bocor ke Controller yang seharusnya di Service.
+- [ ] Modularisasi komponen UI: `BalanceSummaryCard.vue`, `FilterDrawer.vue`, `TransactionItem.vue`,
+  `CategoryChipFilter.vue` tetap presentational/reusable (props in, emit out), tidak ada state global
+  yang bocor ke komponen anak di luar pola existing.
+  Naming/konvensi: penamaan prop/emit/variabel konsisten camelCase (JS)/snake_case (kolom DB) sesuai
+  konvensi Monexa yang sudah ada, tidak ada penamaan baru yang menyimpang.
+- [ ] Aksesibilitas & i18n/l10n: rujuk checklist yang sudah dikontrakkan §14.1 ("Aksesibilitas" &
+  "Internasionalisasi/lokalisasi") — tidak ada item baru, cukup dieksekusi ulang sebagai bagian dari
+  re-run pipeline ini.
+- [ ] Implikasi performa: rujuk checklist §14.1 "Performa" (re-render berlebih, ukuran asset build,
+  scroll list panjang) — dieksekusi ulang, bukan checklist baru.
+
+**Langkah 4 — Verifikasi UI/UX halaman Dompet (eksekutor: Frontend AI / QA)**
+- [ ] Layar kecil–menengah (320–430px, §13.0/§15.0), light & dark mode: rujuk §14.1 "Validasi UI vs
+  desain" + "Uji fungsional viewport mobile" — dieksekusi ulang di branch yang sudah disinkron.
+- [ ] Tata letak & navigasi: header, tab segmented, bottom nav (safe-area §6), modal edit dompet
+  (bukan halaman detail terpisah, §14.0) — sesuai checklist §14.1.
+- [ ] State kosong/loading/error: `EmptyState.vue`/`SkeletonLoader.vue`/`ErrorState.vue` — rujuk
+  §14.1 "Regresi data fetching/state", termasuk kombinasi filter Transfer+kategori yang menghasilkan
+  0 hasil (§2).
+- [ ] Daftar transaksi & saldo: header saldo + 3 kartu ringkasan + list transaksi termasuk baris
+  Transfer (§4) — rujuk §14.1 "Uji fungsional viewport mobile" poin daftar dompet & saldo.
+- [ ] **Format mata uang (IDR) & pembulatan** (baru, eksplisit dari arahan CEO poin 4, lihat temuan
+  §15.0): verifikasi tampilan `Rp` + separator ribuan titik + 0 desimal konsisten di seluruh halaman
+  Dompet — header saldo, 3 kartu ringkasan, tiap item list transaksi (termasuk baris Transfer §4),
+  input nominal di form tambah/edit/transfer. Cek eksplisit: kalau ada nilai desimal (sen) di database
+  akibat kalkulasi backend (mis. rata-rata/persentase progress bar), pastikan **dibulatkan ke rupiah
+  penuh sebelum ditampilkan** (bukan dipotong/`truncate` yang bisa selisih 1 rupiah dari total) —
+  laporkan sebagai temuan kalau ditemukan pembulatan yang salah (`floor`/`intval` alih-alih `round`).
+
+**Langkah 5 — Visual regression & responsivitas (eksekutor: Frontend AI / QA)**
+- [ ] Tidak ada tooling visual regression otomatis di repo ini (§15.0) — padanannya perbandingan
+  screenshot manual before/after pada 360×800, 390×844 (opsional 414×896), light & dark mode,
+  terhadap referensi `storage/athena-refs/monexa-1784234498463.jpg` (§0). Catat di laporan sebagai
+  "visual regression: manual (tidak ada automated suite)", jangan klaim otomatis.
+- [ ] Responsivitas: resize/emulate lebar 320px sampai 430px (§13.0), pastikan tidak ada elemen
+  terpotong/overflow horizontal — sama seperti checklist §13.1 "Sanity check manual".
+
+**Langkah 6 — Dokumentasi temuan (eksekutor: eksekutor yang menjalankan langkah 2–5, dikompilasi oleh
+CEO AI/DevOps/human)**
+- [ ] Kompilasi hasil langkah 2–5 jadi daftar poin (bukan prosa panjang): status lint/static
+  analysis/test/build (pass/fail per command), temuan review kode (§ langkah 3), temuan UI/UX
+  termasuk format mata uang & pembulatan (§ langkah 4), hasil visual regression manual + catatan
+  keterbatasan tooling (§ langkah 5).
+- [ ] Sertakan screenshot/rekaman: minimal before/after 360×800 & 390×844 (light & dark), rekaman
+  singkat interaksi kunci (tap kartu saldo → filter §3, filter drawer multi-select §2, scroll list
+  dengan baris Transfer §4) — konsisten §11.1/§13.1.
+- [ ] Rekomendasi perbaikan: kelompokkan per severity (blocker vs non-blocker), rujuk definisi
+  blocker yang sudah dikontrakkan §14.1 "Kriteria penerimaan" (bug yang mencegah alur inti: lihat/
+  tambah/edit/hapus dompet, lihat transaksi). Item "set default dompet" tetap N/A (§14.0/§14.2).
+
+**Langkah 7 — Keputusan Approve / Request Changes (eksekutor: CEO AI / DevOps / human — reviewer
+berwenang, di luar kewenangan Project Manager AI)**
+- [ ] Approve **hanya** kalau: langkah 2 (lint/static analysis/test/build) semua hijau ATAU
+  kegagalan yang ada sudah didokumentasikan sebagai non-blocker & sudah ada rencana tindak lanjut;
+  langkah 3–5 tidak menemukan blocker sesuai definisi §14.1; dan keamanan multi-tenant sudah
+  diverifikasi ulang sesuai §14.3 (scoping `user_id`/kepemilikan wallet di
+  `TransactionController`/`TransactionFeedService`/`DompetFilterRequest`).
+- [ ] Kalau ditemukan blocker (mis. lint/test/build merah tanpa mitigasi, bug alur inti, kebocoran
+  data lintas tenant, atau penyimpangan signifikan dari referensi desain §0): **Request Changes**,
+  cantumkan detail per temuan (file, baris kalau relevan, langkah reproduksi, rujukan bagian spec
+  yang dilanggar).
+- [ ] Kalau Request Changes: setelah perbaikan masuk (commit baru di branch yang sama, **jangan**
+  squash yang menghilangkan histori, §13.0), ulangi langkah 2–6 sebelum keputusan approve berikutnya
+  — dicatat sebagai "Revisi #2" dst di spec ini sesuai pola §14.3, bukan menimpa bagian ini.
+
+**Langkah 8 — Ringkasan di komentar PR (eksekutor: CEO AI / DevOps / human, via `gh pr comment 1` atau
+UI GitHub)**
+- [ ] Tulis komentar ringkasan di PR #1 mencakup: status pipeline (langkah 2, per command
+  pass/fail), ringkasan temuan review kode & UI/UX (langkah 3–4), catatan visual
+  regression manual + keterbatasan tooling (langkah 5), keputusan akhir (Approve/Request Changes)
+  dengan alasan singkat, dan tautan ke bagian spec ini (§15) untuk detail lengkap.
+- [ ] Kalau Request Changes, komentar juga mencantumkan daftar item yang harus diperbaiki sebelum
+  re-review (rujuk langkah 6 "Rekomendasi perbaikan").
+
+### 15.2 Kontrak API
+**Tidak ada endpoint/tabel/kolom baru.** Sama seperti §14.2 — task ini murni re-run pipeline
+review/QA untuk PR #1. Seluruh kontrak teknis fitur redesign Dompet mobile tuntas di §2–§5 dan
+sudah diimplementasikan. Catatan "set default dompet" di §14.2 tetap berlaku (di luar scope, draft
+opsional tersedia di sana, tidak dieksekusi tanpa arahan CEO terpisah).
