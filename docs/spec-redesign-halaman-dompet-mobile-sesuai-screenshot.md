@@ -1145,3 +1145,206 @@ UI GitHub)**
 review/QA untuk PR #1. Seluruh kontrak teknis fitur redesign Dompet mobile tuntas di §2–§5 dan
 sudah diimplementasikan. Catatan "set default dompet" di §14.2 tetap berlaku (di luar scope, draft
 opsional tersedia di sana, tidak dieksekusi tanpa arahan CEO terpisah).
+
+## 16. Lanjutan — Review PR #1 dengan Retry/Fallback AI Review & Arsip Artefak (arahan CEO lanjutan, 2026-07-25)
+
+Arahan lanjutan: CEO AI, task "Lanjutkan review PR #1" (`https://github.com/KristiawanBud/Monexa.id/pull/1`).
+Ini **elaborasi §14–§15** dengan detail proses baru yang belum eksplisit sebelumnya: (a) fallback
+perhitungan diff kalau deteksi awal kosong, (b) retry 3x + backoff untuk AI review (Gemini) dengan
+fallback model/strategi diff dan label `needs-human-review` kalau tetap gagal, (c) label keputusan
+`Approved (AI)` tanpa merge otomatis, (d) arsip artefak run (hasil validasi diff, output lint/test,
+laporan AI). Catatan CEO: *"bug 'diff kosong' yang sebelumnya membuat Gemini menolak review sudah
+diperbaiki"* — konsisten dengan temuan §14.3/§15.0 bahwa akar masalahnya ada di proses
+pengiriman/tooling review, bukan di kode branch ini. **Bukan kontrak API/DB baru** — §2–§5 tetap
+tuntas dan sudah diimplementasikan; §14.2 (draft opsional "set default dompet") tetap tidak
+dieksekusi tanpa arahan CEO terpisah.
+
+### 16.0 Temuan repo penting untuk elaborasi ini (dicek ulang saat menulis spec ini, 2026-07-25)
+
+- `gh auth status` **masih belum login** di environment penulisan spec ini (dicek ulang, konsisten
+  §14.0/§15.0) — Project Manager AI tetap tidak bisa checkout/comment/label PR #1 secara langsung.
+  Seluruh langkah 1–8 arahan CEO (checkout, posting komentar, pasang label, arsip artefak ke PR) butuh
+  eksekutor dengan akses `gh`/token yang sudah diperbaiki (dicatat CEO di §13.0).
+- **"Type-check" (langkah 3 arahan CEO) secara literal tidak applicable**: `package.json` tidak
+  memakai TypeScript (tidak ada `tsconfig.json`, tidak ada `vue-tsc`/`typescript` di
+  `devDependencies` — dicek ulang, konsisten §13.0 yang sudah mencatat tidak ada script `lint` JS).
+  Padanan terdekat untuk sisi PHP adalah **static analysis** `vendor/bin/phpstan analyse` (paket
+  `larastan/larastan` sudah ada di `composer.json` `require-dev`, ini yang dipakai §13.1/§15.1
+  sebagai "static analysis"). Untuk sisi frontend, padanannya cukup `npm run build` (Vite akan gagal
+  kalau ada error sintaks/import JS) — tidak ada type-check terpisah yang bisa dijalankan karena
+  memang bukan project TypeScript.
+- **Security/dependency scan (langkah 3 arahan CEO) — tool tersedia, belum pernah dikontrakkan di
+  §13–§15**: dicek baru untuk elaborasi ini —
+  - `composer audit` tersedia (built-in Composer ≥2.4), memindai `composer.lock` terhadap advisory
+    keamanan paket PHP. `composer.json` sudah punya konfigurasi `"audit": {"abandoned": "ignore"}`.
+  - `npm audit` tersedia (built-in npm), memindai `package-lock.json`/dependency tree JS.
+  - Kedua command ini **berbeda** dari Security AI di pipeline (§3 `reviewer-ai.md`: Security AI
+    Claude scan kerentanan kode aplikasi seperti auth bypass/injection — sudah lolos sebelum PR
+    dibuka, **jangan diulang** sesuai §11.1/§13.1). `composer audit`/`npm audit` di sini adalah
+    **dependency vulnerability scan** (CVE pada library pihak ketiga), scope berbeda, jadi tetap
+    relevan dijalankan ulang di re-run pipeline ini meski instruksi "jangan ulang security scan"
+    sebelumnya merujuk ke scan kode aplikasi, bukan scan dependency.
+- **Belum ada label `needs-human-review` maupun `Approved (AI)` yang bisa dikonfirmasi keberadaannya**
+  di repo ini — `gh label list` tidak bisa dijalankan (butuh auth & bukan subcommand yang tersedia di
+  versi `gh` CLI environment ini, format yang benar adalah `gh label list` setelah auth; dicoba dan
+  gagal karena belum login). Eksekutor yang menjalankan langkah 4/7 harus **cek dulu** apakah label
+  ini sudah terdaftar di repo GitHub (`gh label list` setelah auth, atau UI GitHub → Settings →
+  Labels); kalau belum ada, buat label baru dengan nama persis `needs-human-review` dan
+  `Approved (AI)` (warna bebas, sarankan merah/oranye untuk `needs-human-review` dan hijau untuk
+  `Approved (AI)` mengikuti konvensi umum, bukan keputusan mengikat).
+- **Tidak ada `.github/workflows`** (dicek ulang, konsisten §14.0) — retry/backoff untuk AI review
+  (langkah 4 arahan CEO) **tidak bisa** diimplementasikan sebagai GitHub Actions job otomatis di repo
+  ini saat ini; harus dijalankan oleh orkestrator pipeline Athena AI Dev (n8n, lihat `reviewer-ai.md`
+  §3) di luar repo, bukan sebagai kode yang ditambahkan ke branch ini. Tidak ada todo kode baru untuk
+  ini — murni todo operasional di sisi orkestrator.
+- **"Approved (AI)" bukan approval GitHub native**: GitHub PR review state cuma
+  `APPROVE`/`REQUEST_CHANGES`/`COMMENT` — `Approved (AI)` yang diminta CEO adalah **label**, bukan
+  review state, supaya tetap jelas ini keputusan AI (bukan human approval final) dan tidak memicu
+  auto-merge apa pun (repo ini memang tidak punya automerge rule, tidak ada `.github/workflows`).
+  Konsisten dengan instruksi CEO "tanpa merge otomatis".
+- Konfirmasi ulang §14.3/§15.0: `git diff main...HEAD --stat` di branch ini **tetap tidak kosong**
+  (17 file berubah). Fallback yang diminta CEO langkah 2 (`git fetch --all` lalu
+  `git diff <base>...HEAD`) **sudah konsisten** dengan pendekatan yang dikontrakkan §14.3 (tiga titik,
+  branch dasar eksplisit) — tidak ada perubahan pendekatan, hanya tambahan instruksi eksplisit untuk
+  log-kan hasil validasi (baru, lihat §16.1 langkah 2) dan jalankan `git fetch --all` (bukan cuma
+  `git fetch origin` seperti §15.1 langkah 1) sebagai fallback kalau branch dasar (`main`/`develop`)
+  belum ter-fetch di remote lain.
+
+### 16.1 Todo Teknis (breakdown pelaksanaan)
+
+Catatan lingkup: sesuai batasan peranku (Project Manager AI), bagian ini murni **memecah** arahan CEO
+jadi todo konkret per eksekutor, mengikuti urutan 8 langkah arahan CEO. Aku tidak mengeksekusi apa pun
+di bawah ini (tidak checkout/pull, tidak menjalankan lint/test/scan, tidak memanggil Gemini, tidak
+posting komentar/label ke PR, tidak menandai approve).
+
+**Langkah 1 — Checkout & tarik commit terbaru (eksekutor: CEO AI / DevOps / human)**
+- [ ] `git fetch origin`, `git checkout feature/redesign-halaman-dompet-mobile-sesuai-screenshot`,
+  `git pull origin feature/redesign-halaman-dompet-mobile-sesuai-screenshot` — pastikan branch lokal
+  benar-benar di commit terbaru PR #1 (bandingkan `git log -1 --format=%H` dengan HEAD PR di GitHub
+  lewat `gh pr view 1 --json headRefOid` setelah auth tersedia).
+- [ ] Kalau branch dasar PR (`develop`, §13.1) sudah maju, sinkronkan sesuai kebijakan non-squash
+  yang sudah dikontrakkan §13.0 (rebase/merge, pertahankan histori conventional commits) — bukan
+  langkah baru, rujuk §13.1/§15.1 langkah 1.
+
+**Langkah 2 — Validasi diff tidak kosong + fallback (eksekutor: CEO AI / DevOps / human, atau
+orkestrator n8n)**
+- [ ] Hitung diff utama: `git diff develop...HEAD --stat` (base sesuai target PR #1, §13.1 — **bukan**
+  `main` seperti contoh command generik CEO, karena target merge PR #1 sudah dikontrakkan `develop`
+  di §13.1; kalau orkestrator hanya punya `main` sebagai referensi default, dokumentasikan base yang
+  benar-benar dipakai di log-nya).
+- [ ] Validasi: daftar file berubah **tidak boleh kosong** (harus mencakup minimal file kode yang
+  sudah dikonfirmasi §14.3 — `TransactionController.php`, `DompetFilterRequest.php`,
+  `TransactionFeedService.php`, `Dompet.vue`, `BalanceSummaryCard.vue`, `FilterDrawer.vue`,
+  `TransactionItem.vue`, `CategoryChipFilter.vue`, `AppLayout.vue`, 2 file migration index).
+- [ ] **Kalau hasil awal kosong**: jalankan fallback persis sesuai arahan CEO — `git fetch --all`
+  (semua remote, bukan cuma `origin`) lalu `git diff <base>...HEAD` dengan `<base>` = `develop`
+  (bukan `main`, lihat catatan di atas) menggunakan tiga-titik (`...`), bukan `git diff <base>` atau
+  `git diff` tanpa argumen (akar masalah "diff kosong" versi lama sesuai temuan §14.3).
+- [ ] **Log-kan hasil validasi**: simpan output `git diff --stat` (ringkasan jumlah file/baris) DAN
+  konfirmasi eksplisit "diff tidak kosong, N file berubah" (atau sebaliknya) sebagai bagian dari
+  artefak run (lihat langkah 8/§16.1 "Arsip artefak"). Ini item **baru** yang belum eksplisit
+  dikontrakkan di §14–§15 — sebelumnya cuma dicek manual saat menulis spec, sekarang wajib
+  didokumentasikan sebagai bagian dari output pipeline setiap run.
+- [ ] Kalau diff **masih kosong** setelah fallback: **jangan lanjut ke langkah 3–7** — ini indikasi
+  masalah nyata (branch benar-benar tidak punya perubahan terhadap base, atau base salah), eskalasi
+  ke CEO/human sebagai blocker infrastruktur, bukan dipaksa lanjut dengan diff kosong ke Gemini.
+
+**Langkah 3 — Pipeline review ulang: lint/format, static analysis, test, security/dependency scan
+(eksekutor: CEO AI / DevOps / human, atau Backend/Frontend AI bila diminta run)**
+- [ ] Lint/format PHP: `vendor/bin/pint --test` (padanan lint/format, §13.0/§13.1 — tidak diubah).
+- [ ] Static analysis PHP ("type-check" padanan, lihat §16.0): `vendor/bin/phpstan analyse` (larastan
+  sudah tersedia di `composer.json`).
+- [ ] Build frontend (padanan "type-check" JS, §16.0 — repo bukan TypeScript, tidak ada type-check
+  terpisah): `npm run build`, pastikan sukses tanpa error.
+- [ ] Unit/integration test: `vendor/bin/phpunit` (atau `php artisan test`) — termasuk test baru yang
+  seharusnya sudah dibuat sesuai §14.1 "Pengujian" (`WalletController`, `TransactionController`
+  filter/union §2–§4). Kalau belum ada, catat sebagai gap outstanding (bukan blocker baru dari task
+  ini, rujuk §15.1 langkah 2).
+- [ ] **Security/dependency scan (baru, lihat §16.0)**: `composer audit` (advisory paket PHP) dan
+  `npm audit` (advisory paket JS). Bedakan dari Security AI code-scan yang **jangan diulang**
+  (§11.1/§13.1) — dua command ini murni dependency CVE scan, scope berbeda, aman & relevan dijalankan
+  ulang.
+- [ ] Log-kan **seluruh** output command di atas (pass/fail per command + ringkasan temuan bila ada)
+  sebagai bagian dari artefak run (langkah 8).
+
+**Langkah 4 — AI code review (Gemini) dengan retry/backoff & fallback (eksekutor: orkestrator
+Athena AI Dev / CEO AI / DevOps — di luar kewenangan Project Manager AI)**
+- [ ] Kirim ke Gemini: diff valid dari langkah 2 (bukan ringkasan/rekonstruksi — rujuk §14.3, akar
+  masalah versi lama adalah payload yang salah, bukan diff yang sebenarnya kosong) + hasil pipeline
+  langkah 3 + link PR #1, mengikuti format `docs/agents/reviewer-ai.md` (baris pertama jawaban wajib
+  `APPROVE`/`REVISI` persis, §6 `reviewer-ai.md`).
+- [ ] **Kalau Gemini menolak/gagal merespons** (error API, timeout, atau gagal parsing baris pertama
+  sesuai format wajib §6 `reviewer-ai.md`): retry maksimal **3x** dengan **backoff** (mis. 1x, 2x, 4x
+  menit — pola eksponensial, angka pasti jadi keputusan orkestrator n8n, tidak dikontrakkan presisi di
+  sini karena ini parameter operasional, bukan kontrak API produk Monexa).
+- [ ] **Kalau tetap gagal setelah 3x retry**: gunakan **fallback model/strategi diff** kalau tersedia
+  di orkestrator (mis. model Gemini alternatif, atau pecah diff jadi chunk lebih kecil per file kalau
+  dugaan penyebabnya diff terlalu besar/terpotong ~8000 karakter sesuai batas yang dicatat
+  `reviewer-ai.md` §5). Detail konfigurasi fallback ini **di luar scope spec ini** (bukan kode
+  aplikasi Monexa, melainkan konfigurasi workflow n8n) — dicatat di sini sebagai todo operasional,
+  bukan kontrak yang perlu diimplementasikan Backend/Frontend AI.
+- [ ] **Kalau fallback tetap gagal** (atau tidak tersedia): pasang label `needs-human-review` ke PR #1
+  (`gh pr edit 1 --add-label needs-human-review` setelah auth, atau UI GitHub — cek dulu label ini
+  sudah terdaftar, §16.0) dan **hentikan** proses AI-review otomatis untuk run ini — eskalasi ke Dion
+  (owner) via channel yang sudah dipakai pipeline (rujuk `reviewer-ai.md` §3 "Human approval (Dion
+  lewat dashboard/WA)").
+
+**Langkah 5 — Ringkasan perubahan, risiko, komentar inline (eksekutor: Gemini/orkestrator, hasil
+diteruskan oleh CEO AI/DevOps/human)**
+- [ ] Ringkasan perubahan: rujuk kontrak §2–§5 (filter multi-select, kartu saldo interaktif, Transfer
+  di list, export CSV) sebagai acuan "apa yang seharusnya berubah" untuk dibandingkan Gemini terhadap
+  diff aktual.
+- [ ] Ringkasan risiko: prioritaskan 2 area yang sudah ditandai berisiko di §11.1/§14.1 — (a) keamanan
+  multi-tenant pada query union `transactions`+`wallet_transfers` (`TransactionController`,
+  `TransactionFeedService`, `DompetFilterRequest`, pastikan tetap scoped `user_id`/kepemilikan
+  wallet), (b) state management filter multi-select di `FilterDrawer.vue`/`Dompet.vue`.
+- [ ] Komentar inline per file/line: kalau Gemini/tool review mendukung format inline PR comment
+  (`gh api repos/{owner}/{repo}/pulls/1/comments` dengan `path`+`line`, atau `gh pr review 1 --comment
+  --body ...` untuk komentar umum kalau inline tidak didukung tool yang dipakai), gunakan path file
+  relatif dari root repo (mis. `app/Http/Controllers/App/TransactionController.php`) supaya link
+  baris valid di UI GitHub.
+
+**Langkah 6 — Posting temuan & summary ke PR #1 (eksekutor: CEO AI / DevOps / human, via `gh` atau
+UI GitHub — butuh auth, §16.0)**
+- [ ] `gh pr comment 1 --body "..."` (atau UI GitHub) — isi: status pipeline langkah 3 (pass/fail per
+  command termasuk dependency scan baru), hasil validasi diff langkah 2 (jumlah file/baris berubah,
+  konfirmasi tidak kosong), ringkasan & risiko langkah 5, keputusan akhir langkah 7 di bawah.
+- [ ] Kalau ada komentar inline dari langkah 5, posting terpisah per file/line sebelum komentar
+  ringkasan umum, supaya reviewer manusia bisa lihat konteks baris sebelum membaca ringkasan.
+
+**Langkah 7 — Keputusan akhir: Approved (AI) atau minta perbaikan (eksekutor: CEO AI / DevOps / human
+— reviewer berwenang, di luar kewenangan Project Manager AI)**
+- [ ] **Kalau semua cek hijau** (langkah 3 pass semua atau gap non-blocker sudah didokumentasikan,
+  konsisten kriteria §15.1 langkah 7) **dan tidak ada temuan kritis** dari Gemini/langkah 5 (terutama
+  kebocoran data multi-tenant): pasang label `Approved (AI)` ke PR #1 (cek dulu label terdaftar,
+  §16.0) — **jangan** merge otomatis, **jangan** ubah GitHub PR review state jadi `APPROVE` kalau itu
+  memicu automerge rule apa pun (repo ini tidak punya automerge, §16.0, jadi aman, tapi tetap
+  eksplisit: label saja, bukan aksi merge).
+- [ ] **Kalau ada temuan** (dari langkah 3 gagal tanpa mitigasi, atau langkah 5 menemukan bug/risiko):
+  **jangan** approve — posting permintaan perbaikan yang **spesifik**, sertakan tautan langsung ke
+  baris terkait (`https://github.com/KristiawanBud/Monexa.id/blob/<commit-sha>/<path>#L<line>` atau
+  komentar inline dari langkah 5), rujuk bagian spec yang dilanggar (§2–§9) kalau relevan.
+- [ ] Kalau minta perbaikan: setelah commit baru masuk (branch sama, non-squash §13.0), ulangi langkah
+  1–7 — dicatat sebagai "Revisi #2" dst di bawah spec ini (pola §14.3), bukan menimpa §16 ini.
+
+**Langkah 8 — Arsip artefak run (eksekutor: CEO AI / DevOps / human, atau orkestrator n8n — simpan di
+luar repo kode, mis. artifact storage n8n/CI atau lampiran komentar PR)**
+- [ ] Arsipkan 3 kategori artefak per run: (a) **validasi diff** — output `git diff --stat` + log
+  konfirmasi tidak-kosong dari langkah 2, (b) **output lint/test** — hasil lengkap `pint`/`phpstan`/
+  `phpunit`/`npm run build`/`composer audit`/`npm audit` dari langkah 3, (c) **laporan AI** — jawaban
+  Gemini lengkap (bukan cuma baris pertama `APPROVE`/`REVISI`) dari langkah 4–5, termasuk catatan
+  retry/fallback kalau terjadi.
+- [ ] Beri nama/timestamp artefak yang bisa dilacak balik ke run ini (mis. `pr1-review-2026-07-25-<run_id>`)
+  supaya kalau ada "Revisi #2" berikutnya, artefak run sebelumnya tetap bisa dibandingkan.
+- [ ] Tidak ada lokasi penyimpanan artefak yang sudah dikonfigurasi di repo ini (tidak ada
+  `.github/workflows` untuk artifact upload, §16.0) — keputusan lokasi (storage n8n, lampiran file di
+  komentar PR, atau sistem lain) adalah keputusan operasional orkestrator, di luar kewenangan
+  Project Manager AI untuk menentukan.
+
+### 16.2 Kontrak API
+**Tidak ada endpoint/tabel/kolom baru.** Sama seperti §14.2/§15.2 — task ini murni re-run pipeline
+review/QA + mekanisme retry/fallback AI review + arsip artefak untuk PR #1. Seluruh kontrak teknis
+fitur redesign Dompet mobile tuntas di §2–§5 dan sudah diimplementasikan. Retry/backoff Gemini,
+fallback model/strategi diff, dan penyimpanan artefak run adalah **konfigurasi orkestrator pipeline
+(n8n)**, bukan kode aplikasi Monexa — tidak ada perubahan yang perlu dieksekusi Database/Backend/
+Frontend AI dari elaborasi ini. Catatan "set default dompet" di §14.2 tetap berlaku (di luar scope).
