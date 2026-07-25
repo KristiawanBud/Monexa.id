@@ -1582,3 +1582,107 @@ dieksekusi tanpa arahan CEO terpisah).
 - File `storage/athena-refs/monexa-1784234498463.jpg` yang terhapus di working tree (§18.0) **tidak
   dipulihkan dari spec ini** — itu keputusan file management, bukan kontrak API/DB, di luar
   kewenangan Project Manager AI.
+
+## 19. Lanjutan — Lanjutkan Proses Approval PR #1, State Bersih (arahan CEO lanjutan, 2026-07-25)
+
+Arahan lanjutan: CEO AI, task "Lanjutkan proses approval PR #1". Catatan CEO: *"file/status lama sudah
+dibersihkan, jalankan pipeline dengan state bersih"*. Ini **elaborasi ke-6** dari rangkaian §14–§18 yang
+semuanya bertujuan sama (jalankan/verifikasi pipeline review lalu approve PR #1) — **bukan** kontrak
+API/DB baru. §2–§9 tetap tuntas dan sudah diimplementasikan; tidak ada perubahan pada kontrak fitur.
+
+### 19.0 Temuan penting sebelum breakdown
+
+- **Cek lingkungan tempat spec ini ditulis**: `gh auth status` mengembalikan *"You are not logged into
+  any GitHub hosts"* — tidak ada kredensial GitHub di environment ini. Artinya langkah 1, 2, 3, 4 dari
+  arahan CEO (checkout PR, jalankan CI, posting ke thread PR, approve/aktifkan auto-merge) **tidak bisa
+  dieksekusi dari sesi penulisan spec ini**, terlepas dari batasan peran Project Manager AI di bawah.
+  Eksekusi nyata butuh runner/orkestrator (CEO AI/DevOps/n8n) yang punya `gh` teraktentikasi.
+- **Pola pengulangan**: §14 (2026-07-21) sampai §18 (2026-07-25) adalah 5 arahan CEO berturut-turut
+  dengan tujuan identik ("lanjutkan review/approval PR #1"), dan §18.1 butir terakhir ("Verifikasi
+  perbaikan bug prompt") sudah eksplisit menulis: *"Kalau keluaran reviewer masih tidak
+  mereferensikan file/baris spesifik ... jangan catat ulang breakdown yang identik untuk ke-5 kalinya —
+  eskalasi sebagai insiden infrastruktur ke Dion (owner) langsung"*. Arahan kali ini tidak menyertakan
+  bukti bahwa gate verifikasi §18.1 itu pernah terpenuhi (tidak ada kutipan keluaran reviewer yang
+  mereferensikan file/baris spesifik dari diff) — catatan CEO kali ini hanya menyebut "cache/status
+  lama dibersihkan", bukan konfirmasi bahwa masalah diff-kosong/duplikasi-instruksi sudah terverifikasi
+  selesai.
+- **Rekomendasi eksplisit ke CEO/owner**: karena ini permintaan "jalankan ulang pipeline PR #1" yang ke-6
+  kalinya tanpa bukti verifikasi dari siklus sebelumnya, dan karena eksekusi nyatanya di luar
+  kewenangan **dan** kemampuan sesi Project Manager AI (tidak ada `gh` auth di sini), rekomendasi paling
+  masuk akal adalah **eskalasi ke Dion (owner)** untuk menjalankan pipeline CI/approval secara manual
+  atau memverifikasi langsung status orkestrator n8n — bukan meminta Project Manager AI menulis
+  breakdown identik lagi di siklus berikutnya kalau hasilnya sama.
+
+### 19.1 Todo Teknis (breakdown pelaksanaan, eksekutor bukan Project Manager AI)
+
+Sesuai batasan peranku, bagian ini murni **memecah** arahan CEO jadi todo konkret per eksekutor. Aku
+tidak checkout PR, tidak menjalankan lint/test/build/SAST/audit/E2E/migrasi, tidak posting ke thread PR,
+tidak approve, dan tidak mengaktifkan auto-merge.
+
+**1) Checkout & state bersih (eksekutor: CEO AI/DevOps/orkestrator, butuh `gh`/`git` auth)**
+- [ ] `gh pr checkout 1` (atau `git fetch origin && git checkout` branch sumber PR #1 dari hasil
+  `gh pr view 1 --json headRefName,baseRefName`), pastikan base branch (`develop`/`main` sesuai §12–§13)
+  di-pull ke commit terbaru sebelum merge/rebase lokal untuk pengujian.
+- [ ] Hapus/invalidate cache runner CI (workspace `node_modules`/`vendor` lama, cache Composer/NPM,
+  hasil test run sebelumnya) sebelum eksekusi — sesuai catatan CEO "state bersih", supaya hasil tidak
+  tercampur dengan run §14–§18 yang gagal terverifikasi.
+
+**2) Re-run seluruh check (eksekutor: CEO AI/DevOps/Backend AI/Frontend AI sesuai peran masing-masing)**
+- [ ] Lint/format: `vendor/bin/pint --test` (PHP).
+- [ ] Static analysis: `vendor/bin/phpstan analyse` (larastan).
+- [ ] Type check padanan: `npm run build` (repo bukan TypeScript, §16.0 — build adalah proxy type-check
+  JS/Vue yang tersedia).
+- [ ] Unit/integration test: `vendor/bin/phpunit` — catat hasil terhadap gap yang sudah tercatat di
+  memori: `tests/Feature/` masih kosong, jadi cakupan regresi union query §4 (`transactions` +
+  `wallet_transfers`) belum ada; laporkan ini sebagai temuan, bukan kegagalan baru.
+- [ ] SAST: tidak ada tool SAST khusus terpasang di repo ini (tidak ada konfigurasi Psalm/Semgrep/
+  Snyk Code terlihat) — kalau CEO/DevOps punya tool SAST di pipeline eksternal (mis. GitHub code
+  scanning), jalankan di sana; laporkan sebagai "SAST eksternal, tidak ada tooling lokal di repo" kalau
+  memang tidak ada.
+- [ ] Dependency audit: `composer audit` (PHP) dan `npm audit` (JS) — laporkan temuan CVE/severity kalau
+  ada, rujuk kebijakan penanganan yang berlaku (biasanya blocker hanya untuk severity tinggi/kritis pada
+  dependency yang benar-benar dipakai di runtime).
+- [ ] E2E/QA: tidak ada suite E2E (Cypress/Playwright/Dusk) terpasang di repo per temuan §14.0/§16.0 —
+  kalau tetap ingin QA manual, rujuk checklist manual §14.1/§15.1 (skenario filter multi-select,
+  tap-to-filter saldo, transfer di list, CSV export, safe-area bottom nav).
+- [ ] Migrasi DB di environment test: jalankan `php artisan migrate --env=testing` (atau setara) bila
+  environment test terpisah dari environment dev — relevan karena §5 (migrasi dari
+  `docs/spec-*` commit `5b9afcb`) perlu diverifikasi terapply bersih di database test kosong, bukan
+  cuma di database dev yang sudah ada datanya.
+
+**3) Update ke thread PR (eksekutor: CEO AI/DevOps/human, `gh pr comment 1`, butuh auth)**
+- [ ] Publikasikan ringkasan sukses/gagal per check di atas + artifact penting (log lint/test/audit,
+  link run CI) — format rujuk §16.1 langkah 8/§18.1 "Publikasi hasil".
+
+**4) Approval / auto-merge (eksekutor: CEO AI/DevOps/human — reviewer berwenang, di luar kewenangan
+Project Manager AI)**
+- [ ] Kalau semua check di atas lulus **dan** tidak ada komentar/blocker terbuka di PR #1: submit approve
+  (`gh pr review 1 --approve`).
+- [ ] Cek proteksi branch: kalau auto-merge tersedia di repo dan syarat (required checks, approval count)
+  terpenuhi, aktifkan `gh pr merge 1 --auto --squash` ke branch default. Kalau auto-merge **tidak**
+  diaktifkan oleh proteksi branch repo, **jangan** merge manual — tunggu merge manual oleh owner sesuai
+  arahan asli.
+- [ ] Kalau ada kegagalan/blocker di salah satu check atau komentar terbuka yang belum di-resolve:
+  **hentikan**, jangan approve, laporkan detail temuan + saran perbaikan ke thread PR dan ke CEO/owner.
+
+**5) Verifikasi gate dari §18.1 (WAJIB dicek sebelum lanjut ke approve — belum tentu terpenuhi)**
+- [ ] Sebelum approve, konfirmasi ulang bahwa siklus review sebelumnya (§14–§18) benar-benar sudah
+  menghasilkan keluaran reviewer yang mereferensikan file/baris spesifik dari diff aktual (gate §18.1).
+  Kalau tidak ada bukti itu, treat sebagai sinyal bahwa perbaikan orkestrator/prompt reviewer belum
+  benar-benar tuntas — eskalasi ke Dion (owner) alih-alih melanjutkan approve berdasarkan asumsi "state
+  sudah bersih jadi pasti beres".
+
+### 19.2 Kontrak API
+**Tidak ada endpoint/tabel/kolom baru.** Sama seperti §14.2–§18.2 — task ini murni menjalankan ulang
+pipeline CI/approval PR #1. Seluruh kontrak teknis fitur redesign Dompet mobile tuntas di §2–§9 dan
+sudah diimplementasikan.
+
+### 19.3 Batasan
+- Tidak ada migration baru, tidak ada perubahan kode PHP/Vue dari elaborasi ini — sesuai batasan peranku
+  (Project Manager AI). Aku tidak checkout PR, tidak menjalankan pipeline, tidak posting ke PR, tidak
+  approve, tidak merge — semua itu di luar kewenangan (dan, di sesi ini, di luar kemampuan: tidak ada
+  `gh` auth).
+- **Rekomendasi ke CEO/owner**: ini elaborasi ke-6 dengan tujuan identik tanpa bukti gate verifikasi
+  §18.1 terpenuhi. Kalau siklus berikutnya (§20+) kembali meminta hal yang sama tanpa bukti baru,
+  jangan minta Project Manager AI menulis breakdown identik lagi — eskalasi langsung ke Dion (owner)
+  untuk audit manual pipeline CI/review PR #1.
