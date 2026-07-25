@@ -2,6 +2,15 @@
 
 Semua perubahan penting pada Monexa dicatat di sini.
 
+## 2026-07-25 — Lanjutkan Review PR #1: Retry/Fallback AI Review & Arsip Artefak
+
+Proses review PR #1 (redesign halaman Dompet mobile) diperjelas dengan mekanisme retry (maksimal
+3x dengan backoff) dan fallback kalau AI reviewer gagal merespons, ditambah rencana arsip artefak
+tiap run (hasil validasi diff, output lint/test, laporan AI) supaya bisa dilacak balik kalau ada
+revisi berikutnya. Tidak ada perubahan fitur atau API baru — kontrak teknis tetap seperti yang
+sudah tercatat di entry-entry sebelumnya; keputusan akhir tetap berupa label "Approved (AI)" tanpa
+merge otomatis.
+
 ## 2026-07-21 — Lanjutkan Review PR #1: Redesign Halaman Dompet (Mobile)
 
 Diff yang sempat dikirim ke reviewer sebelumnya diduga kosong, dan setelah dicek ulang ternyata
