@@ -2,6 +2,14 @@
 
 Semua perubahan penting pada Monexa dicatat di sini.
 
+## 2026-07-25 — Lanjutkan Proses Approval PR #1 via Telegram
+
+Proses approval PR #1 (redesign halaman Dompet mobile) dilanjutkan lewat Telegram, termasuk
+pengecekan bahwa dua index database baru (`idx_wt_user_transferred_at` di `wallet_transfers` dan
+`idx_tx_user_transacted_at` di `transactions`) hanya untuk performa query dan tidak mengubah
+kontrak API. Tidak ada perubahan fitur atau endpoint baru dari langkah ini — dokumentasi README
+tetap seperti yang sudah tercatat sebelumnya.
+
 ## 2026-07-25 — Lanjutkan Review PR #1: Verifikasi Ulang Diff Terkini
 
 Review PR #1 (redesign halaman Dompet mobile) dilanjutkan dengan verifikasi ulang terhadap
