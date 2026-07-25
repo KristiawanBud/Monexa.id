@@ -1207,7 +1207,7 @@ WAPARSER_SVC_EOT;
 
 foreach ($files as $path => $content) {
     if (file_exists($path)) {
-        $backup = $path . '.bak_' . date('Ymd_His');
+        $backup = $path.'.bak_'.date('Ymd_His');
         copy($path, $backup);
         echo "Backup: $backup\n";
     }

@@ -24,7 +24,7 @@ class EnsureOnboarded
         $user = $request->user();
 
         // Tidak login — biarkan middleware auth yang handle
-        if (!$user) {
+        if (! $user) {
             return $next($request);
         }
 
@@ -39,7 +39,7 @@ class EnsureOnboarded
         }
 
         // Cek kelengkapan onboarding untuk user biasa
-        $profileMissing  = $user->profile === null;
+        $profileMissing = $user->profile === null;
         $waNumberMissing = empty($user->wa_number);
 
         if ($profileMissing || $waNumberMissing) {

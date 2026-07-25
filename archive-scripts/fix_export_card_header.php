@@ -2,7 +2,7 @@
 
 $file = '/var/www/monexa/resources/js/Pages/App/Report.vue';
 
-if (!file_exists($file)) {
+if (! file_exists($file)) {
     echo "SKIP: file tidak ditemukan\n";
     exit;
 }
@@ -11,13 +11,19 @@ $content = file_get_contents($file);
 $backupMade = false;
 $changed = 0;
 
-function apply(&$content, $old, $new, &$backupMade, &$changed, $file) {
+function apply(&$content, $old, $new, &$backupMade, &$changed, $file)
+{
     if (strpos($content, $old) !== false) {
-        if (!$backupMade) { copy($file, $file . '.bak_' . date('Ymd_His')); $backupMade = true; }
+        if (! $backupMade) {
+            copy($file, $file.'.bak_'.date('Ymd_His'));
+            $backupMade = true;
+        }
         $content = str_replace($old, $new, $content);
         $changed++;
+
         return true;
     }
+
     return false;
 }
 

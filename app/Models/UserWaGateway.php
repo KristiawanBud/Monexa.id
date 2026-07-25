@@ -17,8 +17,8 @@ class UserWaGateway extends Model
     protected function casts(): array
     {
         return [
-            'assigned_at'  => 'datetime',
-            'released_at'  => 'datetime',
+            'assigned_at' => 'datetime',
+            'released_at' => 'datetime',
         ];
     }
 

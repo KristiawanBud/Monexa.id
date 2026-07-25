@@ -11,6 +11,7 @@ use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class ReceiptScanController extends Controller
 {
@@ -19,24 +20,24 @@ class ReceiptScanController extends Controller
         private WalletService $walletService
     ) {}
 
-    public function index(Request $request): \Inertia\Response
+    public function index(Request $request): Response
     {
-        $user  = $request->user();
+        $user = $request->user();
         $scans = ReceiptScan::where('user_id', $user->id)
             ->orderByDesc('created_at')
             ->limit(20)
             ->get()
-            ->map(fn($s) => [
-                'id'            => $s->id,
-                'image_url'     => $s->image_url,
-                'status'        => $s->status,
+            ->map(fn ($s) => [
+                'id' => $s->id,
+                'image_url' => $s->image_url,
+                'status' => $s->status,
                 'parsed_result' => $s->parsed_result,
-                'created_at'    => $s->created_at->diffForHumans(),
+                'created_at' => $s->created_at->diffForHumans(),
             ]);
 
         return Inertia::render('App/ReceiptScan', [
-            'scans'      => $scans,
-            'wallets'    => $user->activeWallets(),
+            'scans' => $scans,
+            'wallets' => $user->activeWallets(),
             'categories' => TransactionCategory::forUser($user->id)->where('type', 'expense'),
         ]);
     }
@@ -52,33 +53,33 @@ class ReceiptScanController extends Controller
         $path = $request->file('receipt')->store("receipts/{$user->id}", 'public');
 
         $scan = ReceiptScan::create([
-            'user_id'     => $user->id,
-            'image_url'   => $path,
-            'status'      => 'pending',
+            'user_id' => $user->id,
+            'image_url' => $path,
+            'status' => 'pending',
             'ai_provider' => 'gemini',
         ]);
 
         $base64 = base64_encode(file_get_contents(Storage::disk('public')->path($path)));
-        $mime   = $request->file('receipt')->getMimeType();
+        $mime = $request->file('receipt')->getMimeType();
 
         $result = $this->gemini->parseReceipt($base64, $mime);
 
         if ($result['success'] && isset($result['data'])) {
             $scan->update([
-                'status'        => 'parsed',
+                'status' => 'parsed',
                 'parsed_result' => $result['data'],
             ]);
 
             return response()->json([
                 'success' => true,
                 'scan_id' => $scan->id,
-                'data'    => $result['data'],
+                'data' => $result['data'],
                 'message' => 'Struk berhasil dibaca!',
             ]);
         }
 
         $scan->update([
-            'status'        => 'failed',
+            'status' => 'failed',
             'error_message' => $result['error'] ?? 'Gagal membaca struk',
         ]);
 
@@ -94,10 +95,10 @@ class ReceiptScanController extends Controller
         abort_if($scan->user_id !== $request->user()->id, 403);
 
         $request->validate([
-            'wallet_id'     => 'required|exists:user_wallets,id',
-            'amount'        => 'required|numeric|min:1',
-            'category_id'   => 'nullable|exists:transaction_categories,id',
-            'note'          => 'nullable|string|max:255',
+            'wallet_id' => 'required|exists:user_wallets,id',
+            'amount' => 'required|numeric|min:1',
+            'category_id' => 'nullable|exists:transaction_categories,id',
+            'note' => 'nullable|string|max:255',
             'transacted_at' => 'required|date',
         ]);
 
@@ -106,20 +107,20 @@ class ReceiptScanController extends Controller
         try {
             \DB::transaction(function () use ($request, $scan, $user) {
                 $transaction = $user->transactions()->create([
-                    'wallet_id'     => $request->wallet_id,
-                    'category_id'   => $request->category_id,
-                    'type'          => 'expense',
-                    'amount'        => $request->amount,
-                    'note'          => $request->note ?? ($scan->parsed_result['merchant'] ?? 'Struk scan'),
+                    'wallet_id' => $request->wallet_id,
+                    'category_id' => $request->category_id,
+                    'type' => 'expense',
+                    'amount' => $request->amount,
+                    'note' => $request->note ?? ($scan->parsed_result['merchant'] ?? 'Struk scan'),
                     'transacted_at' => $request->transacted_at,
-                    'source'        => 'wa_receipt',
-                    'created_by'    => $user->id,
+                    'source' => 'wa_receipt',
+                    'created_by' => $user->id,
                 ]);
 
                 $this->walletService->applyTransaction($transaction);
 
                 $scan->update([
-                    'status'         => 'confirmed',
+                    'status' => 'confirmed',
                     'transaction_id' => $transaction->id,
                 ]);
             });

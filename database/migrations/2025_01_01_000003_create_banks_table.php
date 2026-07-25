@@ -23,10 +23,10 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->char('user_id', 26)->nullable(false);
             $table->foreign('user_id', 'fk_uw_user')
-                  ->references('id')->on('users')->cascadeOnDelete();
+                ->references('id')->on('users')->cascadeOnDelete();
             $table->unsignedSmallInteger('bank_id')->nullable();
             $table->foreign('bank_id', 'fk_uw_bank')
-                  ->references('id')->on('banks')->nullOnDelete();
+                ->references('id')->on('banks')->nullOnDelete();
             $table->string('display_name', 60);
             $table->string('account_number', 30)->nullable();
             $table->enum('type', ['cash_flow', 'saving', 'both', 'investment'])->default('both');
@@ -45,7 +45,7 @@ return new class extends Migration
             $table->bigIncrements('id');
             $table->char('wallet_id', 26)->nullable(false);
             $table->foreign('wallet_id', 'fk_wbl_wallet')
-                  ->references('id')->on('user_wallets')->cascadeOnDelete();
+                ->references('id')->on('user_wallets')->cascadeOnDelete();
             $table->enum('type', ['credit', 'debit']);
             $table->decimal('amount', 15, 2);
             $table->decimal('balance_before', 15, 2);

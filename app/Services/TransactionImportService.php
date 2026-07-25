@@ -3,10 +3,8 @@
 namespace App\Services;
 
 use App\Models\ImportSession;
-use App\Models\Transaction;
 use App\Models\TransactionCategory;
 use App\Models\UserWallet;
-use App\Services\WalletService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -40,22 +38,23 @@ class TransactionImportService
             $preview = $this->buildPreview($rawRows, $mapping);
 
             $session->update([
-                'status'         => 'preview',
-                'preview_data'   => $preview,
+                'status' => 'preview',
+                'preview_data' => $preview,
                 'column_mapping' => $mapping,
-                'total_rows'     => count($rawRows) - 1, // minus header
+                'total_rows' => count($rawRows) - 1, // minus header
             ]);
 
             return [
                 'success' => true,
                 'preview' => $preview,
                 'mapping' => $mapping,
-                'total'   => $session->total_rows,
+                'total' => $session->total_rows,
             ];
 
         } catch (\Exception $e) {
             $session->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
             Log::error("ImportService parseFile error: {$e->getMessage()}");
+
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -65,19 +64,19 @@ class TransactionImportService
     {
         $session->update(['status' => 'importing']);
 
-        $path    = storage_path("app/public/{$session->file_path}");
+        $path = storage_path("app/public/{$session->file_path}");
         $rawRows = $this->readFile($path, $session->filename);
         $mapping = $session->column_mapping;
-        $user    = $session->user;
-        $wallet  = UserWallet::findOrFail($walletId);
+        $user = $session->user;
+        $wallet = UserWallet::findOrFail($walletId);
 
         // Ambil semua kategori untuk matching
         $categories = TransactionCategory::forUser($user->id)
-            ->keyBy(fn($c) => strtolower($c->name));
+            ->keyBy(fn ($c) => strtolower($c->name));
 
         $imported = 0;
-        $skipped  = 0;
-        $errors   = [];
+        $skipped = 0;
+        $errors = [];
 
         // Skip header row
         $dataRows = array_slice($rawRows, 1);
@@ -86,24 +85,25 @@ class TransactionImportService
             try {
                 $parsed = $this->parseRow($row, $mapping, $overrides);
 
-                if (!$parsed || !$parsed['amount'] || !$parsed['date']) {
+                if (! $parsed || ! $parsed['amount'] || ! $parsed['date']) {
                     $skipped++;
+
                     continue;
                 }
 
                 // Match kategori
                 $categoryId = $this->matchCategory($parsed['note'] ?? '', $categories, $user->id);
 
-                DB::transaction(function () use ($user, $wallet, $parsed, $categoryId, $session) {
+                DB::transaction(function () use ($user, $wallet, $parsed, $categoryId) {
                     $tx = $user->transactions()->create([
-                        'wallet_id'     => $wallet->id,
-                        'category_id'   => $categoryId,
-                        'type'          => $parsed['type'],
-                        'amount'        => abs($parsed['amount']),
-                        'note'          => $parsed['note'],
+                        'wallet_id' => $wallet->id,
+                        'category_id' => $categoryId,
+                        'type' => $parsed['type'],
+                        'amount' => abs($parsed['amount']),
+                        'note' => $parsed['note'],
                         'transacted_at' => $parsed['date'],
-                        'source'        => 'manual', // import dianggap manual
-                        'created_by'    => $user->id,
+                        'source' => 'manual', // import dianggap manual
+                        'created_by' => $user->id,
                     ]);
 
                     $this->walletService->applyTransaction($tx);
@@ -112,16 +112,16 @@ class TransactionImportService
                 $imported++;
 
             } catch (\Exception $e) {
-                $errors[] = "Baris " . ($i + 2) . ": {$e->getMessage()}";
+                $errors[] = 'Baris '.($i + 2).": {$e->getMessage()}";
             }
         }
 
         $session->update([
-            'status'        => 'done',
+            'status' => 'done',
             'imported_rows' => $imported,
-            'skipped_rows'  => $skipped,
-            'error_rows'    => count($errors),
-            'errors'        => $errors,
+            'skipped_rows' => $skipped,
+            'error_rows' => count($errors),
+            'errors' => $errors,
         ]);
 
         return compact('imported', 'skipped', 'errors');
@@ -138,21 +138,23 @@ class TransactionImportService
 
         // Excel via PhpSpreadsheet
         $spreadsheet = IOFactory::load($path);
-        $sheet       = $spreadsheet->getActiveSheet();
-        $rows        = [];
+        $sheet = $spreadsheet->getActiveSheet();
+        $rows = [];
 
         foreach ($sheet->getRowIterator() as $row) {
-            $cells    = [];
+            $cells = [];
             $iterator = $row->getCellIterator();
             $iterator->setIterateOnlyExistingCells(false);
             foreach ($iterator as $cell) {
                 $cells[] = $cell->getValue();
             }
             // Skip completely empty rows
-            if (array_filter($cells, fn($c) => $c !== null && $c !== '')) {
+            if (array_filter($cells, fn ($c) => $c !== null && $c !== '')) {
                 $rows[] = $cells;
             }
-            if (count($rows) > 2001) break; // max 2000 baris
+            if (count($rows) > 2001) {
+                break;
+            } // max 2000 baris
         }
 
         return $rows;
@@ -163,11 +165,16 @@ class TransactionImportService
         $rows = [];
         if (($handle = fopen($path, 'r')) !== false) {
             while (($row = fgetcsv($handle, 0, ',')) !== false) {
-                if (array_filter($row)) $rows[] = $row;
-                if (count($rows) > 2001) break;
+                if (array_filter($row)) {
+                    $rows[] = $row;
+                }
+                if (count($rows) > 2001) {
+                    break;
+                }
             }
             fclose($handle);
         }
+
         return $rows;
     }
 
@@ -176,31 +183,31 @@ class TransactionImportService
     {
         // Ambil 5 baris pertama untuk AI analisa
         $sample = array_slice($rows, 0, 5);
-        $sampleStr = implode("\n", array_map(fn($r) => implode(' | ', array_map('strval', $r)), $sample));
+        $sampleStr = implode("\n", array_map(fn ($r) => implode(' | ', array_map('strval', $r)), $sample));
 
         $prompt = "Kamu adalah parser format file transaksi keuangan Indonesia.\n\n"
-            . "Analisa sampel data ini dan tentukan mapping kolom:\n\n"
-            . "```\n{$sampleStr}\n```\n\n"
-            . "Kembalikan HANYA JSON ini (tanpa teks lain):\n"
-            . "{\n"
-            . '  "source_app": "bca"|"mandiri"|"bni"|"bri"|"jenius"|"gopay"|"ovo"|"dana"|"shopeepay"|"generic_csv"|"generic_excel",'."\n"
-            . '  "has_header": true|false,'."\n"
-            . '  "date_col": 0,'."\n"
-            . '  "date_format": "d/m/Y"|"Y-m-d"|"d-m-Y"|"d M Y"|"other",'."\n"
-            . '  "amount_col": 1,'."\n"
-            . '  "debit_col": null,'."\n"
-            . '  "credit_col": null,'."\n"
-            . '  "note_col": 2,'."\n"
-            . '  "type_col": null,'."\n"
-            . '  "balance_col": null,'."\n"
-            . '  "skip_rows": 0'."\n"
-            . "}\n\n"
-            . "Catatan: amount_col untuk kolom yang berisi nominal gabungan (positif=masuk, negatif=keluar).\n"
-            . "Jika ada kolom debit & kredit terpisah, isi debit_col dan credit_col, biarkan amount_col null.";
+            ."Analisa sampel data ini dan tentukan mapping kolom:\n\n"
+            ."```\n{$sampleStr}\n```\n\n"
+            ."Kembalikan HANYA JSON ini (tanpa teks lain):\n"
+            ."{\n"
+            .'  "source_app": "bca"|"mandiri"|"bni"|"bri"|"jenius"|"gopay"|"ovo"|"dana"|"shopeepay"|"generic_csv"|"generic_excel",'."\n"
+            .'  "has_header": true|false,'."\n"
+            .'  "date_col": 0,'."\n"
+            .'  "date_format": "d/m/Y"|"Y-m-d"|"d-m-Y"|"d M Y"|"other",'."\n"
+            .'  "amount_col": 1,'."\n"
+            .'  "debit_col": null,'."\n"
+            .'  "credit_col": null,'."\n"
+            .'  "note_col": 2,'."\n"
+            .'  "type_col": null,'."\n"
+            .'  "balance_col": null,'."\n"
+            .'  "skip_rows": 0'."\n"
+            ."}\n\n"
+            ."Catatan: amount_col untuk kolom yang berisi nominal gabungan (positif=masuk, negatif=keluar).\n"
+            .'Jika ada kolom debit & kredit terpisah, isi debit_col dan credit_col, biarkan amount_col null.';
 
         $result = $this->gemini->generate($prompt);
 
-        if (!$result['success']) {
+        if (! $result['success']) {
             // Fallback: mapping default
             return $this->defaultMapping();
         }
@@ -211,9 +218,11 @@ class TransactionImportService
 
             if ($mapping) {
                 $session->update(['source_app' => $mapping['source_app'] ?? 'ai_detect']);
+
                 return $mapping;
             }
-        } catch (\Exception $e) {}
+        } catch (\Exception $e) {
+        }
 
         return $this->defaultMapping();
     }
@@ -221,15 +230,17 @@ class TransactionImportService
     // ── Build Preview ─────────────────────────────
     private function buildPreview(array $rows, array $mapping): array
     {
-        $skipRows  = $mapping['skip_rows'] ?? 0;
+        $skipRows = $mapping['skip_rows'] ?? 0;
         $hasHeader = $mapping['has_header'] ?? true;
-        $startIdx  = $hasHeader ? 1 + $skipRows : $skipRows;
-        $dataRows  = array_slice($rows, $startIdx, 20);
+        $startIdx = $hasHeader ? 1 + $skipRows : $skipRows;
+        $dataRows = array_slice($rows, $startIdx, 20);
 
         $preview = [];
         foreach ($dataRows as $row) {
             $parsed = $this->parseRow($row, $mapping);
-            if ($parsed) $preview[] = $parsed;
+            if ($parsed) {
+                $preview[] = $parsed;
+            }
         }
 
         return $preview;
@@ -239,16 +250,18 @@ class TransactionImportService
     private function parseRow(array $row, array $mapping, array $overrides = []): ?array
     {
         try {
-            $dateCol   = $mapping['date_col'] ?? 0;
-            $noteCol   = $mapping['note_col'] ?? null;
+            $dateCol = $mapping['date_col'] ?? 0;
+            $noteCol = $mapping['note_col'] ?? null;
             $amountCol = $mapping['amount_col'] ?? null;
-            $debitCol  = $mapping['debit_col'] ?? null;
+            $debitCol = $mapping['debit_col'] ?? null;
             $creditCol = $mapping['credit_col'] ?? null;
 
             // Date
             $rawDate = $row[$dateCol] ?? null;
-            $date    = $this->parseDate($rawDate, $mapping['date_format'] ?? 'auto');
-            if (!$date) return null;
+            $date = $this->parseDate($rawDate, $mapping['date_format'] ?? 'auto');
+            if (! $date) {
+                return null;
+            }
 
             // Note
             $note = $noteCol !== null ? ($row[$noteCol] ?? '') : '';
@@ -256,31 +269,33 @@ class TransactionImportService
 
             // Amount & type
             $amount = 0;
-            $type   = 'expense';
+            $type = 'expense';
 
             if ($amountCol !== null) {
-                $raw    = $this->cleanNumber($row[$amountCol] ?? '0');
+                $raw = $this->cleanNumber($row[$amountCol] ?? '0');
                 $amount = abs($raw);
-                $type   = $raw >= 0 ? 'income' : 'expense';
+                $type = $raw >= 0 ? 'income' : 'expense';
             } elseif ($debitCol !== null || $creditCol !== null) {
-                $debit  = $this->cleanNumber($row[$debitCol ?? -1] ?? '0');
+                $debit = $this->cleanNumber($row[$debitCol ?? -1] ?? '0');
                 $credit = $this->cleanNumber($row[$creditCol ?? -1] ?? '0');
                 if ($credit > 0) {
                     $amount = $credit;
-                    $type   = 'income';
+                    $type = 'income';
                 } else {
                     $amount = $debit;
-                    $type   = 'expense';
+                    $type = 'expense';
                 }
             }
 
-            if ($amount <= 0) return null;
+            if ($amount <= 0) {
+                return null;
+            }
 
             return [
-                'date'   => $date,
+                'date' => $date,
                 'amount' => $amount,
-                'type'   => $type,
-                'note'   => $note ?: 'Import',
+                'type' => $type,
+                'note' => $note ?: 'Import',
             ];
 
         } catch (\Exception $e) {
@@ -305,9 +320,13 @@ class TransactionImportService
 
         foreach ($rules as $pattern => $catName) {
             if (preg_match("/{$pattern}/i", $note)) {
-                if ($catName === null) return null;
+                if ($catName === null) {
+                    return null;
+                }
                 $cat = $categories->get($catName);
-                if ($cat) return $cat->id;
+                if ($cat) {
+                    return $cat->id;
+                }
             }
         }
 
@@ -317,7 +336,9 @@ class TransactionImportService
     // ── Helpers ───────────────────────────────────
     private function parseDate(?string $raw, string $format = 'auto'): ?string
     {
-        if (!$raw) return null;
+        if (! $raw) {
+            return null;
+        }
         $raw = trim($raw);
 
         // Coba berbagai format tanggal Indonesia
@@ -329,24 +350,29 @@ class TransactionImportService
 
         // Ganti nama bulan Indo ke angka
         $raw = str_replace(
-            ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'],
-            ['January','February','March','April','May','June','July','August','September','October','November','December'],
+            ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'],
+            ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
             $raw
         );
 
         foreach ($formats as $fmt) {
             $dt = \DateTime::createFromFormat($fmt, $raw);
-            if ($dt) return $dt->format('Y-m-d');
+            if ($dt) {
+                return $dt->format('Y-m-d');
+            }
         }
 
         // Coba strtotime sebagai fallback
         $ts = strtotime($raw);
+
         return $ts ? date('Y-m-d', $ts) : null;
     }
 
     private function cleanNumber(mixed $raw): float
     {
-        if (is_numeric($raw)) return (float) $raw;
+        if (is_numeric($raw)) {
+            return (float) $raw;
+        }
         $str = (string) $raw;
         // Hapus Rp, spasi, titik ribuan
         $str = preg_replace('/[Rp\s]/', '', $str);
@@ -355,23 +381,24 @@ class TransactionImportService
             $str = str_replace('.', '', $str);
         }
         $str = str_replace(',', '.', $str);
+
         return (float) $str;
     }
 
     private function defaultMapping(): array
     {
         return [
-            'source_app'  => 'generic_excel',
-            'has_header'  => true,
-            'date_col'    => 0,
+            'source_app' => 'generic_excel',
+            'has_header' => true,
+            'date_col' => 0,
             'date_format' => 'auto',
-            'amount_col'  => 1,
-            'debit_col'   => null,
-            'credit_col'  => null,
-            'note_col'    => 2,
-            'type_col'    => null,
+            'amount_col' => 1,
+            'debit_col' => null,
+            'credit_col' => null,
+            'note_col' => 2,
+            'type_col' => null,
             'balance_col' => null,
-            'skip_rows'   => 0,
+            'skip_rows' => 0,
         ];
     }
 }

@@ -13,15 +13,15 @@ return new class extends Migration
 
             $table->char('user_id', 26)->nullable(false);
             $table->foreign('user_id', 'fk_wt_user')
-                  ->references('id')->on('users')->cascadeOnDelete();
+                ->references('id')->on('users')->cascadeOnDelete();
 
             $table->char('from_wallet_id', 26)->nullable(false);
             $table->foreign('from_wallet_id', 'fk_wt_from')
-                  ->references('id')->on('user_wallets')->restrictOnDelete();
+                ->references('id')->on('user_wallets')->restrictOnDelete();
 
             $table->char('to_wallet_id', 26)->nullable(false);
             $table->foreign('to_wallet_id', 'fk_wt_to')
-                  ->references('id')->on('user_wallets')->restrictOnDelete();
+                ->references('id')->on('user_wallets')->restrictOnDelete();
 
             $table->decimal('amount', 15, 2);
             $table->string('note', 255)->nullable();

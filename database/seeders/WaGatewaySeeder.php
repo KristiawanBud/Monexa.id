@@ -11,22 +11,22 @@ class WaGatewaySeeder extends Seeder
     {
         DB::table('wa_gateways')->insert([
             [
-                'name'              => 'Nomor 1 — CatatCuan Bot',
-                'phone_number'      => '628123456789', // Ganti dengan nomor asli
-                'fonnte_token'      => 'GANTI_DENGAN_TOKEN_FONNTE_KAMU',
-                'fonnte_device_id'  => null,
-                'max_users'         => 50,
-                'current_users'     => 0,
-                'status'            => 'active',
-                'status_note'       => null,
-                'total_sent_today'  => 0,
-                'total_sent_all'    => 0,
-                'last_reset_at'     => null,
-                'last_used_at'      => null,
-                'is_default'        => true,
-                'sort_order'        => 1,
-                'created_at'        => now(),
-                'updated_at'        => now(),
+                'name' => 'Nomor 1 — CatatCuan Bot',
+                'phone_number' => '628123456789', // Ganti dengan nomor asli
+                'fonnte_token' => 'GANTI_DENGAN_TOKEN_FONNTE_KAMU',
+                'fonnte_device_id' => null,
+                'max_users' => 50,
+                'current_users' => 0,
+                'status' => 'active',
+                'status_note' => null,
+                'total_sent_today' => 0,
+                'total_sent_all' => 0,
+                'last_reset_at' => null,
+                'last_used_at' => null,
+                'is_default' => true,
+                'sort_order' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
         ]);
 

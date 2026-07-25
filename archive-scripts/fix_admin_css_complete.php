@@ -26,8 +26,8 @@ if (file_exists($appCss)) {
     if (strpos($content, '--ink:') !== false) {
         echo "SKIP: app.css sudah punya token admin (--ink), dilewati\n";
     } else {
-        copy($appCss, $appCss . '.bak_' . date('Ymd_His'));
-        file_put_contents($appCss, $content . $adminTokens);
+        copy($appCss, $appCss.'.bak_'.date('Ymd_His'));
+        file_put_contents($appCss, $content.$adminTokens);
         echo "OK: token warna admin ditambahkan ke app.css\n";
     }
 } else {
@@ -70,8 +70,9 @@ $targets = [
 ];
 
 foreach ($targets as $file) {
-    if (!file_exists($file)) {
+    if (! file_exists($file)) {
         echo "SKIP (tidak ditemukan): $file\n";
+
         continue;
     }
 
@@ -79,16 +80,18 @@ foreach ($targets as $file) {
 
     if (strpos($content, '.admin-shell {') !== false) {
         echo "SKIP (CSS shell sudah ada): $file\n";
+
         continue;
     }
 
     if (strpos($content, '<style scoped>') === false) {
         echo "⚠️  Tidak ketemu <style scoped> di: $file — cek manual\n";
+
         continue;
     }
 
-    copy($file, $file . '.bak_' . date('Ymd_His'));
-    $newContent = str_replace('<style scoped>', '<style scoped>' . $sharedShellCss, $content);
+    copy($file, $file.'.bak_'.date('Ymd_His'));
+    $newContent = str_replace('<style scoped>', '<style scoped>'.$sharedShellCss, $content);
     file_put_contents($file, $newContent);
 
     echo "OK (CSS shell ditambahkan): $file\n";

@@ -21,27 +21,27 @@ class WalletController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'bank_id'         => ['nullable', 'exists:banks,id'],
-            'display_name'    => ['required', 'string', 'max:60'],
-            'account_number'  => ['nullable', 'string', 'max:50'],
+            'bank_id' => ['nullable', 'exists:banks,id'],
+            'display_name' => ['required', 'string', 'max:60'],
+            'account_number' => ['nullable', 'string', 'max:50'],
             'initial_balance' => ['nullable', 'numeric', 'min:0'],
-            'type'            => ['required', 'in:cash_flow,saving,both,investment'],
-            'is_saham'        => ['boolean'],
+            'type' => ['required', 'in:cash_flow,saving,both,investment'],
+            'is_saham' => ['boolean'],
         ]);
 
         $user = $request->user();
         $lastOrder = $user->wallets()->max('sort_order') ?? 0;
 
         $wallet = $user->wallets()->create([
-            'bank_id'        => $request->bank_id,
-            'display_name'   => $request->display_name,
+            'bank_id' => $request->bank_id,
+            'display_name' => $request->display_name,
             'account_number' => $request->account_number,
-            'balance'        => $request->initial_balance ?? 0,
-            'initial_balance'=> $request->initial_balance ?? 0,
-            'type'           => $request->type,
-            'is_saham'       => $request->boolean('is_saham', false),
-            'is_active'      => true,
-            'sort_order'     => $lastOrder + 1,
+            'balance' => $request->initial_balance ?? 0,
+            'initial_balance' => $request->initial_balance ?? 0,
+            'type' => $request->type,
+            'is_saham' => $request->boolean('is_saham', false),
+            'is_active' => true,
+            'sort_order' => $lastOrder + 1,
         ]);
 
         return back()->with('success', "Dompet {$wallet->display_name} berhasil ditambahkan!");
@@ -55,17 +55,17 @@ class WalletController extends Controller
         abort_if($wallet->user_id !== $request->user()->id, 403, 'Akses ditolak.');
 
         $request->validate([
-            'display_name'   => ['required', 'string', 'max:60'],
+            'display_name' => ['required', 'string', 'max:60'],
             'account_number' => ['nullable', 'string', 'max:50'],
-            'type'           => ['required', 'in:cash_flow,saving,both,investment'],
-            'is_active'      => ['boolean'],
+            'type' => ['required', 'in:cash_flow,saving,both,investment'],
+            'is_active' => ['boolean'],
         ]);
 
         $wallet->update([
-            'display_name'   => $request->display_name,
+            'display_name' => $request->display_name,
             'account_number' => $request->account_number,
-            'type'           => $request->type,
-            'is_active'      => $request->boolean('is_active', true),
+            'type' => $request->type,
+            'is_active' => $request->boolean('is_active', true),
         ]);
 
         return back()->with('success', "Dompet {$wallet->display_name} berhasil diupdate!");
@@ -85,7 +85,7 @@ class WalletController extends Controller
         if ((float) $wallet->balance != 0) {
             return back()->with(
                 'error',
-                "Tidak bisa hapus dompet dengan saldo Rp " . number_format($wallet->balance, 0, ',', '.') . ". Pindahkan dulu saldonya via Transfer."
+                'Tidak bisa hapus dompet dengan saldo Rp '.number_format($wallet->balance, 0, ',', '.').'. Pindahkan dulu saldonya via Transfer.'
             );
         }
 
@@ -111,16 +111,16 @@ class WalletController extends Controller
     {
         $request->validate([
             'from_wallet_id' => ['required', 'exists:user_wallets,id', 'different:to_wallet_id'],
-            'to_wallet_id'   => ['required', 'exists:user_wallets,id'],
-            'amount'         => ['required', 'numeric', 'min:1'],
-            'note'           => ['nullable', 'string', 'max:255'],
+            'to_wallet_id' => ['required', 'exists:user_wallets,id'],
+            'amount' => ['required', 'numeric', 'min:1'],
+            'note' => ['nullable', 'string', 'max:255'],
             'transferred_at' => ['required', 'date'],
         ]);
 
         $user = $request->user();
 
         $fromWallet = UserWallet::findOrFail($request->from_wallet_id);
-        $toWallet   = UserWallet::findOrFail($request->to_wallet_id);
+        $toWallet = UserWallet::findOrFail($request->to_wallet_id);
 
         abort_if($fromWallet->user_id !== $user->id, 403);
         abort_if($toWallet->user_id !== $user->id, 403);
@@ -128,7 +128,7 @@ class WalletController extends Controller
         if ((float) $fromWallet->balance < (float) $request->amount) {
             return back()->with(
                 'error',
-                "Saldo {$fromWallet->display_name} tidak cukup. Saldo saat ini: Rp " . number_format($fromWallet->balance, 0, ',', '.')
+                "Saldo {$fromWallet->display_name} tidak cukup. Saldo saat ini: Rp ".number_format($fromWallet->balance, 0, ',', '.')
             );
         }
 
@@ -136,12 +136,12 @@ class WalletController extends Controller
             $transferId = (string) Str::ulid();
 
             WalletTransfer::create([
-                'id'             => $transferId,
-                'user_id'        => $user->id,
+                'id' => $transferId,
+                'user_id' => $user->id,
                 'from_wallet_id' => $fromWallet->id,
-                'to_wallet_id'   => $toWallet->id,
-                'amount'         => $request->amount,
-                'note'           => $request->note,
+                'to_wallet_id' => $toWallet->id,
+                'amount' => $request->amount,
+                'note' => $request->note,
                 'transferred_at' => $request->transferred_at,
             ]);
 
@@ -155,7 +155,7 @@ class WalletController extends Controller
 
         return back()->with(
             'success',
-            "Berhasil transfer Rp " . number_format($request->amount, 0, ',', '.') . " dari {$fromWallet->display_name} ke {$toWallet->display_name}!"
+            'Berhasil transfer Rp '.number_format($request->amount, 0, ',', '.')." dari {$fromWallet->display_name} ke {$toWallet->display_name}!"
         );
     }
 }

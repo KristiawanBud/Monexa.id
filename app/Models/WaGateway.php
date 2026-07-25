@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class WaGateway extends Model
 {
@@ -22,11 +21,11 @@ class WaGateway extends Model
     protected function casts(): array
     {
         return [
-            'is_default'      => 'boolean',
-            'is_connected'    => 'boolean',
-            'last_reset_at'   => 'datetime',
-            'last_used_at'    => 'datetime',
-            'last_ping_at'    => 'datetime',
+            'is_default' => 'boolean',
+            'is_connected' => 'boolean',
+            'last_reset_at' => 'datetime',
+            'last_used_at' => 'datetime',
+            'last_ping_at' => 'datetime',
             'disconnected_at' => 'datetime',
         ];
     }
@@ -34,15 +33,23 @@ class WaGateway extends Model
     // Menit sejak terakhir aktif (untuk deteksi disconnect)
     public function getMinutesSinceLastPingAttribute(): ?int
     {
-        if (! $this->last_ping_at) return null;
+        if (! $this->last_ping_at) {
+            return null;
+        }
+
         return (int) $this->last_ping_at->diffInMinutes(now());
     }
 
     // Threshold: jika > 30 menit tidak ada aktivitas, anggap disconnect
     public function getIsPossiblyDisconnectedAttribute(): bool
     {
-        if (! $this->is_connected) return true;
-        if (! $this->last_ping_at) return false;
+        if (! $this->is_connected) {
+            return true;
+        }
+        if (! $this->last_ping_at) {
+            return false;
+        }
+
         return $this->last_ping_at->diffInMinutes(now()) > 30;
     }
 
@@ -52,12 +59,13 @@ class WaGateway extends Model
         if (! $this->is_connected || $this->is_possibly_disconnected) {
             return 'text-red';
         }
+
         return match ($this->status) {
-            'active'    => 'text-green',
-            'warning'   => 'text-amber',
+            'active' => 'text-green',
+            'warning' => 'text-amber',
             'suspended' => 'text-red',
-            'inactive'  => 'text-muted',
-            default     => 'text-muted',
+            'inactive' => 'text-muted',
+            default => 'text-muted',
         };
     }
 
@@ -86,18 +94,21 @@ class WaGateway extends Model
 
     public function getUsagePercentAttribute(): float
     {
-        if ($this->max_users <= 0) return 0;
+        if ($this->max_users <= 0) {
+            return 0;
+        }
+
         return round(($this->current_users / $this->max_users) * 100, 1);
     }
 
     public function getStatusColorAttribute(): string
     {
-        return match($this->status) {
-            'active'    => 'green',
-            'warning'   => 'amber',
+        return match ($this->status) {
+            'active' => 'green',
+            'warning' => 'amber',
             'suspended' => 'red',
-            'inactive'  => 'stone',
-            default     => 'stone',
+            'inactive' => 'stone',
+            default => 'stone',
         };
     }
 
@@ -110,9 +121,9 @@ class WaGateway extends Model
     public function scopeAvailable($q)
     {
         return $q->where('status', 'active')
-                 ->whereColumn('current_users', '<', 'max_users')
-                 ->orderBy('sort_order')
-                 ->orderBy('current_users'); // assign ke yang paling sedikit user dulu
+            ->whereColumn('current_users', '<', 'max_users')
+            ->orderBy('sort_order')
+            ->orderBy('current_users'); // assign ke yang paling sedikit user dulu
     }
 
     public function scopeActive($q)

@@ -21,19 +21,19 @@ class Package extends Model
     protected function casts(): array
     {
         return [
-            'price'              => 'decimal:2',
-            'discount_value'     => 'decimal:2',
-            'features'           => 'array',
-            'is_active'          => 'boolean',
+            'price' => 'decimal:2',
+            'discount_value' => 'decimal:2',
+            'features' => 'array',
+            'is_active' => 'boolean',
             'discount_starts_at' => 'datetime',
-            'discount_ends_at'   => 'datetime',
+            'discount_ends_at' => 'datetime',
         ];
     }
 
     // ── Apakah diskonnya sedang aktif (cek periode kalau diisi) ──
     public function getHasActiveDiscountAttribute(): bool
     {
-        if (!$this->discount_type || !$this->discount_value) {
+        if (! $this->discount_type || ! $this->discount_value) {
             return false;
         }
 
@@ -52,7 +52,7 @@ class Package extends Model
     // ── Harga setelah dipotong diskon (kalau aktif) ──
     public function getFinalPriceAttribute(): float
     {
-        if (!$this->has_active_discount) {
+        if (! $this->has_active_discount) {
             return (float) $this->price;
         }
 

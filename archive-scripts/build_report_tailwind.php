@@ -1,9 +1,14 @@
 <?php
 
-function writeFile(string $path, string $content): void {
+function writeFile(string $path, string $content): void
+{
     $dir = dirname($path);
-    if (!is_dir($dir)) mkdir($dir, 0755, true);
-    if (file_exists($path)) copy($path, $path . '.bak_' . date('Ymd_His'));
+    if (! is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    if (file_exists($path)) {
+        copy($path, $path.'.bak_'.date('Ymd_His'));
+    }
     file_put_contents($path, $content);
     echo "Ditulis: $path\n";
 }
@@ -71,8 +76,8 @@ $cssFile = '/var/www/monexa/resources/css/app.css';
 if (file_exists($cssFile)) {
     $existing = file_get_contents($cssFile);
     if (strpos($existing, '@tailwind base') === false) {
-        copy($cssFile, $cssFile . '.bak_' . date('Ymd_His'));
-        $newContent = "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\n" . $existing;
+        copy($cssFile, $cssFile.'.bak_'.date('Ymd_His'));
+        $newContent = "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\n".$existing;
         file_put_contents($cssFile, $newContent);
         echo "OK: @tailwind directive ditambahkan ke app.css\n";
     } else {

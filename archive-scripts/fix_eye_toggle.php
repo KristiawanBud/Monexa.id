@@ -2,7 +2,7 @@
 
 $file = '/var/www/monexa/resources/js/Pages/App/Dashboard.vue';
 
-if (!file_exists($file)) {
+if (! file_exists($file)) {
     echo "SKIP: file tidak ditemukan\n";
     exit;
 }
@@ -27,7 +27,10 @@ $newBtn = <<<'HTML'
 HTML;
 
 if (strpos($content, $oldBtn) !== false) {
-    if (!$backupMade) { copy($file, $file . '.bak_' . date('Ymd_His')); $backupMade = true; }
+    if (! $backupMade) {
+        copy($file, $file.'.bak_'.date('Ymd_His'));
+        $backupMade = true;
+    }
     $content = str_replace($oldBtn, $newBtn, $content);
     $changed++;
 } else {
@@ -41,7 +44,10 @@ $newCss = '.hide-btn { background:rgba(255,255,255,.15); border:none; border-rad
 .hide-btn svg { width:16px; height:16px; }';
 
 if (strpos($content, $oldCss) !== false) {
-    if (!$backupMade) { copy($file, $file . '.bak_' . date('Ymd_His')); $backupMade = true; }
+    if (! $backupMade) {
+        copy($file, $file.'.bak_'.date('Ymd_His'));
+        $backupMade = true;
+    }
     $content = str_replace($oldCss, $newCss, $content);
     $changed++;
 } else {

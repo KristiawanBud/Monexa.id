@@ -2,9 +2,11 @@
 
 namespace App\Http\Middleware;
 
-use Closure;
+use App\Http\Controllers\Admin\IconController;
+use App\Models\SystemSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -29,14 +31,15 @@ class HandleInertiaRequests extends Middleware
             ],
             'flash' => [
                 'success' => $request->session()->get('success'),
-                'error'   => $request->session()->get('error'),
+                'error' => $request->session()->get('error'),
             ],
             'unread_notifications' => $request->user()
                 ?->appNotifications()->where('is_read', false)->count() ?? 0,
             'icons' => Cache::remember('app_icons_map', 300, function () {
-                return collect(\App\Http\Controllers\Admin\IconController::SLOTS)->keys()->mapWithKeys(function ($slug) {
-                    $path = \App\Models\SystemSetting::get("icon:{$slug}");
-                    return [$slug => $path ? \Illuminate\Support\Facades\Storage::url($path) : null];
+                return collect(IconController::SLOTS)->keys()->mapWithKeys(function ($slug) {
+                    $path = SystemSetting::get("icon:{$slug}");
+
+                    return [$slug => $path ? Storage::url($path) : null];
                 })->toArray();
             }),
         ]);

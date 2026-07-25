@@ -1,34 +1,51 @@
 <?php
 
-function writeFile(string $path, string $content): void {
+function writeFile(string $path, string $content): void
+{
     $dir = dirname($path);
-    if (!is_dir($dir)) mkdir($dir, 0755, true);
-    if (file_exists($path)) copy($path, $path . '.bak_' . date('Ymd_His'));
+    if (! is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    if (file_exists($path)) {
+        copy($path, $path.'.bak_'.date('Ymd_His'));
+    }
     file_put_contents($path, $content);
     echo "Ditulis: $path\n";
 }
 
-function patchFile(string $path, array $replacements): void {
-    if (!file_exists($path)) { echo "SKIP (tidak ditemukan): $path\n"; return; }
+function patchFile(string $path, array $replacements): void
+{
+    if (! file_exists($path)) {
+        echo "SKIP (tidak ditemukan): $path\n";
+
+        return;
+    }
     $content = file_get_contents($path);
-    $backupMade = false; $changed = 0;
+    $backupMade = false;
+    $changed = 0;
     foreach ($replacements as $old => $new) {
         if (strpos($content, $old) !== false) {
-            if (!$backupMade) { copy($path, $path . '.bak_' . date('Ymd_His')); $backupMade = true; }
+            if (! $backupMade) {
+                copy($path, $path.'.bak_'.date('Ymd_His'));
+                $backupMade = true;
+            }
             $content = str_replace($old, $new, $content);
             $changed++;
         }
     }
-    if ($changed > 0) { file_put_contents($path, $content); echo "OK ($changed patch): $path\n"; }
-    else { echo "SKIP (pattern tidak ketemu/sudah diterapkan): $path\n"; }
+    if ($changed > 0) {
+        file_put_contents($path, $content);
+        echo "OK ($changed patch): $path\n";
+    } else {
+        echo "SKIP (pattern tidak ketemu/sudah diterapkan): $path\n";
+    }
 }
 
 // ─────────────────────────────────────────────
 // 1. IconController.php — tambah slot 'dompet_hero'
 // ─────────────────────────────────────────────
 patchFile('/var/www/monexa/app/Http/Controllers/Admin/IconController.php', [
-    "'dashboard_hero'  => 'Ilustrasi Card Utama Dashboard (pojok kanan bawah)'," =>
-    "'dashboard_hero'  => 'Ilustrasi Card Utama Dashboard (pojok kanan bawah)',\n        'dompet_hero'     => 'Ilustrasi Card Utama Halaman Dompet',",
+    "'dashboard_hero'  => 'Ilustrasi Card Utama Dashboard (pojok kanan bawah)'," => "'dashboard_hero'  => 'Ilustrasi Card Utama Dashboard (pojok kanan bawah)',\n        'dompet_hero'     => 'Ilustrasi Card Utama Halaman Dompet',",
 ]);
 
 // ─────────────────────────────────────────────
@@ -335,8 +352,7 @@ patchFile('/var/www/monexa/resources/js/Pages/App/Dompet.vue', [
         <span class="page-hint-text">
           Kelola dompet, catat transaksi, dan bayar tagihan — semua dalam satu tempat.
         </span>
-      </div>' =>
-    '<!-- Hero -->
+      </div>' => '<!-- Hero -->
       <div class="dompet-hero-bg">
         <div class="hero-top-row">
           <div>
@@ -406,8 +422,7 @@ patchFile('/var/www/monexa/resources/js/Pages/App/Dompet.vue', [
             <div class="summary-label">↓ Total Keluar</div>
             <div class="summary-val down">{{ formatRupiah(total_expense) }}</div>
           </div>
-        </div>' =>
-    '<!-- Filter periode + ringkasan -->
+        </div>' => '<!-- Filter periode + ringkasan -->
         <div class="range-filter-row">
           <div class="range-dropdown">
             <button class="range-btn" @click="showRangeMenu = !showRangeMenu">
@@ -448,8 +463,7 @@ patchFile('/var/www/monexa/resources/js/Pages/App/Dompet.vue', [
 
     // ── C. Tambah AppIcon import ──
     "import AppLayout from '@/Layouts/AppLayout.vue'
-import EmojiPicker from '@/Components/EmojiPicker.vue'" =>
-    "import AppLayout from '@/Layouts/AppLayout.vue'
+import EmojiPicker from '@/Components/EmojiPicker.vue'" => "import AppLayout from '@/Layouts/AppLayout.vue'
 import EmojiPicker from '@/Components/EmojiPicker.vue'
 import AppIcon from '@/Components/AppIcon.vue'",
 
@@ -465,8 +479,7 @@ import AppIcon from '@/Components/AppIcon.vue'",
   total_expense: Number,
   total_balance: Number,
   active_tab: { type: String, default: \'transaksi\' },
-})' =>
-    'const props = defineProps({
+})' => 'const props = defineProps({
   transactions: Object,
   wallets: Array,
   bills: Array,
@@ -504,8 +517,7 @@ function applySearch() {
 }',
 
     // ── E. CSS baru ──
-    '.page-content { padding: 20px; }' =>
-    '.page-content { padding: 20px; }
+    '.page-content { padding: 20px; }' => '.page-content { padding: 20px; }
 
 .dompet-hero-bg {
   position: relative; overflow: hidden;
@@ -562,7 +574,7 @@ function applySearch() {
 .search-icon { font-size:14px; opacity:.6; }
 .filter-btn { background:var(--surface); border:none; padding:10px 16px; border-radius:var(--radius-md); font-size:12px; font-weight:700; box-shadow:var(--shadow-card); cursor:pointer; white-space:nowrap; }
 
-.tx-list-heading { margin-bottom:10px; }' ,
+.tx-list-heading { margin-bottom:10px; }',
 ]);
 
 echo "\n=== SELESAI ===\n";

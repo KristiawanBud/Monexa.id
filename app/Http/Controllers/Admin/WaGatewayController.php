@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\WaGateway;
-use App\Models\UserWaGateway;
-use App\Models\WaGatewayLog;
 use App\Models\User;
+use App\Models\UserWaGateway;
+use App\Models\WaGateway;
+use App\Models\WaGatewayLog;
 use App\Services\WaGatewayService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,65 +30,65 @@ class WaGatewayController extends Controller
     // ─────────────────────────────────────────────────────────────
     public function index(): Response
     {
-        $gateways = WaGateway::orderBy('sort_order')->get()->map(fn($g) => [
-            'id'                      => $g->id,
-            'name'                    => $g->name,
-            'phone_number'            => $g->phone_number,
-            'status'                  => $g->status,
+        $gateways = WaGateway::orderBy('sort_order')->get()->map(fn ($g) => [
+            'id' => $g->id,
+            'name' => $g->name,
+            'phone_number' => $g->phone_number,
+            'status' => $g->status,
 
             // ── FIX: Class CSS sinkron dengan design system app.css ──
-            'status_css_class'        => $g->status_css_class,
-            'status_label'            => $this->statusLabel($g->status),
+            'status_css_class' => $g->status_css_class,
+            'status_label' => $this->statusLabel($g->status),
 
-            'status_note'             => $g->status_note,
-            'current_users'           => $g->current_users,
-            'max_users'               => $g->max_users,
-            'slot_available'          => $g->slot_available,
-            'usage_percent'           => $g->usage_percent,
-            'total_sent_today'        => $g->total_sent_today,
-            'total_sent_all'          => $g->total_sent_all,
-            'last_used_at'            => $g->last_used_at?->diffForHumans(),
-            'is_default'              => $g->is_default,
-            'sort_order'              => $g->sort_order,
-            'owner_wa_number'         => $g->owner_wa_number,
+            'status_note' => $g->status_note,
+            'current_users' => $g->current_users,
+            'max_users' => $g->max_users,
+            'slot_available' => $g->slot_available,
+            'usage_percent' => $g->usage_percent,
+            'total_sent_today' => $g->total_sent_today,
+            'total_sent_all' => $g->total_sent_all,
+            'last_used_at' => $g->last_used_at?->diffForHumans(),
+            'is_default' => $g->is_default,
+            'sort_order' => $g->sort_order,
+            'owner_wa_number' => $g->owner_wa_number,
 
             // ── Monitoring status koneksi ──────────────────────────
-            'is_connected'            => $g->is_connected,
-            'is_possibly_disconnected'=> $g->is_possibly_disconnected,
-            'last_ping_at'            => $g->last_ping_at?->diffForHumans(),
-            'last_ping_at_raw'        => $g->last_ping_at?->toISOString(),
-            'minutes_since_ping'      => $g->minutes_since_last_ping,
-            'disconnected_at'         => $g->disconnected_at?->diffForHumans(),
+            'is_connected' => $g->is_connected,
+            'is_possibly_disconnected' => $g->is_possibly_disconnected,
+            'last_ping_at' => $g->last_ping_at?->diffForHumans(),
+            'last_ping_at_raw' => $g->last_ping_at?->toISOString(),
+            'minutes_since_ping' => $g->minutes_since_last_ping,
+            'disconnected_at' => $g->disconnected_at?->diffForHumans(),
 
             // ── Class CSS monitoring ───────────────────────────────
-            'connection_css_class'    => ($g->is_connected && ! $g->is_possibly_disconnected)
+            'connection_css_class' => ($g->is_connected && ! $g->is_possibly_disconnected)
                 ? 'text-green'
                 : 'text-red',
-            'connection_label'        => $this->connectionLabel($g),
+            'connection_label' => $this->connectionLabel($g),
         ]);
 
         // Summary stats
-        $totalCapacity  = WaGateway::sum('max_users');
-        $totalAssigned  = WaGateway::sum('current_users');
+        $totalCapacity = WaGateway::sum('max_users');
+        $totalAssigned = WaGateway::sum('current_users');
         $activeGateways = WaGateway::where('status', 'active')->count();
-        $warnGateways   = WaGateway::where('status', 'warning')->count();
-        $disconnected   = WaGateway::where('is_connected', false)->count();
+        $warnGateways = WaGateway::where('status', 'warning')->count();
+        $disconnected = WaGateway::where('is_connected', false)->count();
 
         // Log terbaru 50 entri
         $recentLogs = WaGatewayLog::with(['gateway:id,name', 'user:id,name'])
             ->orderByDesc('sent_at')
             ->limit(50)
             ->get()
-            ->map(fn($l) => [
-                'id'           => $l->id,
+            ->map(fn ($l) => [
+                'id' => $l->id,
                 'gateway_name' => $l->gateway?->name,
-                'user_name'    => $l->user?->name,
-                'to_number'    => substr($l->to_number, 0, 6) . '****',
-                'type'         => $l->type,
-                'status'       => $l->status,
+                'user_name' => $l->user?->name,
+                'to_number' => substr($l->to_number, 0, 6).'****',
+                'type' => $l->type,
+                'status' => $l->status,
                 'status_class' => $l->status === 'sent' ? 'text-green' : 'text-red',
-                'error'        => $l->error_message,
-                'sent_at'      => $l->sent_at?->format('d M, H:i'),
+                'error' => $l->error_message,
+                'sent_at' => $l->sent_at?->format('d M, H:i'),
             ]);
 
         // Owner WA number dari system_settings (global)
@@ -109,13 +109,13 @@ class WaGatewayController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'name'             => ['required', 'string', 'max:80'],
-            'phone_number'     => ['required', 'string', 'unique:wa_gateways,phone_number'],
-            'fonnte_token'     => ['required', 'string'],
-            'max_users'        => ['required', 'integer', 'min:1', 'max:500'],
-            'is_default'       => ['boolean'],
-            'sort_order'       => ['integer'],
-            'owner_wa_number'  => ['nullable', 'string', 'max:25'],
+            'name' => ['required', 'string', 'max:80'],
+            'phone_number' => ['required', 'string', 'unique:wa_gateways,phone_number'],
+            'fonnte_token' => ['required', 'string'],
+            'max_users' => ['required', 'integer', 'min:1', 'max:500'],
+            'is_default' => ['boolean'],
+            'sort_order' => ['integer'],
+            'owner_wa_number' => ['nullable', 'string', 'max:25'],
         ]);
 
         if ($request->boolean('is_default')) {
@@ -123,14 +123,14 @@ class WaGatewayController extends Controller
         }
 
         WaGateway::create([
-            'name'            => $request->name,
-            'phone_number'    => $request->phone_number,
-            'fonnte_token'    => $request->fonnte_token,
-            'max_users'       => $request->max_users,
-            'status'          => 'active',
-            'is_connected'    => true,
-            'is_default'      => $request->boolean('is_default'),
-            'sort_order'      => $request->input('sort_order', 99),
+            'name' => $request->name,
+            'phone_number' => $request->phone_number,
+            'fonnte_token' => $request->fonnte_token,
+            'max_users' => $request->max_users,
+            'status' => 'active',
+            'is_connected' => true,
+            'is_default' => $request->boolean('is_default'),
+            'sort_order' => $request->input('sort_order', 99),
             'owner_wa_number' => $request->owner_wa_number,
         ]);
 
@@ -143,12 +143,12 @@ class WaGatewayController extends Controller
     public function update(Request $request, WaGateway $gateway): RedirectResponse
     {
         $request->validate([
-            'name'            => ['required', 'string', 'max:80'],
-            'max_users'       => ['required', 'integer', 'min:1'],
-            'status'          => ['required', 'in:active,warning,suspended,inactive'],
-            'status_note'     => ['nullable', 'string', 'max:255'],
-            'is_default'      => ['boolean'],
-            'sort_order'      => ['integer'],
+            'name' => ['required', 'string', 'max:80'],
+            'max_users' => ['required', 'integer', 'min:1'],
+            'status' => ['required', 'in:active,warning,suspended,inactive'],
+            'status_note' => ['nullable', 'string', 'max:255'],
+            'is_default' => ['boolean'],
+            'sort_order' => ['integer'],
             'owner_wa_number' => ['nullable', 'string', 'max:25'],
         ]);
 
@@ -177,6 +177,7 @@ class WaGatewayController extends Controller
         }
 
         $gateway->delete();
+
         return back()->with('success', 'Gateway berhasil dihapus.');
     }
 
@@ -194,8 +195,8 @@ class WaGatewayController extends Controller
 
         // Update status koneksi berdasarkan hasil test
         $gateway->update([
-            'last_ping_at'  => now(),
-            'is_connected'  => $result['success'],
+            'last_ping_at' => now(),
+            'is_connected' => $result['success'],
         ]);
 
         if (! $result['success']) {
@@ -205,7 +206,7 @@ class WaGatewayController extends Controller
             }
 
             // Kirim alert ke owner
-            $this->sendDisconnectAlert($gateway, 'Test gagal: ' . ($result['message'] ?? 'Unknown'));
+            $this->sendDisconnectAlert($gateway, 'Test gagal: '.($result['message'] ?? 'Unknown'));
         } else {
             // Koneksi berhasil — reset disconnected_at
             $gateway->update(['disconnected_at' => null]);
@@ -223,7 +224,7 @@ class WaGatewayController extends Controller
     public function pingAll(): array
     {
         $gateways = WaGateway::whereIn('status', ['active', 'warning'])->get();
-        $results  = [];
+        $results = [];
 
         foreach ($gateways as $gateway) {
             // Cek status via Fonnte API (cek device status)
@@ -247,7 +248,7 @@ class WaGatewayController extends Controller
             }
 
             $results[] = [
-                'gateway'   => $gateway->name,
+                'gateway' => $gateway->name,
                 'connected' => $connected,
             ];
         }
@@ -265,23 +266,23 @@ class WaGatewayController extends Controller
             ->with('user:id,name,email,wa_number')
             ->orderByDesc('assigned_at')
             ->paginate(30)
-            ->through(fn($a) => [
-                'id'          => $a->user_id,
-                'name'        => $a->user?->name,
-                'email'       => $a->user?->email,
-                'wa_number'   => $a->user?->wa_number,
+            ->through(fn ($a) => [
+                'id' => $a->user_id,
+                'name' => $a->user?->name,
+                'email' => $a->user?->email,
+                'wa_number' => $a->user?->wa_number,
                 'assigned_at' => $a->assigned_at?->format('d M Y'),
             ]);
 
         return Inertia::render('Admin/WaGatewayUsers', [
             'gateway' => [
-                'id'           => $gateway->id,
-                'name'         => $gateway->name,
+                'id' => $gateway->id,
+                'name' => $gateway->name,
                 'phone_number' => $gateway->phone_number,
-                'status'       => $gateway->status,
+                'status' => $gateway->status,
                 'status_class' => $gateway->status_css_class,
             ],
-            'users'   => $users,
+            'users' => $users,
         ]);
     }
 
@@ -291,11 +292,11 @@ class WaGatewayController extends Controller
     public function reassign(Request $request): RedirectResponse
     {
         $request->validate([
-            'user_id'    => ['required', 'exists:users,id'],
+            'user_id' => ['required', 'exists:users,id'],
             'gateway_id' => ['required', 'exists:wa_gateways,id'],
         ]);
 
-        $user       = User::findOrFail($request->user_id);
+        $user = User::findOrFail($request->user_id);
         $newGateway = WaGateway::findOrFail($request->gateway_id);
 
         if ($newGateway->getIsFull()) {
@@ -316,7 +317,8 @@ class WaGatewayController extends Controller
     public function releaseInactive(): RedirectResponse
     {
         $released = $this->gatewayService->releaseInactiveUsers();
-        return back()->with('success', count($released) . ' slot berhasil dibebaskan.');
+
+        return back()->with('success', count($released).' slot berhasil dibebaskan.');
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -325,6 +327,7 @@ class WaGatewayController extends Controller
     public function recalculate(): RedirectResponse
     {
         $this->gatewayService->recalculateAllCounters();
+
         return back()->with('success', 'Counter semua gateway berhasil di-sinkronisasi.');
     }
 
@@ -356,7 +359,9 @@ class WaGatewayController extends Controller
     private function sendDisconnectAlert(WaGateway $gateway, string $reason = ''): void
     {
         $ownerNumber = $this->resolveOwnerNumber($gateway);
-        if (! $ownerNumber) return;
+        if (! $ownerNumber) {
+            return;
+        }
 
         // Cari gateway lain yang masih aktif untuk kirim notif
         $activeGateway = WaGateway::where('status', 'active')
@@ -364,16 +369,18 @@ class WaGatewayController extends Controller
             ->where('id', '!=', $gateway->id)
             ->first();
 
-        if (! $activeGateway) return; // Tidak ada gateway aktif lain untuk kirim
+        if (! $activeGateway) {
+            return;
+        } // Tidak ada gateway aktif lain untuk kirim
 
         $message = "🚨 *Alert CatatCuan — WA Bot Disconnect*\n\n"
-            . "Gateway *{$gateway->name}* ({$gateway->phone_number}) "
-            . "terdeteksi terputus dari Fonnte!\n\n"
-            . ($reason ? "❗ Alasan: {$reason}\n\n" : '')
-            . "⏰ Waktu: " . now('Asia/Jakarta')->format('d M Y, H:i') . " WIB\n\n"
-            . "Silakan cek dashboard:\n"
-            . url('/admin/wa-gateway') . "\n\n"
-            . "_Alert otomatis dari CatatCuan Monitoring_";
+            ."Gateway *{$gateway->name}* ({$gateway->phone_number}) "
+            ."terdeteksi terputus dari Fonnte!\n\n"
+            .($reason ? "❗ Alasan: {$reason}\n\n" : '')
+            .'⏰ Waktu: '.now('Asia/Jakarta')->format('d M Y, H:i')." WIB\n\n"
+            ."Silakan cek dashboard:\n"
+            .url('/admin/wa-gateway')."\n\n"
+            .'_Alert otomatis dari CatatCuan Monitoring_';
 
         $this->gatewayService->sendViaGateway(
             $activeGateway,
@@ -389,13 +396,15 @@ class WaGatewayController extends Controller
     private function sendReconnectAlert(WaGateway $gateway): void
     {
         $ownerNumber = $this->resolveOwnerNumber($gateway);
-        if (! $ownerNumber) return;
+        if (! $ownerNumber) {
+            return;
+        }
 
         $message = "✅ *CatatCuan — WA Bot Terhubung Kembali*\n\n"
-            . "Gateway *{$gateway->name}* ({$gateway->phone_number}) "
-            . "sudah terhubung kembali ke Fonnte.\n\n"
-            . "⏰ Waktu: " . now('Asia/Jakarta')->format('d M Y, H:i') . " WIB\n\n"
-            . "_Alert otomatis dari CatatCuan Monitoring_";
+            ."Gateway *{$gateway->name}* ({$gateway->phone_number}) "
+            ."sudah terhubung kembali ke Fonnte.\n\n"
+            .'⏰ Waktu: '.now('Asia/Jakarta')->format('d M Y, H:i')." WIB\n\n"
+            .'_Alert otomatis dari CatatCuan Monitoring_';
 
         $activeGateway = WaGateway::where('status', 'active')
             ->where('is_connected', true)
@@ -435,11 +444,11 @@ class WaGatewayController extends Controller
     private function statusLabel(string $status): string
     {
         return match ($status) {
-            'active'    => '✅ Aktif',
-            'warning'   => '⚠️ Warning',
+            'active' => '✅ Aktif',
+            'warning' => '⚠️ Warning',
             'suspended' => '🚫 Suspend',
-            'inactive'  => '⏸️ Nonaktif',
-            default     => $status,
+            'inactive' => '⏸️ Nonaktif',
+            default => $status,
         };
     }
 
@@ -453,8 +462,10 @@ class WaGatewayController extends Controller
         }
         if ($gateway->is_possibly_disconnected) {
             $mins = $gateway->minutes_since_last_ping;
+
             return "🟡 Tidak ada sinyal ({$mins} menit)";
         }
+
         return '🟢 Terhubung';
     }
 }

@@ -3,9 +3,9 @@
 namespace App\Services;
 
 use App\Exceptions\InsufficientBalanceException;
+use App\Models\SavingDeposit;
 use App\Models\Transaction;
 use App\Models\UserWallet;
-use App\Models\SavingDeposit;
 use Illuminate\Support\Facades\DB;
 
 class WalletService
@@ -16,27 +16,27 @@ class WalletService
      */
     public function applyTransaction(Transaction $transaction): void
     {
-        $wallet        = $transaction->wallet;
+        $wallet = $transaction->wallet;
         $balanceBefore = (float) $wallet->balance;
 
         if ($transaction->type === 'expense' && $balanceBefore < (float) $transaction->amount) {
             throw new InsufficientBalanceException(
                 "Saldo {$wallet->display_name} tidak cukup. Saldo saat ini Rp "
-                . number_format($balanceBefore, 0, ',', '.')
-                . ", transaksi ini butuh Rp "
-                . number_format($transaction->amount, 0, ',', '.') . "."
+                .number_format($balanceBefore, 0, ',', '.')
+                .', transaksi ini butuh Rp '
+                .number_format($transaction->amount, 0, ',', '.').'.'
             );
         }
 
         DB::table('wallet_balance_logs')->insert([
-            'wallet_id'      => $wallet->id,
-            'type'           => $transaction->type === 'income' ? 'credit' : 'debit',
-            'amount'         => $transaction->amount,
+            'wallet_id' => $wallet->id,
+            'type' => $transaction->type === 'income' ? 'credit' : 'debit',
+            'amount' => $transaction->amount,
             'balance_before' => $balanceBefore,
-            'balance_after'  => $balanceBefore + ($transaction->type === 'income' ? $transaction->amount : -$transaction->amount),
+            'balance_after' => $balanceBefore + ($transaction->type === 'income' ? $transaction->amount : -$transaction->amount),
             'reference_type' => 'transaction',
-            'reference_id'   => $transaction->id,
-            'created_at'     => now(),
+            'reference_id' => $transaction->id,
+            'created_at' => now(),
         ]);
 
         if ($transaction->type === 'income') {
@@ -70,19 +70,19 @@ class WalletService
         if ($balanceBefore < $amount) {
             throw new InsufficientBalanceException(
                 "Saldo {$wallet->display_name} tidak cukup untuk setoran ini. Saldo saat ini Rp "
-                . number_format($balanceBefore, 0, ',', '.') . "."
+                .number_format($balanceBefore, 0, ',', '.').'.'
             );
         }
 
         DB::table('wallet_balance_logs')->insert([
-            'wallet_id'      => $wallet->id,
-            'type'           => 'debit',
-            'amount'         => $amount,
+            'wallet_id' => $wallet->id,
+            'type' => 'debit',
+            'amount' => $amount,
             'balance_before' => $balanceBefore,
-            'balance_after'  => $balanceBefore - $amount,
+            'balance_after' => $balanceBefore - $amount,
             'reference_type' => 'saving_deposit',
-            'reference_id'   => $deposit->id,
-            'created_at'     => now(),
+            'reference_id' => $deposit->id,
+            'created_at' => now(),
         ]);
 
         $wallet->decrement('balance', $amount);
@@ -98,7 +98,7 @@ class WalletService
         string $transferId
     ): void {
         $fromBefore = (float) $fromWallet->balance;
-        $toBefore   = (float) $toWallet->balance;
+        $toBefore = (float) $toWallet->balance;
 
         if ($fromBefore < $amount) {
             throw new InsufficientBalanceException(
@@ -108,24 +108,24 @@ class WalletService
 
         DB::table('wallet_balance_logs')->insert([
             [
-                'wallet_id'      => $fromWallet->id,
-                'type'           => 'debit',
-                'amount'         => $amount,
+                'wallet_id' => $fromWallet->id,
+                'type' => 'debit',
+                'amount' => $amount,
                 'balance_before' => $fromBefore,
-                'balance_after'  => $fromBefore - $amount,
+                'balance_after' => $fromBefore - $amount,
                 'reference_type' => 'wallet_transfer',
-                'reference_id'   => $transferId,
-                'created_at'     => now(),
+                'reference_id' => $transferId,
+                'created_at' => now(),
             ],
             [
-                'wallet_id'      => $toWallet->id,
-                'type'           => 'credit',
-                'amount'         => $amount,
+                'wallet_id' => $toWallet->id,
+                'type' => 'credit',
+                'amount' => $amount,
                 'balance_before' => $toBefore,
-                'balance_after'  => $toBefore + $amount,
+                'balance_after' => $toBefore + $amount,
                 'reference_type' => 'wallet_transfer',
-                'reference_id'   => $transferId,
-                'created_at'     => now(),
+                'reference_id' => $transferId,
+                'created_at' => now(),
             ],
         ]);
 

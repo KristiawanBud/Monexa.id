@@ -1,8 +1,8 @@
 <?php
 
-use Illuminate\Support\Facades\Schedule;
 use App\Http\Controllers\Admin\WaGatewayController;
 use App\Services\WaGatewayService;
+use Illuminate\Support\Facades\Schedule;
 
 // ── Reset counter harian semua gateway — setiap tengah malam ──────────
 Schedule::call(function () {
@@ -23,5 +23,5 @@ Schedule::call(function () {
 // Mengecek status koneksi Fonnte untuk setiap gateway aktif.
 // Jika disconnect terdeteksi, alert otomatis dikirim ke WA pribadi owner.
 Schedule::call(function () {
-    app(\App\Http\Controllers\Admin\WaGatewayController::class)->pingAll();
+    app(WaGatewayController::class)->pingAll();
 })->everyFifteenMinutes()->name('wa-gateway-ping-monitoring')->withoutOverlapping();

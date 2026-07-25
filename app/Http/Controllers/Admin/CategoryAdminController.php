@@ -1,5 +1,7 @@
 <?php
+
 namespace App\Http\Controllers\Admin;
+
 use App\Http\Controllers\Controller;
 use App\Models\TransactionCategory;
 use Illuminate\Http\Request;
@@ -9,13 +11,13 @@ class CategoryAdminController extends Controller
 {
     public function index()
     {
-        $categories = TransactionCategory::orderBy('type')->orderBy('sort_order')->get()->map(fn($c) => [
-            'id'         => $c->id,
-            'type'       => $c->type,
-            'name'       => $c->name,
-            'emoji'      => $c->emoji,
-            'icon_url'   => $c->icon_url,
-            'is_system'  => $c->is_system,
+        $categories = TransactionCategory::orderBy('type')->orderBy('sort_order')->get()->map(fn ($c) => [
+            'id' => $c->id,
+            'type' => $c->type,
+            'name' => $c->name,
+            'emoji' => $c->emoji,
+            'icon_url' => $c->icon_url,
+            'is_system' => $c->is_system,
             'sort_order' => $c->sort_order,
         ]);
 
@@ -25,17 +27,17 @@ class CategoryAdminController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'type'  => 'required|in:income,expense',
-            'name'  => 'required|max:50',
+            'type' => 'required|in:income,expense',
+            'name' => 'required|max:50',
             'emoji' => 'nullable|max:10',
         ]);
 
         TransactionCategory::create([
-            'type'       => $request->type,
-            'name'       => $request->name,
-            'emoji'      => $request->emoji,
+            'type' => $request->type,
+            'name' => $request->name,
+            'emoji' => $request->emoji,
             'sort_order' => $request->sort_order ?? 99,
-            'is_system'  => false,
+            'is_system' => false,
         ]);
 
         return back()->with('success', 'Kategori ditambahkan!');

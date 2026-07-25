@@ -1,26 +1,44 @@
 <?php
 
-function writeFile(string $path, string $content): void {
+function writeFile(string $path, string $content): void
+{
     $dir = dirname($path);
-    if (!is_dir($dir)) mkdir($dir, 0755, true);
-    if (file_exists($path)) copy($path, $path . '.bak_' . date('Ymd_His'));
+    if (! is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    if (file_exists($path)) {
+        copy($path, $path.'.bak_'.date('Ymd_His'));
+    }
     file_put_contents($path, $content);
     echo "Ditulis: $path\n";
 }
 
-function patchFile(string $path, array $replacements): void {
-    if (!file_exists($path)) { echo "SKIP (tidak ditemukan): $path\n"; return; }
+function patchFile(string $path, array $replacements): void
+{
+    if (! file_exists($path)) {
+        echo "SKIP (tidak ditemukan): $path\n";
+
+        return;
+    }
     $content = file_get_contents($path);
-    $backupMade = false; $changed = 0;
+    $backupMade = false;
+    $changed = 0;
     foreach ($replacements as $old => $new) {
         if (strpos($content, $old) !== false) {
-            if (!$backupMade) { copy($path, $path . '.bak_' . date('Ymd_His')); $backupMade = true; }
+            if (! $backupMade) {
+                copy($path, $path.'.bak_'.date('Ymd_His'));
+                $backupMade = true;
+            }
             $content = str_replace($old, $new, $content);
             $changed++;
         }
     }
-    if ($changed > 0) { file_put_contents($path, $content); echo "OK ($changed patch): $path\n"; }
-    else { echo "SKIP (pattern tidak ketemu/sudah diterapkan): $path\n"; }
+    if ($changed > 0) {
+        file_put_contents($path, $content);
+        echo "OK ($changed patch): $path\n";
+    } else {
+        echo "SKIP (pattern tidak ketemu/sudah diterapkan): $path\n";
+    }
 }
 
 // ─────────────────────────────────────────────

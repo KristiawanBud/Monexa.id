@@ -3,41 +3,44 @@
 namespace App\Http\Controllers\App;
 
 use App\Http\Controllers\Controller;
+use App\Models\UserProfile;
 use App\Services\GeminiService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class DashboardController extends Controller
 {
     public function __construct(private GeminiService $gemini) {}
 
-    public function index(Request $request): \Inertia\Response
+    public function index(Request $request): Response
     {
-        $user   = $request->user()->load(['profile', 'wallets.bank']);
+        $user = $request->user()->load(['profile', 'wallets.bank']);
         $period = now()->format('Y-m');
-        $today  = now()->toDateString();
+        $today = now()->toDateString();
 
-        $wallets = $user->wallets->where('is_active', true)->values()->map(fn($w) => [
-            'id'           => $w->id,
+        $wallets = $user->wallets->where('is_active', true)->values()->map(fn ($w) => [
+            'id' => $w->id,
             'display_name' => $w->display_name,
-            'balance'      => (float) $w->balance,
-            'is_saham'     => $w->is_saham,
-            'bank_color'   => $w->bank?->logo_color ?? '#2563EB',
+            'balance' => (float) $w->balance,
+            'is_saham' => $w->is_saham,
+            'bank_color' => $w->bank?->logo_color ?? '#2563EB',
             'bank_initial' => $w->bank?->logo_initial ?? strtoupper(substr($w->display_name, 0, 1)),
         ]);
 
-        $txThisMonth  = $user->transactions()->forPeriod($period)->get();
-        $totalIncome  = (float) $txThisMonth->where('type', 'income')->sum('amount');
+        $txThisMonth = $user->transactions()->forPeriod($period)->get();
+        $totalIncome = (float) $txThisMonth->where('type', 'income')->sum('amount');
         $totalExpense = (float) $txThisMonth->where('type', 'expense')->sum('amount');
         $totalBalance = (float) $wallets->sum('balance');
 
         // ── Perbandingan vs bulan lalu ──
-        $prevPeriod     = now()->subMonth()->format('Y-m');
+        $prevPeriod = now()->subMonth()->format('Y-m');
         $prevMonthLabel = now()->subMonth()->translatedFormat('F Y');
-        $txPrevMonth    = $user->transactions()->forPeriod($prevPeriod)->get();
-        $prevIncome     = (float) $txPrevMonth->where('type', 'income')->sum('amount');
-        $prevExpense    = (float) $txPrevMonth->where('type', 'expense')->sum('amount');
-        $incomeTrendUp  = $totalIncome >= $prevIncome;
+        $txPrevMonth = $user->transactions()->forPeriod($prevPeriod)->get();
+        $prevIncome = (float) $txPrevMonth->where('type', 'income')->sum('amount');
+        $prevExpense = (float) $txPrevMonth->where('type', 'expense')->sum('amount');
+        $incomeTrendUp = $totalIncome >= $prevIncome;
         $expenseTrendUp = $totalExpense >= $prevExpense;
 
         $totalSaving = (float) \DB::table('saving_deposits')
@@ -48,10 +51,10 @@ class DashboardController extends Controller
             ->sum('amount');
 
         // ── Ringkasan Hari Ini ──
-        $txToday           = $user->transactions()->whereDate('transacted_at', $today)->get();
+        $txToday = $user->transactions()->whereDate('transacted_at', $today)->get();
         $todayIncomeAmount = (float) $txToday->where('type', 'income')->sum('amount');
-        $todayIncomeCount  = $txToday->where('type', 'income')->count();
-        $todayExpense      = (float) $txToday->where('type', 'expense')->sum('amount');
+        $todayIncomeCount = $txToday->where('type', 'income')->count();
+        $todayExpense = (float) $txToday->where('type', 'expense')->sum('amount');
         $todayExpenseCount = $txToday->where('type', 'expense')->count();
 
         $totalBudget = (float) \DB::table('budgets')
@@ -59,7 +62,7 @@ class DashboardController extends Controller
             ->where('period', $period)
             ->sum('amount');
 
-        $sisaHari     = now()->daysInMonth - now()->day + 1;
+        $sisaHari = now()->daysInMonth - now()->day + 1;
         $budgetHarian = $totalBudget > 0 && $sisaHari > 0
             ? round(($totalBudget - $totalExpense) / $sisaHari)
             : null;
@@ -74,24 +77,24 @@ class DashboardController extends Controller
             ->orderByDesc('created_at')
             ->limit(4)
             ->get()
-            ->map(fn($t) => [
-                'id'               => $t->id,
-                'type'             => $t->type,
-                'amount'           => (float) $t->amount,
-                'note'             => $t->note,
-                'category'         => $t->category?->name,
-                'category_emoji'   => $t->category?->emoji,
-                'category_icon_url'=> $t->category?->icon_url,
-                'wallet'           => $t->wallet?->display_name,
-                'transacted_at'    => $t->transacted_at->format('d M'),
-                'source'           => $t->source,
+            ->map(fn ($t) => [
+                'id' => $t->id,
+                'type' => $t->type,
+                'amount' => (float) $t->amount,
+                'note' => $t->note,
+                'category' => $t->category?->name,
+                'category_emoji' => $t->category?->emoji,
+                'category_icon_url' => $t->category?->icon_url,
+                'wallet' => $t->wallet?->display_name,
+                'transacted_at' => $t->transacted_at->format('d M'),
+                'source' => $t->source,
             ]);
 
         $topCategories = $txThisMonth
             ->where('type', 'expense')
-            ->groupBy(fn($t) => $t->category?->name ?? 'Lainnya')
-            ->map(fn($txs) => [
-                'name'  => $txs->first()->category?->name ?? 'Lainnya',
+            ->groupBy(fn ($t) => $t->category?->name ?? 'Lainnya')
+            ->map(fn ($txs) => [
+                'name' => $txs->first()->category?->name ?? 'Lainnya',
                 'emoji' => $txs->first()->category?->emoji ?? '✨',
                 'total' => (float) $txs->sum('amount'),
             ])
@@ -100,7 +103,7 @@ class DashboardController extends Controller
             ->values();
 
         $topCategoriesSum = $topCategories->sum('total');
-        $topCategories = $topCategories->map(fn($c) => [
+        $topCategories = $topCategories->map(fn ($c) => [
             ...$c,
             'percent' => $topCategoriesSum > 0 ? round(($c['total'] / $topCategoriesSum) * 100) : 0,
         ]);
@@ -111,15 +114,15 @@ class DashboardController extends Controller
             ->limit(10)
             ->get()
             ->map(function ($n) {
-                $createdAt = $n->created_at instanceof \Carbon\Carbon
+                $createdAt = $n->created_at instanceof Carbon
                     ? $n->created_at
-                    : \Carbon\Carbon::parse($n->created_at);
+                    : Carbon::parse($n->created_at);
 
                 return [
-                    'id'         => $n->id,
-                    'type'       => $n->type,
-                    'title'      => $n->title,
-                    'body'       => $n->body,
+                    'id' => $n->id,
+                    'type' => $n->type,
+                    'title' => $n->title,
+                    'body' => $n->body,
                     'created_at' => $createdAt->diffForHumans(),
                 ];
             });
@@ -127,12 +130,12 @@ class DashboardController extends Controller
         $upcomingBills = $user->bills()
             ->where('is_active', true)
             ->get()
-            ->filter(fn($b) => $b->days_until_due !== null && $b->days_until_due >= 0 && $b->days_until_due <= 7)
+            ->filter(fn ($b) => $b->days_until_due !== null && $b->days_until_due >= 0 && $b->days_until_due <= 7)
             ->values()
-            ->map(fn($b) => [
-                'name'           => $b->name,
-                'emoji'          => $b->emoji,
-                'amount'         => (float) $b->amount,
+            ->map(fn ($b) => [
+                'name' => $b->name,
+                'emoji' => $b->emoji,
+                'amount' => (float) $b->amount,
                 'days_until_due' => $b->days_until_due,
             ]);
 
@@ -140,53 +143,53 @@ class DashboardController extends Controller
             ->where('status', 'active')
             ->limit(5)
             ->get()
-            ->map(fn($g) => [
-                'id'      => $g->id,
-                'name'    => $g->name,
+            ->map(fn ($g) => [
+                'id' => $g->id,
+                'name' => $g->name,
                 'percent' => $g->target_amount > 0
                     ? min(100, round(($g->current_amount / $g->target_amount) * 100))
                     : 0,
             ]);
 
         return Inertia::render('App/Dashboard', [
-            'wallets'              => $wallets,
-            'totalBalance'         => $totalBalance,
-            'totalIncome'          => $totalIncome,
-            'totalExpense'         => $totalExpense,
-            'totalSaving'          => $totalSaving,
-            'todayExpense'         => $todayExpense,
-            'todayExpenseCount'    => $todayExpenseCount,
-            'todayIncomeAmount'    => $todayIncomeAmount,
-            'todayIncomeCount'     => $todayIncomeCount,
-            'prevMonthLabel'       => $prevMonthLabel,
-            'incomeTrendUp'        => $incomeTrendUp,
-            'expenseTrendUp'       => $expenseTrendUp,
-            'budgetHarian'         => $budgetHarian,
-            'budgetPct'            => $budgetPct,
-            'totalBudget'          => $totalBudget,
-            'recentTransactions'   => $recentTransactions,
-            'topCategories'        => $topCategories,
-            'notifications'        => $notifications,
-            'upcomingBills'        => $upcomingBills,
-            'goals'                => $goals,
-            'period'               => now()->translatedFormat('F Y'),
-            'today'                => now()->translatedFormat('l, d F Y'),
-            'greeting'             => $this->getGreeting(),
-            'hide_balance'         => $user->profile?->hide_balance ?? false,
+            'wallets' => $wallets,
+            'totalBalance' => $totalBalance,
+            'totalIncome' => $totalIncome,
+            'totalExpense' => $totalExpense,
+            'totalSaving' => $totalSaving,
+            'todayExpense' => $todayExpense,
+            'todayExpenseCount' => $todayExpenseCount,
+            'todayIncomeAmount' => $todayIncomeAmount,
+            'todayIncomeCount' => $todayIncomeCount,
+            'prevMonthLabel' => $prevMonthLabel,
+            'incomeTrendUp' => $incomeTrendUp,
+            'expenseTrendUp' => $expenseTrendUp,
+            'budgetHarian' => $budgetHarian,
+            'budgetPct' => $budgetPct,
+            'totalBudget' => $totalBudget,
+            'recentTransactions' => $recentTransactions,
+            'topCategories' => $topCategories,
+            'notifications' => $notifications,
+            'upcomingBills' => $upcomingBills,
+            'goals' => $goals,
+            'period' => now()->translatedFormat('F Y'),
+            'today' => now()->translatedFormat('l, d F Y'),
+            'greeting' => $this->getGreeting(),
+            'hide_balance' => $user->profile?->hide_balance ?? false,
         ]);
     }
 
     public function toggleHideBalance(Request $request)
     {
-        $user    = $request->user();
+        $user = $request->user();
         $profile = $user->profile;
 
         if ($profile) {
-            $profile->update(['hide_balance' => !$profile->hide_balance]);
+            $profile->update(['hide_balance' => ! $profile->hide_balance]);
             $hidden = $profile->hide_balance;
         } else {
-            \App\Models\UserProfile::create([
-                'user_id'      => $user->id,
+            UserProfile::create([
+                'user_id' => $user->id,
                 'hide_balance' => true,
             ]);
             $hidden = true;
@@ -198,9 +201,16 @@ class DashboardController extends Controller
     private function getGreeting(): string
     {
         $hour = now('Asia/Jakarta')->hour;
-        if ($hour < 12) return 'Selamat Pagi';
-        if ($hour < 15) return 'Selamat Siang';
-        if ($hour < 18) return 'Selamat Sore';
+        if ($hour < 12) {
+            return 'Selamat Pagi';
+        }
+        if ($hour < 15) {
+            return 'Selamat Siang';
+        }
+        if ($hour < 18) {
+            return 'Selamat Sore';
+        }
+
         return 'Selamat Malam';
     }
 }

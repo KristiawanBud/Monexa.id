@@ -20,8 +20,8 @@ class TransactionEditLog extends Model
     protected function casts(): array
     {
         return [
-            'old_data'  => 'array',
-            'new_data'  => 'array',
+            'old_data' => 'array',
+            'new_data' => 'array',
             'edited_at' => 'datetime',
         ];
     }

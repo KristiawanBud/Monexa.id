@@ -18,7 +18,7 @@ class UserAsset extends Model
     protected function casts(): array
     {
         return [
-            'value'     => 'decimal:2',
+            'value' => 'decimal:2',
             'is_active' => 'boolean',
         ];
     }
@@ -30,12 +30,12 @@ class UserAsset extends Model
 
     public function getTypeLabelAttribute(): string
     {
-        return match($this->type) {
-            'liquid'     => 'Aset Likuid',
-            'fixed'      => 'Aset Tetap',
+        return match ($this->type) {
+            'liquid' => 'Aset Likuid',
+            'fixed' => 'Aset Tetap',
             'investment' => 'Investasi',
             'receivable' => 'Piutang',
-            default      => $this->type,
+            default => $this->type,
         };
     }
 }

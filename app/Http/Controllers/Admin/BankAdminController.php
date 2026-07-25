@@ -12,16 +12,16 @@ class BankAdminController extends Controller
     public function index()
     {
         return inertia('Admin/Banks', [
-            'banks' => Bank::orderBy('sort_order')->get()->map(fn($b) => [
-                'id'           => $b->id,
-                'name'         => $b->name,
-                'short_name'   => $b->short_name,
-                'type'         => $b->type,
-                'logo_color'   => $b->logo_color,
+            'banks' => Bank::orderBy('sort_order')->get()->map(fn ($b) => [
+                'id' => $b->id,
+                'name' => $b->name,
+                'short_name' => $b->short_name,
+                'type' => $b->type,
+                'logo_color' => $b->logo_color,
                 'logo_initial' => $b->logo_initial,
-                'logo_url'     => $b->logo_url ? Storage::url($b->logo_url) : null,
-                'is_active'    => $b->is_active,
-                'sort_order'   => $b->sort_order,
+                'logo_url' => $b->logo_url ? Storage::url($b->logo_url) : null,
+                'is_active' => $b->is_active,
+                'sort_order' => $b->sort_order,
             ]),
         ]);
     }
@@ -35,13 +35,13 @@ class BankAdminController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name'         => 'required|string|max:80',
-            'short_name'   => 'required|string|max:20',
-            'type'         => 'required|in:conventional,syariah,digital,other',
-            'logo_color'   => 'nullable|string|max:7',
+            'name' => 'required|string|max:80',
+            'short_name' => 'required|string|max:20',
+            'type' => 'required|in:conventional,syariah,digital,other',
+            'logo_color' => 'nullable|string|max:7',
             'logo_initial' => 'nullable|string|max:2',
-            'logo_file'    => 'nullable|image|max:512', // max 512KB
-            'sort_order'   => 'nullable|integer',
+            'logo_file' => 'nullable|image|max:512', // max 512KB
+            'sort_order' => 'nullable|integer',
         ]);
 
         $logoPath = null;
@@ -50,13 +50,13 @@ class BankAdminController extends Controller
         }
 
         Bank::create([
-            'name'         => $request->name,
-            'short_name'   => $request->short_name,
-            'type'         => $request->type,
-            'logo_color'   => $request->logo_color ?? '#2563EB',
+            'name' => $request->name,
+            'short_name' => $request->short_name,
+            'type' => $request->type,
+            'logo_color' => $request->logo_color ?? '#2563EB',
             'logo_initial' => $request->logo_initial ?? strtoupper(substr($request->short_name, 0, 2)),
-            'logo_url'     => $logoPath,
-            'sort_order'   => $request->sort_order ?? 99,
+            'logo_url' => $logoPath,
+            'sort_order' => $request->sort_order ?? 99,
         ]);
 
         return back()->with('success', 'Bank berhasil ditambahkan!');
@@ -68,14 +68,14 @@ class BankAdminController extends Controller
     public function update(Request $request, Bank $bank)
     {
         $request->validate([
-            'name'         => 'required|string|max:80',
-            'short_name'   => 'required|string|max:20',
-            'type'         => 'required|in:conventional,syariah,digital,other',
-            'logo_color'   => 'nullable|string|max:7',
+            'name' => 'required|string|max:80',
+            'short_name' => 'required|string|max:20',
+            'type' => 'required|in:conventional,syariah,digital,other',
+            'logo_color' => 'nullable|string|max:7',
             'logo_initial' => 'nullable|string|max:2',
-            'logo_file'    => 'nullable|image|max:512',
-            'is_active'    => 'boolean',
-            'sort_order'   => 'nullable|integer',
+            'logo_file' => 'nullable|image|max:512',
+            'is_active' => 'boolean',
+            'sort_order' => 'nullable|integer',
         ]);
 
         $data = $request->only('name', 'short_name', 'type', 'logo_color', 'logo_initial', 'is_active', 'sort_order');
