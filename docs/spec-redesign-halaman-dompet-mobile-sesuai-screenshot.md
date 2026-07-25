@@ -1427,3 +1427,158 @@ proses review PR #1)
   payload diff yang dikirim ke reviewer dan mengirim ulang request review.
 - Tidak ada perubahan ke kode PHP/Vue dari revisi ini — sesuai batasan peranku (Project Manager AI),
   spec ini murni memecah catatan reviewer jadi todo, bukan mengeksekusinya.
+
+## 18. Lanjutan — Review PR #1 dengan Prompt Reviewer yang Sudah Diperbaiki (arahan CEO lanjutan, 2026-07-25)
+
+Arahan lanjutan: CEO AI, task "Lanjutkan review PR #1"
+(`https://github.com/KristiawanBud/Monexa.id/pull/1`). Catatan CEO: *"Bug pada prompt Reviewer
+(instruksi dobel yang membuat Gemini tidak melihat diff kode) sudah diperbaiki."* Ini **elaborasi
+§14–§17**, sama persis tujuannya (jalankan/verifikasi pipeline review PR #1) — bukan kontrak API/DB
+baru. §2–§5 tetap tuntas dan sudah diimplementasikan; §14.2 (draft opsional "set default dompet")
+tetap tidak dieksekusi tanpa arahan CEO terpisah.
+
+### 18.0 Temuan repo penting untuk elaborasi ini (dicek ulang saat menulis spec ini, 2026-07-25)
+
+- **Ini pengulangan ke-4**: §14.3 (2026-07-21) dan §17 (2026-07-25) sudah dua kali mencatat catatan
+  reviewer yang identik ("diff kosong/terduplikasi dengan file konteks"), dan §16 (2026-07-25) sudah
+  mencatat klaim CEO sebelumnya bahwa "bug diff kosong sudah diperbaiki" — yang ternyata **belum**
+  benar-benar teratasi di pipeline berjalan (dibuktikan catatan reviewer §17 muncul lagi setelah
+  klaim itu). Arahan kali ini menyebut **root cause spesifik yang baru** (instruksi dobel di prompt
+  Reviewer, bukan lagi "diff kosong" secara umum) — ini detail baru yang belum eksplisit ada di
+  §14–§17, jadi dicatat sebagai temuan baru, bukan diasumsikan otomatis identik dengan siklus
+  sebelumnya. Tapi karena polanya sudah berulang 3x dengan klaim "sudah diperbaiki" yang tidak
+  terverifikasi dari sisi kode/branch (kode branch ini tidak pernah jadi sumber masalah — dikonfirmasi
+  ulang di bawah), rekomendasi eksplisit untuk eksekutor: **verifikasi hasil run kali ini sebelum
+  melanjutkan ke Revisi berikutnya** (lihat §18.1 "Verifikasi perbaikan"), jangan langsung percaya
+  klaim "sudah diperbaiki" tanpa bukti keluaran.
+- File `docs/agents/reviewer-ai.md` (dibaca ulang saat menulis spec ini) **tidak berisi instruksi
+  dobel/duplikat** secara internal — strukturnya 7 bagian linear (proyek → stack → pipeline → tugas
+  reviewer → data yang diterima → format jawaban → alur revisi), tanpa instruksi yang terulang.
+  Konsisten dengan dugaan §14.3/§17.0: kemungkinan besar "instruksi dobel" yang dimaksud CEO ada di
+  **cara orkestrator (n8n) menyusun prompt final** (mis. isi file ini digabung dua kali, atau
+  bercampur dengan instruksi lain di step yang sama) — bukan di isi file `reviewer-ai.md` itu sendiri.
+  Ini di luar repo kode Monexa, jadi tidak ada perubahan file yang bisa/perlu dilakukan Project
+  Manager AI atau Backend/Frontend AI untuk "bug prompt" ini.
+- Konfirmasi ulang: `git diff main...HEAD --stat` di branch ini **tidak kosong** (17 file berubah,
+  file kode aktual sama seperti tercatat di §14.3/§17.0). Tidak ada perubahan pada temuan ini sejak
+  §17.
+- **Working tree branch ini punya 1 file terhapus yang belum di-commit**: `storage/athena-refs/
+  monexa-1784234498463.jpg` (file referensi desain §0) berstatus deleted (`git status --short`).
+  Ini **bukan** perubahan yang dibuat dari sesi penulisan spec ini — dicatat sebagai temuan untuk
+  eksekutor yang menjalankan review: kalau file ini memang terhapus di commit HEAD PR #1 juga
+  (bukan cuma di working tree lokal tempat spec ini ditulis), itu perlu diklarifikasi sebelum
+  approve, karena §0 menjadikan file ini sebagai referensi visual utama redesign. Project Manager AI
+  **tidak memulihkan/menghapus file ini** — di luar kewenangan (§ batasan file spec).
+- Tidak ada tooling code coverage terpasang (`xdebug`/`pcov` tidak ada di daftar ekstensi PHP aktif,
+  `phpunit.xml` tidak punya konfigurasi `coverage`) — item CEO "laporkan ... perubahan coverage"
+  **tidak bisa dipenuhi sebagai angka coverage otomatis** di environment ini. Padanan yang bisa
+  dilaporkan: jumlah test baru yang ditambahkan vs sebelumnya (baseline §14.0: `tests/Feature/`
+  kosong, `tests/Unit/` cuma `ExampleTest.php`) sebagai proxy kasar, dicatat eksplisit sebagai
+  "coverage tooling tidak tersedia, dilaporkan sebagai jumlah test baru" supaya reviewer tidak
+  mengira ada angka % coverage yang sebenarnya tidak dihasilkan.
+- "Concurrency" dan "logging" (poin baru dari arahan CEO kali ini, belum eksplisit di §14–§17):
+  - Concurrency: area paling relevan adalah query union §4 (`TransactionController`/
+    `TransactionFeedService`) dan penulisan saldo di `WalletController::transfer` — cek apakah ada
+    race condition potensial (dua request transfer bersamaan dari dompet yang sama bisa membuat
+    saldo negatif tak terduga kalau tidak ada locking/transaction DB). Ini murni item verifikasi
+    untuk reviewer, bukan kontrak API baru.
+  - Logging: cek apakah perubahan di §2–§5 menambah/mengubah log (`Log::` calls) untuk aksi
+    sensitif (transfer, hapus dompet) — kalau ada log baru, pastikan tidak mencatat data sensitif
+    (nominal boleh, tapi jangan token/credential) sesuai prinsip umum logging aman.
+
+### 18.1 Todo Teknis (breakdown pelaksanaan)
+
+Catatan lingkup: sesuai batasan peranku (Project Manager AI), bagian ini murni **memecah** arahan CEO
+jadi todo konkret per eksekutor. Aku tidak mengeksekusi apa pun di bawah ini (tidak menjalankan
+`git diff`/lint/test, tidak memanggil Gemini, tidak posting komentar/label ke PR, tidak
+approve/set status check).
+
+**Jalankan ulang pipeline dengan prompt yang sudah diperbaiki (eksekutor: orkestrator Athena AI Dev /
+CEO AI / DevOps)**
+- [ ] Ambil HEAD commit terbaru di branch `feature/redesign-halaman-dompet-mobile-sesuai-screenshot`
+  (`git fetch origin && git log -1 --format=%H origin/feature/redesign-halaman-dompet-mobile-sesuai-screenshot`),
+  **abaikan** hasil run/keluaran reviewer dari §14.3/§17 (terpengaruh bug prompt lama).
+- [ ] Susun ulang prompt Reviewer memakai `docs/agents/reviewer-ai.md` (versi sudah diperbaiki, tanpa
+  instruksi dobel per §18.0) + payload diff mentah (`git diff main...HEAD`, bukan ringkasan) + hasil
+  pipeline (lihat langkah berikut) + link PR — sesuai format §5 `reviewer-ai.md`.
+  Pastikan setiap langkah penilaian di bawah **mereferensikan file/baris spesifik dari diff**, bukan
+  parafrasa umum — ini yang dipakai untuk memverifikasi bug sudah benar-benar teratasi (§18.1
+  "Verifikasi perbaikan" di bawah).
+
+**Analisis diff (eksekutor: Gemini/reviewer, hasil diteruskan oleh CEO AI/DevOps/human)**
+- [ ] Correctness & potensi bug/edge case: rujuk kontrak §2–§5 sebagai acuan "seharusnya seperti apa",
+  bandingkan terhadap implementasi aktual di diff — termasuk kasus filter `type=transfer` +
+  `category_id` terisi (§2, harus diabaikan bukan error), union pagination §4.
+- [ ] Keamanan: multi-tenant scoping (`user_id`/kepemilikan wallet) di `TransactionController`,
+  `TransactionFeedService`, `DompetFilterRequest`, `WalletController` — rujuk §14.3/§16.1 langkah 4.
+- [ ] Kinerja: query union §4 (index yang dipakai, N+1 potensial di mapping response), rujuk §14.1
+  "Performa".
+- [ ] Error handling: skenario `WalletController::destroy` 3 kasus (§14.1), state `hasError`/
+  `ErrorState.vue` di frontend.
+- [ ] Concurrency & logging: rujuk temuan baru §18.0 (race condition transfer saldo, log aksi
+  sensitif) — item verifikasi baru yang belum eksplisit di §14–§17.
+- [ ] i18n: **N/A secara literal** — tidak ada framework i18n, aplikasi single-language id-ID (§10.0/
+  §13.0), dilaporkan sebagai "N/A, bukan regresi baru" bukan "belum dikerjakan".
+- [ ] Dampak ke API/DB: konfirmasi **tidak ada** endpoint/kolom baru di luar §2–§5 (rujuk §18.2 di
+  bawah) — kalau diff ternyata mengandung migration/endpoint yang tidak dikontrakkan spec ini,
+  laporkan sebagai temuan penyimpangan-dari-spec, bukan didiamkan.
+
+**Static analysis, lint, type check, test, coverage (eksekutor: CEO AI/DevOps/human, atau Backend/
+Frontend AI bila diminta run)**
+- [ ] `vendor/bin/pint --test` (lint/format PHP), `vendor/bin/phpstan analyse` (static analysis,
+  larastan), `npm run build` (padanan type-check JS — repo bukan TypeScript, §16.0), `vendor/bin/phpunit`
+  (unit/integration test) — rujuk §16.1 langkah 3, tidak berubah.
+- [ ] Coverage: **tidak ada tooling coverage terpasang** (§18.0) — laporkan sebagai jumlah test baru
+  ditambahkan vs baseline kosong (§14.0), eksplisit catat "coverage % tidak tersedia di environment
+  ini", jangan melaporkan angka yang tidak benar-benar dihasilkan tool.
+
+**Komentar inline & usulan perbaikan (eksekutor: Gemini/reviewer via `gh api .../pulls/1/comments`
+atau `gh pr review 1 --comment`, butuh auth)**
+- [ ] Untuk tiap temuan blocking/non-blocking dari analisis diff di atas, posting komentar inline pada
+  hunk terkait (path relatif dari root repo + nomor baris) berikut cuplikan kode usulan perbaikan —
+  rujuk §16.1 langkah 5.
+
+**Ringkasan review (eksekutor: Gemini/reviewer, diteruskan CEO AI/DevOps/human)**
+- [ ] Ikhtisar perubahan (rujuk §2–§5), daftar isu blocking vs non-blocking (definisi blocker: §14.1
+  "Kriteria penerimaan"), risiko utama (multi-tenant §4, concurrency transfer §18.0, state filter
+  multi-select), rekomendasi pengujian manual (rujuk checklist §14.1/§15.1 langkah 4–5).
+
+**Verifikasi perbaikan bug prompt (eksekutor: CEO AI/DevOps/human — WAJIB sebelum lanjut ke
+approve/request-changes)**
+- [ ] Konfirmasi eksplisit di keluaran reviewer bahwa **referensi file/baris spesifik dari diff
+  aktual muncul** (mis. kutipan baris kode dari `TransactionController.php`, bukan cuma nama file
+  generik atau kalimat dari `docs/agents/reviewer-ai.md`) — ini bukti bahwa model benar-benar
+  mengonsumsi diff, bukan cuma konteks proyek (§18.0 "pengulangan ke-4").
+- [ ] Kalau keluaran reviewer **masih** tidak mereferensikan file/baris spesifik (gejala sama seperti
+  §14.3/§17): **jangan** catat ulang breakdown todo yang identik untuk ke-5 kalinya — eskalasi
+  sebagai insiden infrastruktur ke Dion (owner) langsung, sesuai rekomendasi §17.1 poin terakhir yang
+  belum pernah dieksekusi.
+
+**Keputusan akhir (eksekutor: CEO AI/DevOps/human — reviewer berwenang, di luar kewenangan Project
+Manager AI)**
+- [ ] Kalau semua lulus (pipeline hijau + tidak ada temuan blocking + verifikasi konsumsi diff di atas
+  terpenuhi): approve PR #1 (`gh pr review 1 --approve`) dan set status check sukses (rujuk §16.1
+  langkah 7 soal label `Approved (AI)` vs review state native GitHub — tidak ada automerge di repo
+  ini, §16.0).
+- [ ] Kalau tidak lulus: request changes (`gh pr review 1 --request-changes`) dengan **daftar aksi
+  jelas** per temuan (file, baris, langkah reproduksi, rujukan bagian spec yang dilanggar) — rujuk
+  §16.1 langkah 7.
+
+**Publikasi hasil (eksekutor: CEO AI/DevOps/human, via `gh pr comment 1` — butuh auth, §16.0/§18.0)**
+- [ ] Publikasikan ringkasan + keputusan ke thread PR #1, lampirkan artefak (log validasi diff, output
+  lint/test/coverage-proxy, laporan lengkap Gemini) — rujuk struktur arsip artefak §16.1 langkah 8.
+
+### 18.2 Kontrak API
+**Tidak ada endpoint/tabel/kolom baru.** Sama seperti §14.2/§15.2/§16.2/§17.2 — task ini murni
+menjalankan ulang pipeline review/QA PR #1 dengan prompt Reviewer yang sudah diperbaiki. Seluruh
+kontrak teknis fitur redesign Dompet mobile tuntas di §2–§5 dan sudah diimplementasikan. Catatan
+"set default dompet" di §14.2 tetap berlaku (di luar scope, draft opsional tersedia di sana, tidak
+dieksekusi tanpa arahan CEO terpisah).
+
+### 18.3 Batasan
+- Tidak ada migration baru, tidak ada perubahan kode PHP/Vue dari elaborasi ini — sesuai batasan
+  peranku (Project Manager AI).
+- Tidak ada branch baru — semua tetap di `feature/redesign-halaman-dompet-mobile-sesuai-screenshot`.
+- File `storage/athena-refs/monexa-1784234498463.jpg` yang terhapus di working tree (§18.0) **tidak
+  dipulihkan dari spec ini** — itu keputusan file management, bukan kontrak API/DB, di luar
+  kewenangan Project Manager AI.
