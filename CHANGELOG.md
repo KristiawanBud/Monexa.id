@@ -2,6 +2,13 @@
 
 Semua perubahan penting pada Monexa dicatat di sini.
 
+## 2026-07-25 — Lanjutkan Proses Approval PR #1
+
+Proses approval PR #1 (redesign halaman Dompet mobile) dilanjutkan lagi, dengan verifikasi ulang
+`git diff main...HEAD` terhadap README dan CHANGELOG yang sudah ada. Tidak ada perubahan fitur
+atau API baru dari langkah ini — kedua index database yang sempat ditambahkan sudah tercatat di
+entry sebelumnya, jadi README tidak perlu diubah.
+
 ## 2026-07-25 — Lanjutkan Proses Approval PR #1 via Telegram
 
 Proses approval PR #1 (redesign halaman Dompet mobile) dilanjutkan lewat Telegram, termasuk
