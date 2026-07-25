@@ -2,6 +2,15 @@
 
 Semua perubahan penting pada Monexa dicatat di sini.
 
+## 2026-07-25 — Lanjutkan Review PR #1: Verifikasi Ulang Diff Terkini
+
+Review PR #1 (redesign halaman Dompet mobile) dilanjutkan dengan verifikasi ulang terhadap
+`git diff main...HEAD` versi terkini, termasuk perubahan kartu ringkasan saldo yang sekarang bisa
+diklik untuk memfilter kelompok saldo (`cash`/`bank`/`ewallet`), skeleton loading saat data belum
+siap, dan penyesuaian kecil agar filter format lama tetap kompatibel. Tidak ditemukan API atau
+fitur baru yang perlu ditambahkan ke README — kartu saldo yang bisa diklik hanya memakai parameter
+`balance_group` yang sudah terdokumentasi sebelumnya, jadi kontrak teknis tetap sama.
+
 ## 2026-07-25 — Lanjutkan Review PR #1: Verifikasi Dokumentasi vs Implementasi
 
 Sebagai bagian dari proses review PR #1 (redesign halaman Dompet mobile) yang masih berjalan,
