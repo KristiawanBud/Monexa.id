@@ -2,6 +2,15 @@
 
 Semua perubahan penting pada Monexa dicatat di sini.
 
+## 2026-07-25 — Lanjutkan Review PR #1: Verifikasi Dokumentasi vs Implementasi
+
+Sebagai bagian dari proses review PR #1 (redesign halaman Dompet mobile) yang masih berjalan,
+`README.md` dan `CHANGELOG.md` diperiksa ulang terhadap `git diff main...HEAD` untuk memastikan
+dokumentasi sudah sesuai dengan implementasi terkini di branch (filter multi-select tipe/kategori,
+filter kelompok saldo, transaksi transfer ikut muncul di list, index database tambahan). Tidak
+ditemukan API atau fitur baru yang belum terdokumentasi — README tidak perlu diubah lagi, kontrak
+teknis tetap seperti yang sudah tercatat di entry-entry sebelumnya.
+
 ## 2026-07-25 — Lanjutkan Review PR #1: Retry/Fallback AI Review & Arsip Artefak
 
 Proses review PR #1 (redesign halaman Dompet mobile) diperjelas dengan mekanisme retry (maksimal
