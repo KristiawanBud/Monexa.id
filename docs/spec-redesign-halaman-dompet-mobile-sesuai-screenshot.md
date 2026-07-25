@@ -1348,3 +1348,82 @@ fitur redesign Dompet mobile tuntas di §2–§5 dan sudah diimplementasikan. Re
 fallback model/strategi diff, dan penyimpanan artefak run adalah **konfigurasi orkestrator pipeline
 (n8n)**, bukan kode aplikasi Monexa — tidak ada perubahan yang perlu dieksekusi Database/Backend/
 Frontend AI dari elaborasi ini. Catatan "set default dompet" di §14.2 tetap berlaku (di luar scope).
+
+## 17. Revisi #1 — Perbaikan Pipeline Review PR #1 (catatan reviewer, 2026-07-25)
+
+Reviewer meminta revisi untuk task "Lanjutkan review PR #1" dengan catatan berikut (verbatim):
+
+> Git diff yang diterima kosong atau hanya berisi duplikasi dari file dokumen konteks (Konteks untuk
+> Reviewer AI), bukan perubahan kode aktual dari PR #1. Harap jalankan kembali pipeline dengan
+> menyertakan output `git diff main...HEAD` yang benar agar review teknis dapat dilakukan.
+
+Sesuai batasan peranku (Project Manager AI), aku tidak mengeksekusi apa pun dari breakdown di bawah
+(tidak menjalankan `git diff`, tidak mengirim payload ke reviewer, tidak membuka/mengomentari PR) —
+murni memecah catatan reviewer jadi todo konkret untuk eksekutor yang berwenang. Fokus bagian ini
+cuma pada apa yang disebut reviewer (payload diff yang salah kirim ke pipeline review); tidak ada
+perubahan ke §0–§16 lain yang tidak disinggung catatan ini.
+
+### 17.0 Temuan verifikasi cepat (dicek dari environment penulisan spec ini, 2026-07-25)
+- `git diff main...HEAD --stat` di branch ini **tidak kosong**: 17 file berubah, 2215 insertion(+)/188
+  deletion(-), termasuk file kode aktual (`app/Http/Controllers/App/TransactionController.php`,
+  `app/Http/Requests/App/DompetFilterRequest.php`, `app/Services/TransactionFeedService.php`,
+  `resources/js/Pages/App/Dompet.vue`, `resources/js/Components/Wallet/BalanceSummaryCard.vue`,
+  `resources/js/Components/Wallet/FilterDrawer.vue`,
+  `resources/js/Components/Wallet/TransactionItem.vue`,
+  `resources/js/Components/Wallet/CategoryChipFilter.vue`, `resources/js/Layouts/AppLayout.vue`, dua
+  migration index, `resources/views/app.blade.php`, `package-lock.json`,
+  `storage/athena-refs/monexa-1784234498463.jpg`, serta dokumentasi (`CHANGELOG.md`, `README.md`,
+  spec ini).
+- Ini catatan reviewer **berulang** — masalah yang sama persis (payload diff kosong/terduplikasi
+  dengan file konteks) sudah pernah dicatat & ditindaklanjuti di §14.3 ("Revisi #1", 2026-07-21), dan
+  elaborasi lanjutan sudah dibuat di §15 (jalankan ulang pipeline) dan §16 (retry/fallback AI review +
+  arsip artefak). Karena reviewer melaporkan gejala yang sama lagi pada 2026-07-25, akar masalahnya
+  kemungkinan besar **bukan** di sisi kode/branch (branch ini tetap punya diff valid & tidak kosong
+  setiap kali dicek), melainkan pada **langkah pengiriman payload ke reviewer di orkestrator**
+  (kemungkinan: step yang menyusun request review menempelkan isi file "Konteks untuk Reviewer AI"
+  alih-alih (atau bersamaan dengan) output mentah `git diff main...HEAD` yang sebenarnya) — konsisten
+  dengan dugaan akar masalah yang sudah dicatat di §14.3.
+- Karena masalah ini sudah berulang ≥2x dengan gejala identik meski breakdown perbaikan sudah
+  dikontrakkan sebelumnya (§14.3, §15, §16), ini indikasi kuat bahwa perbaikan di level orkestrator
+  **belum benar-benar diterapkan di pipeline berjalan** (bukan sekadar didokumentasikan di spec) —
+  perlu eskalasi eksplisit ke CEO AI/DevOps/human untuk memverifikasi konfigurasi n8n/pipeline yang
+  sebenarnya, bukan cuma mengulang breakdown todo yang sama.
+
+### 17.1 Todo Teknis (breakdown pelaksanaan, eksekutor: CEO AI / DevOps / human yang menjalankan
+proses review PR #1)
+- [ ] Jalankan ulang `git diff main...HEAD` (tiga titik, target `main` eksplisit) di branch
+  `feature/redesign-halaman-dompet-mobile-sesuai-screenshot` yang sudah di-`fetch`/sinkron ke `origin`,
+  pastikan output **bukan kosong** dan **bukan** isi file "Konteks untuk Reviewer AI" sebelum payload
+  disusun.
+- [ ] Audit step di orkestrator (n8n) yang menyusun payload request review: pastikan field yang
+  membawa diff benar-benar berisi **output mentah** command di atas, bukan variabel yang secara tidak
+  sengaja diisi ulang dengan isi file konteks/system prompt/spec — ini kemungkinan akar masalah
+  berulang (§17.0), jadi perbaikan harus di **konfigurasi pipeline**, bukan sekadar dicatat lagi di
+  spec ini.
+- [ ] Sertakan `git diff main...HEAD --stat` sebagai ringkasan cakupan file di awal payload, terpisah
+  dari isi diff penuh, supaya reviewer bisa langsung memverifikasi payload tidak kosong sebelum
+  membaca detail.
+- [ ] Setelah payload diff benar-benar terkirim (bukan kosong/terduplikasi), minta reviewer
+  melanjutkan dua pengecekan yang sudah dikontrakkan di §14.3: keamanan multi-tenant pada query union
+  `transactions`+`wallet_transfers` (§4), dan kesesuaian implementasi terhadap kontrak §2–§9.
+  Jalankan juga langkah pipeline lint/test/security-dependency-scan yang sudah dikontrakkan di §16.1
+  (Langkah 3) sebelum diff dikirim, supaya laporan ke reviewer lengkap dalam satu putaran.
+- [ ] Kalau setelah payload diperbaiki reviewer masih melaporkan gejala yang sama (diff kosong/
+  terduplikasi) untuk ke-3 kalinya, **jangan** ulangi breakdown todo yang identik lagi di spec ini —
+  eskalasi sebagai insiden infrastruktur/pipeline ke Dion (owner) via channel yang sudah dipakai
+  (rujuk `docs/agents/reviewer-ai.md` §3 "Human approval"), karena akar masalahnya kemungkinan
+  konfigurasi orkestrator yang belum diperbaiki, bukan sesuatu yang bisa diselesaikan lewat elaborasi
+  spec berulang.
+- [ ] Kalau setelah diff terkirim benar reviewer menemukan bagian yang kurang sesuai spec (bukan lagi
+  soal payload diff), catat sebagai **Revisi #2** di bagian bawah spec ini (bukan menimpa/menghapus
+  §17 ini), sesuai pola revisi yang sudah dipakai di file ini (§14.3).
+
+### 17.2 Batasan
+- **Tidak ada perubahan kontrak API/DB** dari catatan revisi ini — §2–§5, §14.2, §15.2, §16.2 tetap
+  berlaku sepenuhnya, tidak ada endpoint/tabel/kolom baru.
+- **Jangan** membuat migration baru.
+- **Jangan** membuat branch baru — perbaikan cukup di branch
+  `feature/redesign-halaman-dompet-mobile-sesuai-screenshot` yang sudah ada, cukup dengan memperbaiki
+  payload diff yang dikirim ke reviewer dan mengirim ulang request review.
+- Tidak ada perubahan ke kode PHP/Vue dari revisi ini — sesuai batasan peranku (Project Manager AI),
+  spec ini murni memecah catatan reviewer jadi todo, bukan mengeksekusinya.
