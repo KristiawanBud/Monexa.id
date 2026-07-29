@@ -68,7 +68,12 @@
   --shadow-focus: 0 0 0 4px rgba(37, 99, 235, 0.12);
 }
 
-html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  background: var(--background);
+  overscroll-behavior-y: none;
+}
 
 body {
   font-family: 'Inter', sans-serif;
@@ -76,6 +81,7 @@ body {
   color: var(--text-primary);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
 }
 
 /* ── Tipografi (Plus Jakarta Sans untuk heading) ── */

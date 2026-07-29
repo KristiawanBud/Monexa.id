@@ -340,6 +340,7 @@ const goTo = (action) => {
   padding: 16px 20px 40px;
   z-index: 401;
   box-shadow: 0 -10px 40px rgba(15,23,42,.15);
+  overscroll-behavior: contain;
 }
 .qa-handle { width: 40px; height: 4px; background: var(--border); border-radius: 99px; margin: 0 auto 20px; }
 .qa-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; margin-bottom: 18px; text-align: center; }

@@ -332,7 +332,7 @@ const formatShort = (n) => {
 
 .hero-card {
   position: relative; z-index: 2; overflow: hidden;
-  background: white; border-radius: 22px 22px 0 0;
+  background: var(--surface); border-radius: 22px 22px 0 0;
   padding: 22px 20px 20px;
   box-shadow: 0 -4px 20px rgba(0,0,0,.04);
 }

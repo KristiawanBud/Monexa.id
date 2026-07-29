@@ -3,6 +3,7 @@ import { ref } from 'vue'
 const VALID_THEMES = ['blue', 'green', 'dark']
 const STORAGE_KEY = 'monexa_theme'
 const DEFAULT_THEME = 'blue'
+const THEME_BACKGROUND = { blue: '#F8FAFC', green: '#F7FCF9', dark: '#0F172A' }
 
 const currentTheme = ref(DEFAULT_THEME)
 
@@ -25,6 +26,7 @@ function applyTheme(name) {
   currentTheme.value = theme
   document.documentElement.dataset.theme = theme
   document.documentElement.classList.toggle('dark', theme === 'dark')
+  document.getElementById('theme-color-meta')?.setAttribute('content', THEME_BACKGROUND[theme])
 }
 
 function setTheme(name) {
